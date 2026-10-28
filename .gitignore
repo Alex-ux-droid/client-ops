@@ -147,3 +147,12 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# client-ops
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.next/
+next-env.d.ts
