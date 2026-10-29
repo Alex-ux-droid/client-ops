@@ -1,0 +1,5 @@
+# Адреси системи. Сервер синхронізує цей файл сам (deploy/update.sh).
+2-28-114-219.sslip.io, ops.alexbentsa.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:3000
+}

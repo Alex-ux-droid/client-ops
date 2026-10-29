@@ -11,6 +11,13 @@ cd "$APP_DIR"
 
 run() { sudo -u "$APP_USER" -H bash -c "cd $APP_DIR && $*"; }
 
+# Адреси (Caddy) — з репозиторію, перевіряється щоразу
+if [ -f deploy/Caddyfile ] && ! cmp -s deploy/Caddyfile /etc/caddy/Caddyfile; then
+  cp deploy/Caddyfile /etc/caddy/Caddyfile
+  # Помилка Caddy не повинна блокувати оновлення коду: старий конфіг лишається робочим
+  if systemctl reload caddy; then echo "$(date -Is) Caddy: оновлено адреси"; else echo "$(date -Is) Caddy: не вдалось перезавантажити конфіг"; fi
+fi
+
 run "git fetch -q origin main"
 old=$(run "git rev-parse HEAD")
 new=$(run "git rev-parse origin/main")
