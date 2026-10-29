@@ -517,3 +517,19 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
 .mail-dir { flex: none; width: 1.75rem; height: 1.75rem; display: grid; place-items: center; border-radius: 50%; font-size: 0.875rem; }
 .mail-dir.in { background: var(--accent-soft); color: var(--link); }
 .mail-dir.out { background: rgba(255, 255, 255, 0.05); color: var(--muted); }
+
+/* Форма нового клієнта: на всю ширину, щоб влазила в один екран */
+.quick-form { display: grid; gap: 0 1rem; padding: 1.25rem 1.5rem; grid-template-columns: 1fr; }
+.quick-form .field { margin-bottom: 0.875rem; }
+.qf-submit { display: flex; align-items: flex-end; justify-content: flex-end; padding-bottom: 0.875rem; }
+.qf-submit button { width: 100%; padding-top: 0.875rem; padding-bottom: 0.875rem; }
+@media (min-width: 900px) {
+  .quick-form { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); }
+  .quick-form input { min-width: 0; }
+  .quick-form .choice { margin: 0; }
+  .qf-wide2 { grid-column: span 2; }
+}
+@media (min-width: 900px) and (max-width: 1199px) {
+  .quick-form { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); padding: 1.125rem; }
+  .quick-form .choice small { display: none; }
+}
