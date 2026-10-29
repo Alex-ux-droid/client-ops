@@ -2,6 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import Link from "next/link";
 import AgentAccess from "./AgentAccess";
 import InstallApp from "@/components/InstallApp";
+import { disconnectVoiceAction, saveVoiceChoiceAction, saveVoiceKeyAction } from "./actions";
+import { listVoices, VOICE_MODELS, voiceConfig, type Voice } from "@/lib/voice";
 import { disconnectGoogleAction, saveAgentAction, saveMemoryAction, saveGeneralAction, saveGoogleClientAction, saveKeyAction, testKeyAction } from "./actions";
 import { headers } from "next/headers";
 import { googleStatus } from "@/lib/google";
@@ -56,7 +58,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {sp.msg && <div className="card" style={{ marginBottom: 16, borderColor: sp.ok ? "var(--ok)" : "var(--bad)" }}>{sp.msg}</div>}
       {tab === "general" && <General />}
       {tab === "agent" && <div className="stack" style={{ gap: "1rem" }}><Agent /><AgentMemory /></div>}
-      {tab === "connectors" && (conn === "google" ? <GoogleTab /> : <Connectors />)}
+      {tab === "connectors" && (conn === "google" ? <GoogleTab /> : conn === "voice" ? <VoiceTab /> : <Connectors />)}
       {tab === "catalog" && <Catalog />}
       {tab === "access" && <Access />}
       {tab === "system" && <System />}
@@ -143,12 +145,19 @@ function AgentMemory() {
 // Зовнішні сервіси, до яких підключається система і помічник
 function Connectors() {
   const g = googleStatus();
+  const v = voiceConfig();
   const list = [
     {
       id: "google", name: "Google", ico: "G", desc: "Gmail і Google Диск: пошта клієнтів у картці, папки клієнтів на Диску.",
       agent: "Помічник: шукає і читає листи, створює папки.",
       status: g.connected ? "ok" : g.configured ? "warn" : "off",
       label: g.connected ? "Підключено" : g.configured ? "Не підключено" : "Не налаштовано",
+    },
+    {
+      id: "voice", name: "ElevenLabs", ico: "🎙", desc: "Голос помічника і точне розпізнавання того, що ти диктуєш.",
+      agent: "Помічник: говорить відповіді вголос, чує диктування без пропусків.",
+      status: v.configured && v.voiceId ? "ok" : v.configured ? "warn" : "off",
+      label: v.configured && v.voiceId ? "Підключено" : v.configured ? "Обери голос" : "Не налаштовано",
     },
     {
       id: "meta", name: "Meta Ads", ico: "f", desc: "Автоімпорт цифр реклами з Facebook / Instagram.",
@@ -173,6 +182,64 @@ function Connectors() {
           ? <div key={c.id} className="card stack conn soon">{body}</div>
           : <Link key={c.id} href={`/settings?tab=connectors&c=${c.id}`} className="card stack conn">{body}</Link>;
       })}
+    </div>
+  );
+}
+
+async function VoiceTab() {
+  const v = voiceConfig();
+  let voices: Voice[] = [];
+  let err = "";
+  if (v.configured) {
+    try { voices = await listVoices(); } catch (e) { err = e instanceof Error ? e.message : "Помилка"; }
+  }
+  return (
+    <div className="stack" style={{ gap: "1rem" }}>
+      <Link href="/settings?tab=connectors" className="h-link">← Конектори</Link>
+      <div className="grid2">
+        <div className="card stack">
+          <h2>ElevenLabs: голос і розпізнавання</h2>
+          {v.configured ? (
+            <div className="inline" style={{ flexWrap: "wrap" }}>
+              <span className="tag ok">Ключ збережено</span>
+              {v.voiceName && <span className="tag accent">Голос: {v.voiceName}</span>}
+              <form action={disconnectVoiceAction}><button className="ghost small">Відключити</button></form>
+            </div>
+          ) : (
+            <div className="mono">Зареєструйся на elevenlabs.io (тариф Starter), у профілі → API Keys створи ключ і встав сюди.</div>
+          )}
+          <form action={saveVoiceKeyAction} className="inline">
+            <input name="key" type="password" placeholder={v.configured ? "новий ключ, якщо треба замінити" : "sk_…"} autoComplete="off" aria-label="Ключ ElevenLabs" />
+            <button className="ghost">Зберегти</button>
+          </form>
+          <div className="mono" style={{ color: "var(--dim)" }}>Ключ лежить тільки в .env на сервері. Розпізнавання і голос списують кредити твого тарифу ElevenLabs.</div>
+        </div>
+        {v.configured && (
+          <form action={saveVoiceChoiceAction} className="card stack">
+            <h2>Голос</h2>
+            {err && <div className="mono" style={{ color: "var(--bad)" }}>{err}</div>}
+            <div className="field">
+              <label htmlFor="voice">Яким голосом говорить помічник</label>
+              <select id="voice" name="voice" defaultValue={v.voiceId ? `${v.voiceId}|${v.voiceName}` : ""}>
+                <option value="">— обери —</option>
+                {voices.map((x) => (
+                  <option key={x.voice_id} value={`${x.voice_id}|${x.name}`}>
+                    {x.name}{x.labels ? ` · ${Object.values(x.labels).filter(Boolean).slice(0, 3).join(", ")}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="model">Модель</label>
+              <select id="model" name="model" defaultValue={v.model}>
+                {VOICE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+              </select>
+            </div>
+            <div className="mono" style={{ color: "var(--dim)" }}>Голоси з бібліотеки ElevenLabs говорять українською через багатомовну модель. Свій голос можна додати в їхньому кабінеті — він з'явиться в цьому списку.</div>
+            <div><button>Зберегти голос</button></div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { useDictation } from "./useDictation";
 import { useSpeech } from "./useSpeech";
 
 const PRESETS_GLOBAL = [
+  "Розкажи підсумок дня — послухаю",
   "Що в мене сьогодні і що горить?",
   "Хто з клієнтів потребує уваги?",
   "Новий клієнт: ",
@@ -80,6 +81,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
 
   async function send(message: string) {
     if (!message.trim() || busy) return;
+    if (voice.enabled) voice.prime();
     dict.stop();
     setErr("");
     setBusy(true);
@@ -155,16 +157,17 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(text); } }}
-            placeholder={dict.listening ? "Слухаю… говори" : "Напиши, встав переписку або натисни мікрофон"}
+            placeholder={dict.transcribing ? "Розпізнаю…" : dict.listening ? "Слухаю… говори, потім натисни стоп" : "Напиши, встав переписку або натисни мікрофон"}
             aria-label="Повідомлення"
           />
-          <button type="button" className={`mic ${dict.listening ? "on" : ""}`} onClick={dict.toggle} disabled={busy}
+          <button type="button" className={`mic ${dict.listening ? "on" : ""} ${dict.transcribing ? "wait" : ""}`} onClick={() => { if (voice.enabled) voice.prime(); dict.toggle(); }} disabled={busy || dict.transcribing}
             title={dict.supported ? (dict.listening ? "Зупинити" : "Диктувати") : "Браузер не підтримує диктування — використай мікрофон на клавіатурі"}
             aria-label="Диктувати">
-            {dict.listening ? <span className="mic-stop" /> : <Icon name="mic" size={22} />}
+            {dict.transcribing ? <span className="mic-wait" /> : dict.listening ? <span className="mic-stop" /> : <Icon name="mic" size={22} />}
           </button>
         </div>
         {dict.error && <div className="mono" style={{ color: "var(--warn)" }}>{dict.error}</div>}
+        {voice.error && <div className="mono" style={{ color: "var(--warn)" }}>Голос: {voice.error}</div>}
         {voice.enabled && !voice.hasUk && <div className="mono" style={{ color: "var(--dim)" }}>У цьому браузері нема українського голосу — читатиме з акцентом. На iPhone: Параметри → Універсальний доступ → Усний контент → Голоси → Українська.</div>}
         <div className="inline" style={{ justifyContent: "space-between" }}>
           <div className="inline">
@@ -176,7 +179,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
               </button>
             )}
           </div>
-          <button disabled={busy || !text.trim()}>{busy ? "…" : "Надіслати"}</button>
+          <button disabled={busy || dict.transcribing || !text.trim()}>{busy ? "…" : "Надіслати"}</button>
         </div>
       </form>
     </div>
