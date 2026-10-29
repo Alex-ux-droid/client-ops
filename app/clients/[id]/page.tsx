@@ -7,27 +7,18 @@ import { STAGE_LABEL, STATUS_LABEL, STATUS_TAG } from "@/lib/labels";
 import { cpl, listAdStats } from "@/lib/repo/ads";
 import { clientFlags, getClientRow } from "@/lib/repo/clients";
 import { listPayments } from "@/lib/repo/payments";
-import { clientPlaybooks } from "@/lib/repo/playbooks";
 import { listServices } from "@/lib/repo/services";
-import { listTasks } from "@/lib/repo/tasks";
 import { SERVICES, type ServiceType } from "@/lib/services";
 import FilesTab from "./FilesTab";
 import MailTab from "./MailTab";
 import TelegramTab from "./TelegramTab";
-import { chatsForClient } from "@/lib/repo/telegram";
 import { googleConnected } from "@/lib/google";
 import Overview from "./Overview";
+import SetupTab from "./SetupTab";
+import { clientSections } from "./sections";
 import ServiceTab from "./ServiceTab";
 import { HistoryTab, MaterialsTab, MoneyTab, PlaybooksTab, TasksTab } from "./tabs";
 
-const BASE_TABS = [
-  { k: "tasks", label: "Задачі" },
-  { k: "history", label: "Історія" },
-  { k: "money", label: "Гроші" },
-  { k: "files", label: "Файли" },
-  { k: "materials", label: "Матеріали" },
-  { k: "playbooks", label: "Плейбуки" },
-];
 
 export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; new?: string; m?: string; err?: string; sent?: string; edit?: string; saved?: string }> }) {
   const id = Number((await params).id);
@@ -35,30 +26,21 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   if (!c) notFound();
   const sp = await searchParams;
   const services = listServices(id);
-  // Вкладки: огляд, потім по одній на кожну увімкнену послугу, потім загальні
   const google = googleConnected();
-  const tabs = [
-    { k: "overview", label: "Огляд" },
-    ...services.map((s) => ({ k: s.type, label: SERVICES[s.type as ServiceType].short })),
-    ...(chatsForClient(id).length ? [{ k: "telegram", label: "Telegram" }] : []),
-    ...(google ? [{ k: "mail", label: "Пошта" }] : []),
-    ...BASE_TABS,
-  ];
+  const tabs = clientSections(c, services);
   const tab = tabs.find((t) => t.k === sp.tab)?.k ?? "overview";
   const service = services.find((s) => s.type === tab);
   const flags = clientFlags(c);
-  const tasks = listTasks("all", id);
   const payments = listPayments({ clientId: id });
   const paidTotal = payments.filter((p) => p.paid_at).reduce((s, p) => s + p.amount, 0);
   const lastAd = listAdStats(id).at(-1);
-  const badge: Record<string, number> = { tasks: tasks.length, playbooks: clientPlaybooks(id).length };
   const subtitle = [c.owner_name, c.niche, c.city].filter(Boolean).join(" · ");
 
   return (
     <>
       {/* Повна шапка з цифрами — тільки на «Огляді»; на інших вкладках компактний рядок, решта місця під роботу */}
       {tab !== "overview" ? (
-        <div className="hub-compact">
+        <div className="hub-compact phone-only">
           <Link href={`/clients/${id}`} className="hub-compact-name" scroll={false}>
             <span className="kicker">Клієнт</span>
             <b>{c.name}</b>
@@ -91,24 +73,21 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
           <button className="ghost small">Ок</button>
         </form>
 
-        <div className="kpis">
-          <div className="kpi"><div className="n">{c.fee_monthly ? money(c.fee_monthly) : "—"}</div><div className="l">Платить / міс</div></div>
-          <div className="kpi"><div className="n" style={{ color: c.debt ? "var(--bad)" : undefined }}>{money(c.debt)}</div><div className="l">Борг</div></div>
-          <div className="kpi"><div className="n">{lastAd && cpl(lastAd) !== null ? money(cpl(lastAd)) : "—"}</div><div className="l">Ціна ліда (остання)</div></div>
-          <div className="kpi"><div className="n">{c.last_work ? fmtDate(c.last_work) : "—"}</div><div className="l">Остання робота</div></div>
-        </div>
       </div>
       )}
 
-      <nav className="subnav hub-tabs">
+      {/* На телефоні — вкладки; на компʼютері навігація в лівій панелі (ClientNav) */}
+      <nav className="subnav hub-tabs phone-only">
         {tabs.map((t) => (
-          <Link key={t.k} href={`/clients/${id}?tab=${t.k}`} className={`${t.k === tab ? "on" : ""} ${services.some((s) => s.type === t.k) ? "svc" : ""}`} scroll={false}>
-            {t.label}{badge[t.k] ? <b>{badge[t.k]}</b> : null}
+          <Link key={t.k} href={`/clients/${id}?tab=${t.k}`} className={`${t.k === tab ? "on" : ""} ${t.svc ? "svc" : ""}`} scroll={false}>
+            {t.k === "setup" ? "Налаштування" : t.svc ? SERVICES[t.k as ServiceType].short : t.label}{t.badge ? <b>{t.badge}</b> : null}
           </Link>
         ))}
       </nav>
+      {tab !== "overview" && <h1 className="desk-only section-title">{tabs.find((t) => t.k === tab)?.label}</h1>}
 
-      {tab === "overview" && <Overview c={c} services={services} paidTotal={paidTotal} isNew={sp.new === "1"} />}
+      {tab === "overview" && <Overview c={c} services={services} paidTotal={paidTotal} isNew={sp.new === "1"} cplLast={lastAd ? cpl(lastAd) : null} />}
+      {tab === "setup" && <SetupTab c={c} services={services} />}
       {service && <ServiceTab clientId={id} service={service} edit={sp.edit === "1"} saved={sp.saved === "1"} />}
       {tab === "tasks" && <TasksTab id={id} />}
       {tab === "history" && <HistoryTab id={id} />}
