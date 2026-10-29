@@ -608,3 +608,6 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
   .lab-option .form-grid { grid-template-columns: 1fr 1fr; gap: 0 0.625rem; }
   .lab-option .form-grid .wide, .lab-option .form-grid .field:has(textarea) { grid-column: 1 / -1; }
 }
+/* Бокове меню гортається, але без смуги прокрутки */
+.side { scrollbar-width: none; }
+.side::-webkit-scrollbar { display: none; }
