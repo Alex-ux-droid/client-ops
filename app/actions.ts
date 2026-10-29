@@ -16,6 +16,8 @@ import {
 } from "@/lib/repo/playbooks";
 import { createTask, createTasksBulk, deleteTask, getTask, setTaskStatus, type TaskStatus } from "@/lib/repo/tasks";
 import { addWork, deleteWork } from "@/lib/repo/worklog";
+import { addTool, deleteFolder, deleteTool, enableService, findToolByName, removeService, saveFolder, updateService } from "@/lib/repo/services";
+import { FOLDER_KINDS, isServiceType, serviceDef, TOOL_CATEGORY_LABEL, type ToolCategory } from "@/lib/services";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const num = (fd: FormData, k: string) => {
@@ -34,19 +36,104 @@ const done = (to?: string) => {
 // ---- Клієнти
 export async function saveClient(fd: FormData) {
   await requireUser();
-  const raw = Object.fromEntries(CLIENT_FIELDS.map((f) => [f, str(fd, f)]));
-  const input = {
-    ...raw,
-    status: CLIENT_STATUSES.includes(raw.status as ClientStatus) ? raw.status : "active",
-    stage: LEAD_STAGES.includes(raw.stage as LeadStage) ? raw.stage : "new",
-    fee_monthly: amount(fd, "fee_monthly"),
-    pay_day: Math.min(Math.max(Math.round(amount(fd, "pay_day")) || 1, 1), 31),
-  } as unknown as ClientInput;
+  // Тільки поля, які є у формі — щоб не затерти те, чого форма не показує
+  const raw = Object.fromEntries(CLIENT_FIELDS.filter((f) => fd.has(f)).map((f) => [f, str(fd, f)])) as Record<string, string>;
+  const input: Record<string, unknown> = { ...raw };
+  if ("status" in raw) input.status = CLIENT_STATUSES.includes(raw.status as ClientStatus) ? raw.status : "active";
+  if ("stage" in raw) input.stage = LEAD_STAGES.includes(raw.stage as LeadStage) ? raw.stage : "new";
+  if ("fee_monthly" in raw) input.fee_monthly = amount(fd, "fee_monthly");
+  if ("pay_day" in raw) input.pay_day = Math.min(Math.max(Math.round(amount(fd, "pay_day")) || 1, 1), 31);
+  if ("locations" in raw) input.locations = Math.max(Math.round(amount(fd, "locations")) || 1, 1);
+  if ("work_since" in raw) input.work_since = /^\d{4}-\d{2}-\d{2}$/.test(raw.work_since) ? raw.work_since : null;
   if (!input.name) throw new Error("Потрібна назва клієнта");
   const id = num(fd, "id");
-  const clientId = id ?? createClient(input);
-  if (id) updateClient(id, input);
-  done(`/clients/${clientId}`);
+  if (!id) throw new Error("Нового клієнта створюй через «Новий клієнт»");
+  updateClient(id, input as Partial<ClientInput>);
+  done(`/clients/${id}`);
+}
+
+// Новий клієнт: мінімум полів, далі — повна картка
+export async function createClientQuick(fd: FormData) {
+  await requireUser();
+  const name = str(fd, "name");
+  if (!name) throw new Error("Потрібна назва");
+  const status = str(fd, "status") === "active" ? "active" : "lead";
+  const base = Object.fromEntries(CLIENT_FIELDS.map((f) => [f, ""])) as unknown as ClientInput;
+  const id = createClient({
+    ...base, name, owner_name: str(fd, "owner_name"), niche: str(fd, "niche"), phone: str(fd, "phone"),
+    status, stage: "new", fee_monthly: 0, pay_day: 1, locations: Math.max(Math.round(amount(fd, "locations")) || 1, 1),
+    work_since: status === "active" ? (str(fd, "work_since") || ymd()) : null,
+  } as ClientInput);
+  done(`/clients/${id}?new=1`);
+}
+
+// ---- Послуги клієнта
+export async function enableServiceAction(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "client_id");
+  const type = str(fd, "type");
+  if (!id || !isServiceType(type)) return;
+  enableService(id, type, ymd());
+  done(`/clients/${id}?tab=${type}`);
+}
+
+export async function saveServiceAction(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "client_id");
+  const type = str(fd, "type");
+  if (!id || !isServiceType(type)) return;
+  const def = serviceDef(type);
+  const details = Object.fromEntries(def.fields.map((f) => [f.key, str(fd, `d_${f.key}`)]));
+  let toolId = num(fd, "tool_id");
+  const newTool = str(fd, "new_tool");
+  if (def.tool && newTool) toolId = findToolByName(def.tool.category, newTool)?.id ?? addTool(def.tool.category, newTool);
+  const st = str(fd, "status");
+  updateService(id, type, {
+    status: st === "paused" || st === "done" ? st : "active",
+    started_at: str(fd, "started_at") || null,
+    tool_id: def.tool ? toolId : null,
+    details,
+    notes: str(fd, "notes"),
+  });
+  done();
+}
+
+export async function removeServiceAction(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "client_id");
+  const type = str(fd, "type");
+  if (id && isServiceType(type)) removeService(id, type);
+  done(id ? `/clients/${id}` : undefined);
+}
+
+// ---- Папки клієнта
+export async function saveFoldersAction(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "client_id");
+  if (!id) return;
+  updateClient(id, { drive_url: str(fd, "drive_url") });
+  for (const f of FOLDER_KINDS) {
+    const url = str(fd, `f_${f.kind}`);
+    if (url) saveFolder(id, f.kind, f.title, url);
+    else deleteFolder(id, f.kind);
+  }
+  done();
+}
+
+// ---- Довідники
+export async function addToolAction(fd: FormData) {
+  await requireUser();
+  const category = str(fd, "category");
+  const name = str(fd, "name");
+  if (name && category in TOOL_CATEGORY_LABEL) addTool(category as ToolCategory, name, str(fd, "url"));
+  done();
+}
+
+export async function deleteToolAction(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "id");
+  if (id) deleteTool(id);
+  done();
 }
 
 // Рух по воронці: stage для лідів, won -> active, lost -> archived

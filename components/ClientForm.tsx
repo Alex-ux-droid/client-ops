@@ -3,12 +3,12 @@ import { currency } from "@/lib/config";
 import { STAGE_LABEL, STATUS_LABEL } from "@/lib/labels";
 import { CLIENT_STATUSES, LEAD_STAGES, type Client } from "@/lib/repo/clients";
 
-const F = ({ name, label, c, area, wide, placeholder, mode }: { name: keyof Client; label: string; c?: Partial<Client>; area?: boolean; wide?: boolean; placeholder?: string; mode?: "decimal" | "numeric" }) => (
+const F = ({ name, label, c, area, wide, placeholder, mode, type }: { name: keyof Client; label: string; c?: Partial<Client>; area?: boolean; wide?: boolean; placeholder?: string; mode?: "decimal" | "numeric"; type?: string }) => (
   <div className={`field ${wide ? "wide" : ""}`}>
     <label htmlFor={name}>{label}</label>
     {area
       ? <textarea id={name} name={name} defaultValue={String(c?.[name] ?? "")} placeholder={placeholder} />
-      : <input id={name} name={name} defaultValue={c?.[name] === 0 ? "" : String(c?.[name] ?? "")} placeholder={placeholder} inputMode={mode} />}
+      : <input id={name} name={name} type={type} defaultValue={c?.[name] === 0 ? "" : String(c?.[name] ?? "")} placeholder={placeholder} inputMode={mode} />}
   </div>
 );
 
@@ -19,7 +19,7 @@ export default function ClientForm({ c }: { c?: Partial<Client> }) {
       <h2 style={{ marginBottom: 12 }}>Основне</h2>
       <div className="form-grid">
         <F name="name" label="Назва" c={c} />
-        <F name="niche" label="Ніша" c={c} />
+        <F name="niche" label="Вид бізнесу" c={c} />
         <div className="field">
           <label htmlFor="status">Статус</label>
           <select id="status" name="status" defaultValue={c?.status ?? "active"}>
@@ -32,8 +32,18 @@ export default function ClientForm({ c }: { c?: Partial<Client> }) {
             {LEAD_STAGES.map((s) => <option key={s} value={s}>{STAGE_LABEL[s]}</option>)}
           </select>
         </div>
-        <F name="offer" label="Що продаємо" c={c} placeholder="Реклама, сайт, CRM…" />
         <F name="next_step" label="Наступний крок" c={c} placeholder="Відправити КП до п'ятниці" />
+        <F name="work_since" label="Ведемо з (дата)" c={c} type="date" />
+      </div>
+
+      <h2 style={{ margin: "12px 0" }}>Бізнес і контакти</h2>
+      <div className="form-grid">
+        <F name="owner_name" label="Власник" c={c} />
+        <F name="locations" label="Скільки бізнесів / точок" c={c} mode="numeric" />
+        <F name="city" label="Місто" c={c} />
+        <F name="phone" label="Телефон" c={c} />
+        <F name="email" label="Пошта" c={c} />
+        <F name="drive_url" label="Папка на Google Диску" c={c} placeholder="https://drive.google.com/…" />
       </div>
 
       <h2 style={{ margin: "12px 0" }}>Гроші</h2>
@@ -48,7 +58,7 @@ export default function ClientForm({ c }: { c?: Partial<Client> }) {
         <F name="needs" label="Що хоче клієнт" c={c} area wide />
         <F name="client_vision" label="Бачення клієнта" c={c} area />
         <F name="my_vision" label="Моє бачення" c={c} area />
-        <F name="contacts" label="Контакти" c={c} area />
+        <F name="contacts" label="Інші контакти (менеджер, адмін…)" c={c} area />
         <F name="notes" label="Нотатки" c={c} area />
         <F name="bitwarden_ref" label="Bitwarden (тільки назва запису)" c={c} placeholder="Bitwarden: Клієнт / FB" wide />
       </div>
