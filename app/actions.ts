@@ -105,7 +105,7 @@ export async function saveServiceAction(fd: FormData) {
     details,
     notes: str(fd, "notes"),
   });
-  done();
+  done(`/clients/${id}?tab=${type}&saved=1`);
 }
 
 export async function removeServiceAction(fd: FormData) {

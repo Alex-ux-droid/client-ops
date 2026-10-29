@@ -31,7 +31,7 @@ const BASE_TABS = [
   { k: "assistant", label: "Помічник" },
 ];
 
-export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; new?: string; m?: string; err?: string; sent?: string }> }) {
+export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; new?: string; m?: string; err?: string; sent?: string; edit?: string; saved?: string }> }) {
   const id = Number((await params).id);
   const c = getClientRow(id);
   if (!c) notFound();
@@ -99,7 +99,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       </nav>
 
       {tab === "overview" && <Overview c={c} services={services} paidTotal={paidTotal} isNew={sp.new === "1"} />}
-      {service && <ServiceTab clientId={id} service={service} />}
+      {service && <ServiceTab clientId={id} service={service} edit={sp.edit === "1"} saved={sp.saved === "1"} />}
       {tab === "assistant" && <Chat clientId={id} page="картка клієнта" initial={listChat(id)} hasKey={!!getApiKey()} />}
       {tab === "tasks" && <TasksTab id={id} />}
       {tab === "history" && <HistoryTab id={id} />}
