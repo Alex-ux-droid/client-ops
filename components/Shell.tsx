@@ -7,6 +7,8 @@ import Chat from "./Chat";
 import CommandPalette from "./CommandPalette";
 import QuickAdd from "./QuickAdd";
 
+import type { AssistantSeed } from "./assistant";
+import Bot from "./Bot";
 import Drafts from "./Drafts";
 import Icon from "./Icon";
 import { SECTIONS, type Counts } from "./nav";
@@ -25,6 +27,24 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
   const [search, setSearch] = useState(false);
   const [add, setAdd] = useState(false);
   const [dock, setDock] = useState(false);
+  const [seed, setSeed] = useState<AssistantSeed | null>(null);
+  const [botState, setBotState] = useState<"idle" | "listening" | "thinking">("idle");
+  const [mobile, setMobile] = useState(false);
+
+  // Інші сторінки відкривають помічника подією (напр. Лабораторія: «розгорни ідею»)
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const d = (e as CustomEvent<{ text: string; send: boolean }>).detail ?? { text: "", send: false };
+      setDock(true);
+      if (d.text) setSeed({ text: d.text, send: d.send, n: Date.now() });
+    };
+    window.addEventListener("assistant:open", onOpen);
+    const mq = window.matchMedia("(max-width: 899px)");
+    const onMq = () => setMobile(mq.matches);
+    onMq();
+    mq.addEventListener("change", onMq);
+    return () => { window.removeEventListener("assistant:open", onOpen); mq.removeEventListener("change", onMq); };
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -36,8 +56,8 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Поки відкрите вікно (помічник, пошук, додати) — сторінка ззаду не гортається
-  const locked = dock || search || add;
+  // Поки відкрите вікно — сторінка ззаду не гортається (помічник на компʼютері — віконце поверх, сторінкою можна користуватись)
+  const locked = (dock && mobile) || search || add;
   useEffect(() => {
     document.documentElement.classList.toggle("locked", locked);
     return () => document.documentElement.classList.remove("locked");
@@ -95,22 +115,30 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
 
       <nav className="tabbar">
         {MOBILE.slice(0, 2).map((h) => <TabLink key={h} item={all.find((i) => i.href === h)!} on={on(h)} counts={counts} />)}
-        <button className="fab" onClick={() => setDock(true)} aria-label="Помічник"><Icon name="mic" size={24} /></button>
+        <button className="fab bot-fab" onClick={() => setDock(true)} aria-label="Помічник"><Bot size={44} /></button>
         <TabLink item={all.find((i) => i.href === "/clients")!} on={on("/clients")} counts={counts} />
         <Link href="/menu" className={`tab ${path === "/menu" ? "on" : ""}`}><span className="ico"><Icon name="menu" size={22} /></span>Меню</Link>
       </nav>
 
+      {/* Помічник завжди на виду: робот у кутку (на телефоні — кнопка по центру знизу) */}
+      {!dock && (
+        <button className="bot-float-btn" onClick={() => setDock(true)} aria-label="Помічник" title="Помічник (Ctrl+J)">
+          <Bot size={76} />
+          <span className="bot-label">Натисни і скажи, що треба</span>
+        </button>
+      )}
       {dock && (
         <div className="overlay dock-overlay" onClick={() => setDock(false)}>
-          <aside className="dock" onClick={(e) => e.stopPropagation()}>
+          <aside className="dock" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Помічник">
             <div className="dock-head">
-              <div>
+              <Bot size={44} state={botState} />
+              <div className="grow" style={{ minWidth: 0 }}>
                 <h2>Помічник</h2>
-                <div className="mono">{dockClient ? "про цього клієнта" : pageName ? `зараз: ${pageName}` : ""}</div>
+                <div className="mono">{dockClient ? "про цього клієнта" : pageName ? `зараз: ${pageName.replace(/, сесія lab_id \d+/, "")}` : "на зв'язку"}</div>
               </div>
               <button className="icon-btn" onClick={() => setDock(false)} aria-label="Закрити"><Icon name="close" /></button>
             </div>
-            <Chat key={dockClient ?? 0} clientId={dockClient} page={pageName} compact />
+            <Chat key={dockClient ?? 0} clientId={dockClient} page={pageName} compact seed={seed} onState={setBotState} />
           </aside>
         </div>
       )}

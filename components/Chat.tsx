@@ -3,6 +3,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@/lib/repo/chat";
+import type { AssistantSeed } from "./assistant";
+import Bot from "./Bot";
+import Icon from "./Icon";
 import { useDictation } from "./useDictation";
 
 const PRESETS_GLOBAL = [
@@ -20,12 +23,14 @@ const PRESETS_CLIENT = [
 
 type Msg = Pick<ChatMessage, "role" | "content" | "actions">;
 
-export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, compact }: {
+export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, compact, seed, onState }: {
   clientId: number | null;
   page?: string;
   initial?: Msg[];
   hasKey?: boolean;
   compact?: boolean;
+  seed?: AssistantSeed | null;
+  onState?: (s: "idle" | "listening" | "thinking") => void;
 }) {
   const router = useRouter();
   const [msgs, setMsgs] = useState<Msg[]>(initial ?? []);
@@ -46,6 +51,19 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
     }).catch(() => {});
   }, [clientId, initial]);
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [msgs, busy]);
+
+  // Робот у шапці: слухає / думає
+  useEffect(() => { onState?.(busy ? "thinking" : dict.listening ? "listening" : "idle"); }, [busy, dict.listening, onState]);
+
+  // Запит від сторінки (кнопка «Розгорнути з помічником» тощо)
+  const seen = useRef(0);
+  useEffect(() => {
+    if (!seed || seed.n === seen.current) return;
+    seen.current = seed.n;
+    if (seed.send) void send(seed.text);
+    else { setText(seed.text); box.current?.focus(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed]);
 
   async function send(message: string) {
     if (!message.trim() || busy) return;
@@ -84,12 +102,13 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
       <div className="chat-log">
         {!msgs.length && (
           <div className="chat-hello">
-            <b>Говори або пиши — я все розкладу по системі.</b>
+            <b>Натисни мікрофон і скажи, що треба — я все розкладу по системі.</b>
             <span>Напр.: «Новий клієнт — автосервіс Мотор, Київ, хочуть ліди на ТО, бюджет 600 доларів, я беру 350 на місяць, завтра відправити КП».</span>
           </div>
         )}
         {msgs.map((m, i) => (
           <div key={i} className={`bubble ${m.role}`}>
+            {m.role === "assistant" && compact && <Bot size={26} className="bot-xs" />}
             <div className="bubble-text">{m.content}</div>
             {m.actions?.length > 0 && (
               <div className="meta" style={{ marginTop: 8 }}>
@@ -100,7 +119,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
             )}
           </div>
         ))}
-        {busy && <div className="bubble assistant"><div className="bubble-text typing">Думаю і вношу в базу…</div></div>}
+        {busy && <div className="bubble assistant">{compact && <Bot size={26} state="thinking" className="bot-xs" />}<div className="bubble-text typing">Думаю і вношу в базу…</div></div>}
         <div ref={end} />
       </div>
       {err && <div className="mono" style={{ color: "var(--bad)" }}>{err}</div>}
@@ -128,7 +147,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
           <button type="button" className={`mic ${dict.listening ? "on" : ""}`} onClick={dict.toggle} disabled={busy}
             title={dict.supported ? (dict.listening ? "Зупинити" : "Диктувати") : "Браузер не підтримує диктування — використай мікрофон на клавіатурі"}
             aria-label="Диктувати">
-            {dict.listening ? "■" : "🎙"}
+            {dict.listening ? <span className="mic-stop" /> : <Icon name="mic" size={22} />}
           </button>
         </div>
         {dict.error && <div className="mono" style={{ color: "var(--warn)" }}>{dict.error}</div>}

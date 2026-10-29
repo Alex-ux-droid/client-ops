@@ -22,13 +22,16 @@ const back = (id: number, hash = "") => { revalidatePath(`/lab/${id}`); redirect
 export async function createLabAction(fd: FormData) {
   await requireUser();
   const cat = str(fd, "category");
+  const brief = str(fd, "brief");
+  // Назва — з першого речення проблеми; категорію і критерії потім уточнює помічник
+  const first = brief.split(/[.!?\n]/)[0].trim();
   const id = createLab({
     client_id: int(fd, "client_id"),
-    title: str(fd, "title") || "Підбір рішення",
+    title: str(fd, "title") || (first.length > 80 ? `${first.slice(0, 77)}…` : first) || "Підбір рішення",
     category: isLabCategory(cat) ? cat : "other",
-    brief: str(fd, "brief"),
+    brief,
   });
-  redirect(`/lab/${id}`);
+  redirect(`/lab/${id}?start=1`);
 }
 
 export async function saveLabTextAction(fd: FormData) {
