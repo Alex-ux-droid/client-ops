@@ -1,0 +1,9 @@
+[Unit]
+Description=client-ops: бекап бази
+
+[Service]
+Type=oneshot
+User=clientops
+WorkingDirectory=/opt/client-ops
+EnvironmentFile=/opt/client-ops/.env
+ExecStart=/usr/bin/node scripts/backup.mjs

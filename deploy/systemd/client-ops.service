@@ -1,0 +1,20 @@
+[Unit]
+Description=client-ops
+After=network.target
+
+[Service]
+User=clientops
+WorkingDirectory=/opt/client-ops
+EnvironmentFile=/opt/client-ops/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/client-ops/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/client-ops /var/lib/client-ops
+
+[Install]
+WantedBy=multi-user.target
