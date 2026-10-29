@@ -689,3 +689,17 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
 .hub-compact-name:hover b { color: var(--link); }
 .hub-tabs { position: sticky; top: calc(3.75rem + env(safe-area-inset-top)); z-index: 5; background: var(--bg); }
 @media (min-width: 900px) { .hub-tabs { top: 0; } }
+.steps { margin: 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; color: var(--muted); line-height: 1.5; }
+.steps b { color: var(--text); }
+.tg-chat { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.75rem 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.tg-chat .inline select { min-width: 12rem; }
+/* Telegram у картці клієнта */
+.tg-head { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.tg-log { display: flex; flex-direction: column; gap: 0.375rem; }
+.tg-day { text-align: center; font-size: 0.8125rem; color: var(--dim); margin: 0.75rem 0 0.25rem; }
+.tg-msg { max-width: min(36rem, 88%); background: var(--bg-raise); border: 1px solid var(--line); border-radius: 14px 14px 14px 4px; padding: 0.5rem 0.75rem; }
+.tg-msg.me { margin-left: auto; background: rgba(61, 107, 255, 0.18); border-color: rgba(61, 107, 255, 0.35); border-radius: 14px 14px 4px 14px; }
+.tg-from { font-size: 0.8125rem; font-weight: 600; color: var(--link); margin-bottom: 0.125rem; }
+.tg-kind { font-size: 0.8125rem; color: var(--muted); }
+.tg-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.tg-time { font-size: 0.75rem; color: var(--dim); text-align: right; margin-top: 0.125rem; }

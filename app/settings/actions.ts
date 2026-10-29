@@ -1,5 +1,6 @@
 "use server";
 import Anthropic from "@anthropic-ai/sdk";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { agentConfig, saveAgentConfig, setAgentMemory } from "@/lib/agent/config";
 import { requireUser } from "@/lib/auth";
@@ -7,6 +8,8 @@ import { disconnectGoogle, saveGoogleClient } from "@/lib/google";
 import { CURRENCIES } from "@/lib/config";
 import { setSetting } from "@/lib/repo/settings";
 import { listVoices, saveVoiceChoice, saveVoiceKey } from "@/lib/voice";
+import { connectBot, disconnectBot } from "@/lib/telegram";
+import { linkChat } from "@/lib/repo/telegram";
 import { createAgentToken, getApiKey, revokeAgentToken, saveApiKey } from "@/lib/secrets";
 
 const back = (msg: string, ok = false, tab = "") => redirect(`/settings?${tab ? `tab=${tab}&` : ""}msg=${encodeURIComponent(msg)}${ok ? "&ok=1" : ""}`);
@@ -117,4 +120,39 @@ export async function disconnectVoiceAction() {
   await requireUser();
   saveVoiceKey(null);
   back("ElevenLabs відключено.", true, "connectors&c=voice");
+}
+
+// ---- Telegram
+async function origin(): Promise<string> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") || h.get("host") || "";
+  const proto = h.get("x-forwarded-proto") || (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
+export async function connectTelegramAction(fd: FormData) {
+  await requireUser();
+  const token = String(fd.get("token") ?? "").trim();
+  if (!/^\d+:[\w-]{30,}$/.test(token)) back("Токен має вигляд 123456789:AAE… — скопіюй його з @BotFather повністю.", false, "connectors&c=telegram");
+  try {
+    const me = await connectBot(token, await origin());
+    back(`Бот @${me.username} підключений. Тепер прив'яжи свій Telegram кнопкою нижче.`, true, "connectors&c=telegram");
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("NEXT_REDIRECT")) throw e;
+    back(e instanceof Error ? e.message : "Не вдалось підключити бота", false, "connectors&c=telegram");
+  }
+}
+
+export async function disconnectTelegramAction() {
+  await requireUser();
+  await disconnectBot();
+  back("Бота відключено.", true, "connectors&c=telegram");
+}
+
+export async function linkTelegramChatAction(fd: FormData) {
+  await requireUser();
+  const chatId = Number(fd.get("chat_id"));
+  const clientId = Number(fd.get("client_id")) || null;
+  if (chatId) linkChat(chatId, clientId);
+  back(clientId ? "Групу прив'язано до клієнта — нові повідомлення підуть у його картку." : "Прив'язку знято.", true, "connectors&c=telegram");
 }

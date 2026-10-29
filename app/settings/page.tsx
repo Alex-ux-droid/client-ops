@@ -2,7 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import Link from "next/link";
 import AgentAccess from "./AgentAccess";
 import InstallApp from "@/components/InstallApp";
-import { disconnectVoiceAction, saveVoiceChoiceAction, saveVoiceKeyAction } from "./actions";
+import { connectTelegramAction, disconnectTelegramAction, disconnectVoiceAction, linkTelegramChatAction, saveVoiceChoiceAction, saveVoiceKeyAction } from "./actions";
+import { ownerLinkCode, tg, tgOwner, tgToken, type BotInfo, type WebhookInfo } from "@/lib/telegram";
+import { listChats } from "@/lib/repo/telegram";
+import { listClients } from "@/lib/repo/clients";
+import { getSetting } from "@/lib/repo/settings";
 import { listVoices, VOICE_MODELS, voiceConfig, type Voice } from "@/lib/voice";
 import { disconnectGoogleAction, saveAgentAction, saveMemoryAction, saveGeneralAction, saveGoogleClientAction, saveKeyAction, testKeyAction } from "./actions";
 import { headers } from "next/headers";
@@ -58,7 +62,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {sp.msg && <div className="card" style={{ marginBottom: 16, borderColor: sp.ok ? "var(--ok)" : "var(--bad)" }}>{sp.msg}</div>}
       {tab === "general" && <General />}
       {tab === "agent" && <div className="stack" style={{ gap: "1rem" }}><Agent /><AgentMemory /></div>}
-      {tab === "connectors" && (conn === "google" ? <GoogleTab /> : conn === "voice" ? <VoiceTab /> : <Connectors />)}
+      {tab === "connectors" && (conn === "google" ? <GoogleTab /> : conn === "voice" ? <VoiceTab /> : conn === "telegram" ? <TelegramTab /> : <Connectors />)}
       {tab === "catalog" && <Catalog />}
       {tab === "access" && <Access />}
       {tab === "system" && <System />}
@@ -160,6 +164,12 @@ function Connectors() {
       label: v.configured && v.voiceId ? "Підключено" : v.configured ? "Обери голос" : "Не налаштовано",
     },
     {
+      id: "telegram", name: "Telegram", ico: "✈", desc: "Бот у групах з клієнтами мовчки збирає переписку в картку. В особистих — твій помічник.",
+      agent: "Помічник: читає переписку клієнта, відповідає тобі в Telegram, розбирає голосові.",
+      status: tgToken() && tgOwner() ? "ok" : tgToken() ? "warn" : "off",
+      label: tgToken() && tgOwner() ? "Підключено" : tgToken() ? "Прив'яжи свій Telegram" : "Не налаштовано",
+    },
+    {
       id: "meta", name: "Meta Ads", ico: "f", desc: "Автоімпорт цифр реклами з Facebook / Instagram.",
       agent: "", status: "soon", label: "Скоро",
     },
@@ -182,6 +192,90 @@ function Connectors() {
           ? <div key={c.id} className="card stack conn soon">{body}</div>
           : <Link key={c.id} href={`/settings?tab=connectors&c=${c.id}`} className="card stack conn">{body}</Link>;
       })}
+    </div>
+  );
+}
+
+async function TelegramTab() {
+  const token = tgToken();
+  let me: BotInfo | null = null;
+  let hook: WebhookInfo | null = null;
+  let err = "";
+  if (token) {
+    try { [me, hook] = await Promise.all([tg<BotInfo>("getMe"), tg<WebhookInfo>("getWebhookInfo")]); } catch (e) { err = e instanceof Error ? e.message : "Помилка"; }
+  }
+  const owner = tgOwner();
+  const chats = token ? listChats() : [];
+  const clients = listClients().filter((c) => c.status !== "archived");
+  return (
+    <div className="stack" style={{ gap: "1rem" }}>
+      <Link href="/settings?tab=connectors" className="h-link">← Конектори</Link>
+      <div className="grid2">
+        <div className="card stack">
+          <h2>Telegram-бот</h2>
+          {!token ? (
+            <>
+              <ol className="steps">
+                <li>У Telegram відкрий <b>@BotFather</b> → <b>/newbot</b> → назва (напр. «Асистент Саші») → юзернейм на <b>bot</b>.</li>
+                <li>Там же: <b>/setprivacy</b> → обери бота → <b>Disable</b>. Інакше в групах він бачить тільки команди.</li>
+                <li>Скопіюй токен і встав сюди.</li>
+              </ol>
+              <form action={connectTelegramAction} className="inline">
+                <input name="token" type="password" placeholder="123456789:AAE…" autoComplete="off" aria-label="Токен бота" />
+                <button>Підключити</button>
+              </form>
+            </>
+          ) : (
+            <>
+              {err && <div className="mono" style={{ color: "var(--bad)" }}>{err}</div>}
+              {me && (
+                <div className="inline" style={{ flexWrap: "wrap" }}>
+                  <span className="tag ok">@{me.username}</span>
+                  {me.can_read_all_group_messages
+                    ? <span className="tag ok">бачить усі повідомлення в групах</span>
+                    : <span className="tag bad">режим приватності увімкнений — /setprivacy → Disable у @BotFather, потім передодай бота в групи</span>}
+                </div>
+              )}
+              {hook && (hook.last_error_message
+                ? <div className="mono" style={{ color: "var(--warn)" }}>Остання помилка доставки: {hook.last_error_message}</div>
+                : <div className="mono" style={{ color: "var(--dim)" }}>Зв'язок з Telegram: ок{hook.pending_update_count ? `, у черзі ${hook.pending_update_count}` : ""}.</div>)}
+              {owner ? (
+                <div className="mono">Твій Telegram прив'язаний: <b>{getSetting("tg.owner_name") || owner}</b>. Пиши або надиктовуй боту в особисті — відповідатиме помічник.</div>
+              ) : me ? (
+                <div className="stack">
+                  <div className="mono">Тепер покажи боту, що ти — це ти (щоб чужі не могли ним керувати):</div>
+                  <div><a className="btn" href={`https://t.me/${me.username}?start=${ownerLinkCode()}`} target="_blank" rel="noreferrer">Прив'язати мій Telegram ↗</a></div>
+                  <div className="mono" style={{ color: "var(--dim)" }}>Відкриється чат з ботом — натисни «Start». Потім онови цю сторінку.</div>
+                </div>
+              ) : null}
+              <form action={disconnectTelegramAction}><button className="ghost small">Відключити бота</button></form>
+            </>
+          )}
+        </div>
+        {token && (
+          <div className="card stack">
+            <h2>Групи</h2>
+            <div className="mono" style={{ color: "var(--dim)" }}>Додай бота в групу з клієнтом — вона з'явиться тут. Обери клієнта, і вся переписка піде в його картку (вкладка «Telegram»). Бот у групах мовчить.</div>
+            {chats.length === 0 && <div className="empty">Поки нема груп. Додай бота в групу і напиши там будь-що.</div>}
+            {chats.map((c) => (
+              <form key={c.chat_id} action={linkTelegramChatAction} className="tg-chat">
+                <input type="hidden" name="chat_id" value={c.chat_id} />
+                <div style={{ minWidth: 0 }}>
+                  <b>{c.title}</b>
+                  <div className="mono" style={{ color: "var(--dim)" }}>{c.active ? `${c.messages} повідомл.` : "бота прибрали з групи"}</div>
+                </div>
+                <div className="inline">
+                  <select name="client_id" defaultValue={c.client_id ?? ""} aria-label="Клієнт">
+                    <option value="">— не прив'язано —</option>
+                    {clients.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </select>
+                  <button className="ghost small">Ок</button>
+                </div>
+              </form>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
