@@ -1,18 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { saveNextStep } from "@/app/actions";
-import Chat from "@/components/Chat";
 import { money } from "@/lib/config";
 import { fmtDate } from "@/lib/dates";
 import { STAGE_LABEL, STATUS_LABEL, STATUS_TAG } from "@/lib/labels";
 import { cpl, listAdStats } from "@/lib/repo/ads";
-import { listChat } from "@/lib/repo/chat";
 import { clientFlags, getClientRow } from "@/lib/repo/clients";
 import { listPayments } from "@/lib/repo/payments";
 import { clientPlaybooks } from "@/lib/repo/playbooks";
 import { listServices } from "@/lib/repo/services";
 import { listTasks } from "@/lib/repo/tasks";
-import { getApiKey } from "@/lib/secrets";
 import { SERVICES, type ServiceType } from "@/lib/services";
 import FilesTab from "./FilesTab";
 import MailTab from "./MailTab";
@@ -28,7 +25,6 @@ const BASE_TABS = [
   { k: "files", label: "Файли" },
   { k: "materials", label: "Матеріали" },
   { k: "playbooks", label: "Плейбуки" },
-  { k: "assistant", label: "Помічник" },
 ];
 
 export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; new?: string; m?: string; err?: string; sent?: string; edit?: string; saved?: string }> }) {
@@ -111,7 +107,6 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
 
       {tab === "overview" && <Overview c={c} services={services} paidTotal={paidTotal} isNew={sp.new === "1"} />}
       {service && <ServiceTab clientId={id} service={service} edit={sp.edit === "1"} saved={sp.saved === "1"} />}
-      {tab === "assistant" && <Chat clientId={id} page="картка клієнта" initial={listChat(id)} hasKey={!!getApiKey()} />}
       {tab === "tasks" && <TasksTab id={id} />}
       {tab === "history" && <HistoryTab id={id} />}
       {tab === "money" && <MoneyTab id={id} fee={c.fee_monthly} payDay={c.pay_day} paidTotal={paidTotal} />}

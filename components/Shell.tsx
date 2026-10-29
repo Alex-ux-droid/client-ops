@@ -96,7 +96,6 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
         </button>
         <div className="side-actions">
           <button className="side-add" onClick={() => setAdd(true)}><Icon name="plus" size={18} stroke={2.5} /> Додати</button>
-          <button className="side-ai ghost" onClick={() => setDock(true)} title="Помічник (Ctrl+J)"><Icon name="mic" size={18} /> Помічник</button>
         </div>
         {links}
         <form action={logout} className="side-foot"><button className="ghost small">Вийти</button></form>

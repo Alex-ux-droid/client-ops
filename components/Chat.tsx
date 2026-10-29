@@ -24,6 +24,16 @@ const PRESETS_CLIENT = [
 
 type Msg = Pick<ChatMessage, "role" | "content" | "actions">;
 
+// Що зараз на екрані: адреса, заголовок, активна вкладка і текст сторінки (без меню і самого чату)
+function screenText(): string {
+  const main = document.querySelector("main");
+  if (!main) return "";
+  const title = main.querySelector("h1")?.textContent || main.querySelector(".hub-compact-name b")?.textContent || "";
+  const tab = main.querySelector(".subnav a.on, .tabs a.on")?.textContent || "";
+  const body = (main.innerText || "").replace(/\n{2,}/g, "\n").trim().slice(0, 3200);
+  return [`Адреса: ${location.pathname}${location.search}`, title && `Заголовок: ${title}`, tab && `Вкладка: ${tab}`, body].filter(Boolean).join("\n");
+}
+
 export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, compact, seed, onState }: {
   clientId: number | null;
   page?: string;
@@ -76,7 +86,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
     setMsgs((m) => [...m, { role: "user", content: message, actions: [] }]);
     setText("");
     try {
-      const r = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message, clientId, page }) });
+      const r = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message, clientId, page, screen: compact ? screenText() : "" }) });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Помилка");
       setMsgs((m) => [...m, { role: "assistant", content: data.reply, actions: data.actions }]);

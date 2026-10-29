@@ -47,7 +47,7 @@ export default async function LabSessionPage({ params }: { params: Promise<{ id:
         {done && <form action={reopenLabAction}>{hidden}<button className="ghost">Відкрити знову</button></form>}
       </div>
 
-      <Suspense><LabAssistant id={id} empty={l.options.length === 0} /></Suspense>
+      <Suspense><LabAssistant id={id} /></Suspense>
 
       <div className="grid2 lab-top">
         <div className="card stack">
