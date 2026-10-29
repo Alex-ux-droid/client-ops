@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { disconnectGoogle, saveGoogleClient } from "@/lib/google";
 import { CURRENCIES } from "@/lib/config";
 import { setSetting } from "@/lib/repo/settings";
+import { listVoices, saveVoiceChoice, saveVoiceKey } from "@/lib/voice";
 import { createAgentToken, getApiKey, revokeAgentToken, saveApiKey } from "@/lib/secrets";
 
 const back = (msg: string, ok = false, tab = "") => redirect(`/settings?${tab ? `tab=${tab}&` : ""}msg=${encodeURIComponent(msg)}${ok ? "&ok=1" : ""}`);
@@ -87,4 +88,33 @@ export async function saveMemoryAction(fd: FormData) {
   await requireUser();
   setAgentMemory(String(fd.get("memory") ?? ""));
   back("Пам'ять помічника збережено.", true, "agent");
+}
+
+// ---- Голос (ElevenLabs)
+export async function saveVoiceKeyAction(fd: FormData) {
+  await requireUser();
+  const key = String(fd.get("key") ?? "").trim();
+  if (key.length < 20 || /\s/.test(key)) back("Ключ ElevenLabs виглядає неправильно.", false, "connectors&c=voice");
+  saveVoiceKey(key);
+  try {
+    const voices = await listVoices();
+    back(`Ключ працює: ${voices.length} голосів. Обери голос нижче.`, true, "connectors&c=voice");
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("NEXT_REDIRECT")) throw e;
+    back(`Ключ збережено, але ElevenLabs відповів помилкою: ${e instanceof Error ? e.message : ""}`, false, "connectors&c=voice");
+  }
+}
+
+export async function saveVoiceChoiceAction(fd: FormData) {
+  await requireUser();
+  const [id, ...name] = String(fd.get("voice") ?? "").split("|");
+  if (!id) back("Обери голос.", false, "connectors&c=voice");
+  saveVoiceChoice(id, name.join("|"), String(fd.get("model") ?? ""));
+  back("Голос збережено. У чаті помічника увімкни кнопку «Голос».", true, "connectors&c=voice");
+}
+
+export async function disconnectVoiceAction() {
+  await requireUser();
+  saveVoiceKey(null);
+  back("ElevenLabs відключено.", true, "connectors&c=voice");
 }
