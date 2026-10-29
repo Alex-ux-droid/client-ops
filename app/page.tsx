@@ -109,7 +109,7 @@ export default function Home() {
                 const n = d.tasks.length;
                 return (
                   <Link key={d.date} href="/tasks?view=week" className={`vb ${d.date === today ? "on" : ""}`} title={d.tasks.map((x) => x.title).join("\n") || "вільно"}>
-                    <span className="vb-n">{n || "·"}</span>
+                    <span className="vb-n">{n || ""}</span>
                     <span className="vb-col"><i style={{ height: `${(n / weekMax) * 100}%` }} /></span>
                     <span className="vb-l">{d.date === today ? "сьог" : DAYS[dt.getDay()]}</span>
                   </Link>
@@ -122,7 +122,7 @@ export default function Home() {
             <div className="vbars money">
               {byMonth.map((x, i) => (
                 <Link key={x.month} href="/money" className={`vb ${i === byMonth.length - 1 ? "on" : ""}`} title={`${monthLabel(x.month)}: ${money(x.total)}`}>
-                  <span className="vb-n">{x.total ? money(x.total) : "·"}</span>
+                  <span className="vb-n">{x.total ? money(x.total) : ""}</span>
                   <span className="vb-col"><i style={{ height: `${(x.total / monthMax) * 100}%` }} /></span>
                   <span className="vb-l">{monthLabel(x.month)}</span>
                 </Link>
@@ -150,13 +150,15 @@ export default function Home() {
               ) : clients.length ? (
                 <div className="panel-empty"><b>Усе під контролем</b><span>Нема прострочок, боргів і клієнтів без руху.</span></div>
               ) : (
-                <div className="panel-empty"><b>Клієнтів ще нема</b><Link href="/clients/new" className="btn small">+ Перший клієнт</Link></div>
+                <div className="panel-empty row-empty"><span>Клієнтів ще нема</span><Link href="/clients/new" className="btn small">+ Перший клієнт</Link></div>
               )}
             </div>
           </div>
           <div className="panel">
             <div className="panel-head"><h2>Воронка</h2><Link href="/pipeline">відкрити →</Link></div>
-            <div className="funnel">
+            {!leads.length ? (
+              <div className="panel-empty row-empty"><span>Лідів поки нема</span><Link href="/clients/new?lead=1" className="btn ghost small">+ Лід</Link></div>
+            ) : <div className="funnel">
               {LEAD_STAGES.map((s) => {
                 const items = leads.filter((l) => l.stage === s);
                 const pot = items.reduce((a, l) => a + l.fee_monthly, 0);
@@ -169,7 +171,7 @@ export default function Home() {
                   </Link>
                 );
               })}
-            </div>
+            </div>}
           </div>
         </div>
       </section>

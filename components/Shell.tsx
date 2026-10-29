@@ -88,7 +88,10 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
         <button className="side-search" onClick={() => setSearch(true)}>
           <span>⌕ Пошук</span><kbd>Ctrl K</kbd>
         </button>
-        <button className="side-add" onClick={() => setAdd(true)}>+ Додати</button>
+        <div className="side-actions">
+          <button className="side-add" onClick={() => setAdd(true)}>+ Додати</button>
+          <button className="side-ai ghost" onClick={() => setDock(true)} title="Помічник (Ctrl+J)">🎙 Помічник</button>
+        </div>
         {links}
         <form action={logout} className="side-foot"><button className="ghost small">Вийти</button></form>
       </aside>
@@ -117,9 +120,6 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
             <form action={logout}><button className="ghost small" style={{ width: "100%" }}>Вийти</button></form>
           </div>
         </div>
-      )}
-      {path !== "/assistant" && !dock && (
-        <button className="dock-btn" onClick={() => setDock(true)} title="Помічник (Ctrl+J)">🎙 Помічник</button>
       )}
       {dock && (
         <div className="overlay dock-overlay" onClick={() => setDock(false)}>
