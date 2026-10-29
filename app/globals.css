@@ -651,6 +651,7 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
 .mic.wait { opacity: 0.85; }
 .mic-wait { width: 1.125rem; height: 1.125rem; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.mic-stop.dark { background: currentColor; width: 0.625rem; height: 0.625rem; border-radius: 2px; display: inline-block; }
 .mic-stop { width: 0.875rem; height: 0.875rem; border-radius: 3px; background: #fff; }
 
 @media (min-width: 900px) {

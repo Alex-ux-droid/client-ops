@@ -6,7 +6,8 @@ const BASE = () => process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io
 
 export const VOICE_MODELS = [
   { id: "eleven_flash_v2_5", label: "Flash v2.5 — швидкий, вдвічі дешевший" },
-  { id: "eleven_multilingual_v2", label: "Multilingual v2 — найприродніший, дорожчий" },
+  { id: "eleven_multilingual_v2", label: "Multilingual v2 — природніший, краще наголоси, вдвічі дорожчий" },
+  { id: "eleven_v3", label: "v3 — найживіший, з емоціями (новіша, якщо не запрацює — повернись на v2)" },
 ] as const;
 
 export function voiceKey(): string | null {

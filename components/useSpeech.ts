@@ -61,7 +61,7 @@ export function useSpeech(onSpeaking?: (on: boolean) => void) {
   const speakEleven = useCallback(async (text: string) => {
     setError("");
     try {
-      const r = await fetch("/api/tts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: clean(text) }) });
+      const r = await fetch("/api/tts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: clean(text).slice(0, 1000) }) });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Голос не вийшов");
       const blob = await r.blob();
       if (url.current) URL.revokeObjectURL(url.current);
@@ -93,6 +93,8 @@ export function useSpeech(onSpeaking?: (on: boolean) => void) {
   }, [onSpeaking, eleven, speakEleven]);
 
   const stopSpeaking = useCallback(() => { window.speechSynthesis?.cancel(); player?.pause(); onSpeaking?.(false); }, [onSpeaking]);
+  // Закрив віконце помічника — замовкає
+  useEffect(() => () => { window.speechSynthesis?.cancel(); player?.pause(); }, []);
 
   // Вмикання — з натискання: на iPhone звук дозволено тільки після дії користувача
   const toggle = useCallback(() => {

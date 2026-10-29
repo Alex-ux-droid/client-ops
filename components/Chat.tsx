@@ -172,6 +172,11 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
         <div className="inline" style={{ justifyContent: "space-between" }}>
           <div className="inline">
             <button type="button" className="ghost small" onClick={clear} disabled={busy || !msgs.length}>Нова розмова</button>
+            {speaking && (
+              <button type="button" className="ghost small voice-btn" onClick={voice.stopSpeaking} title="Замовкнути (голос лишається увімкненим)">
+                <span className="mic-stop dark" /> Стоп
+              </button>
+            )}
             {voice.supported && (
               <button type="button" className={`ghost small voice-btn ${voice.enabled ? "on" : ""}`} onClick={voice.toggle}
                 title={voice.enabled ? "Вимкнути голос помічника" : "Помічник читатиме відповіді вголос"} aria-pressed={voice.enabled}>
