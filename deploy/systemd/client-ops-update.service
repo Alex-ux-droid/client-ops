@@ -1,0 +1,6 @@
+[Unit]
+Description=client-ops: оновлення з GitHub
+
+[Service]
+Type=oneshot
+ExecStart=/opt/client-ops/deploy/update.sh

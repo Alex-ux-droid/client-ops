@@ -156,3 +156,4 @@ data/
 *.db-shm
 .next/
 next-env.d.ts
+.npm/
