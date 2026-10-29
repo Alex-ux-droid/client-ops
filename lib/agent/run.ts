@@ -4,7 +4,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { ymd } from "../dates";
 import { addChat, listChat, type ChatAction } from "../repo/chat";
 import { getClientRow } from "../repo/clients";
-import { agentModel, getApiKey } from "../secrets";
+import { getApiKey } from "../secrets";
+import { agentConfig } from "./config";
 import { runTool, TOOLS } from "./tools";
 
 export class NoKeyError extends Error {}
@@ -46,8 +47,10 @@ export async function runAgent(clientId: number | null, userText: string): Promi
   // Історія має починатися з user
   while (history.length && history[0].role !== "user") history.shift();
   const messages: Anthropic.Beta.BetaMessageParam[] = [...history, { role: "user", content: userText }];
+  const cfg = agentConfig();
+  const stable = cfg.instructions.trim() ? `${SYSTEM}\n\nДодаткові інструкції від Саші:\n${cfg.instructions.trim()}` : SYSTEM;
   const system: Anthropic.Beta.BetaTextBlockParam[] = [
-    { type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } },
+    { type: "text", text: stable, cache_control: { type: "ephemeral" } },
     { type: "text", text: contextBlock(clientId) },
   ];
 
@@ -56,15 +59,14 @@ export async function runAgent(clientId: number | null, userText: string): Promi
 
   for (let step = 0; step < MAX_STEPS; step++) {
     const res = await client.beta.messages.create({
-      model: agentModel(),
+      model: cfg.model,
       max_tokens: 16000,
       system,
       tools: TOOLS,
       messages,
-      output_config: { effort: "medium" },
-      // Якщо модель відмовить з міркувань безпеки — API сам спробує іншу модель
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
+      output_config: { effort: cfg.effort },
+      // Якщо модель відмовить з міркувань безпеки — API сам спробує іншу (де це підтримується)
+      ...(cfg.fallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
     });
 
     if (res.stop_reason === "refusal") {

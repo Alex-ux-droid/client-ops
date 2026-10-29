@@ -11,7 +11,7 @@
 - Next.js 16 (App Router, TypeScript), server components + server actions.
 - SQLite через `better-sqlite3`, голі SQL-міграції в `db/migrations/*.sql` (без ORM).
 - PWA (manifest + service worker) — окремий етап.
-- Помічник: `@anthropic-ai/sdk` (Messages API + свій цикл інструментів, `lib/agent/`). Модель `AGENT_MODEL`, за замовчуванням `claude-sonnet-5-5`, effort `medium`, `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`). Agent SDK не взяли: він тягне рушій Claude Code з файловими/bash-інструментами, а тут потрібні тільки інструменти бази. API перевіряти в документації, не вгадувати.
+- Помічник: `@anthropic-ai/sdk` (Messages API + свій цикл інструментів, `lib/agent/`). Модель, effort і власні інструкції Саша міняє на сторінці «Налаштування» (таблиця `settings`, `lib/agent/config.ts`); за замовчуванням `claude-sonnet-5-5`, effort `medium`. `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`) тільки для моделей, що його підтримують. Agent SDK не взяли: він тягне рушій Claude Code з файловими/bash-інструментами, а тут потрібні тільки інструменти бази. API перевіряти в документації, не вгадувати.
 - Ключ API вводиться на сторінці «Налаштування» і дописується в `.env` на сервері (`lib/secrets.ts`). План Max НЕ покриває API — оплата з кредитів у platform.claude.com.
 - Історія чату між ходами зберігається тільки текстом (без thinking-блоків), всередині ходу — повний вміст відповідей без змін (append-only).
 - Стилі: один `app/globals.css` з CSS-змінними (дизайн-токени). Без UI-бібліотек.
@@ -50,6 +50,11 @@
 
 ## Дизайн
 Стиль «космос / технічна фантастика» (SpaceX-вайб): темний фон, строгі шрифти, тонкі лінії, моно-цифри. Орієнтир: сайт Саші https://alexbentsa.com/ — поки не вдалось відкрити (мережа середовища блокує), кольори/шрифти підлаштувати, коли буде доступ або скріни. Шрифти з кирилицею: Unbounded (заголовки), Inter (текст), JetBrains Mono (цифри/мітки).
+
+## Як Claude перевіряє прод
+- Ключ доступу для Claude (`AGENT_TOKEN` у `.env` на сервері) Саша генерує в «Налаштуваннях». У хмарному середовищі він лежить у змінній `CLIENT_OPS_TOKEN`, домен `2-28-114-219.sslip.io` дозволений у мережі середовища.
+- Стан: `curl -s -H "Authorization: Bearer $CLIENT_OPS_TOKEN" https://2-28-114-219.sslip.io/api/status` — коміт, міграції, кількість записів, налаштування помічника, лог оновлень, останні помилки.
+- Сторінки: Playwright з `extraHTTPHeaders: { Authorization: "Bearer ..." }`. Там РЕАЛЬНІ дані клієнтів — нічого не змінювати і не копіювати в репо без прохання Саші.
 
 ## Деплой
 Сервер Hetzner CX23 (Ubuntu/Debian), IP 2.28.114.219. Звідси по SSH не дістати — тому сервер сам тягне `main` кожні 2 хв (`client-ops-update.timer` → `deploy/update.sh`: збирає, перезапускає, при помилці збірки відкат).
