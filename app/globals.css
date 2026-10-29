@@ -108,7 +108,7 @@ h3 { font-size: 1rem; }
   font-weight: 400; font-size: 0.875rem;
 }
 .side-search kbd { font: 0.6875rem var(--font-body); color: var(--dim); border: 1px solid var(--line-strong); border-radius: 5px; padding: 0.125rem 0.375rem; }
-.side-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.375rem; margin: 0.375rem 0 1.25rem; }
+.side-actions { display: grid; grid-template-columns: 1fr; gap: 0.375rem; margin: 0.375rem 0 1.25rem; }
 .side-add, .side-ai { padding-left: 0.5rem; padding-right: 0.5rem; }
 .side-group { display: flex; flex-direction: column; gap: 0.125rem; margin-bottom: 1.25rem; }
 .side-title { font-size: 0.75rem; color: var(--dim); padding: 0.375rem 0.625rem; font-weight: 500; }
@@ -677,8 +677,6 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
   @keyframes dock-in { from { transform: translateY(0.75rem) scale(0.98); opacity: 0; } to { transform: none; opacity: 1; } }
 }
 .dock-head { align-items: center; gap: 0.75rem; }
-.lab-bot { display: flex; gap: 1rem; align-items: flex-start; margin-bottom: 1rem; border-color: rgba(61, 107, 255, 0.4); background: linear-gradient(135deg, rgba(61, 107, 255, 0.12), var(--bg-raise) 60%); }
-.lab-bot b { font-size: 1.0625rem; }
 
 /* Картка клієнта: компактна шапка на робочих вкладках, вкладки липнуть до верху */
 .hub-compact { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.5rem; }
