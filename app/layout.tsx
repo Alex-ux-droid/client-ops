@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono, Unbounded } from "next/font/google";
+import { JetBrains_Mono, Onest } from "next/font/google";
 import { cookies, headers } from "next/headers";
 import RegisterSW from "@/components/RegisterSW";
 import Shell from "@/components/Shell";
@@ -7,8 +7,7 @@ import { isAuthed, SESSION_COOKIE } from "@/lib/session";
 import { clientOptions, navCounts } from "@/lib/repo/counts";
 import "./globals.css";
 
-const display = Unbounded({ subsets: ["latin", "cyrillic"], variable: "--f-display", weight: ["400", "500", "600"] });
-const body = Inter({ subsets: ["latin", "cyrillic"], variable: "--f-body" });
+const body = Onest({ subsets: ["latin", "cyrillic"], variable: "--f-body", weight: ["400", "500", "600", "700"] });
 const mono = JetBrains_Mono({ subsets: ["latin", "cyrillic"], variable: "--f-mono" });
 
 export const metadata: Metadata = {
@@ -22,7 +21,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#04060a",
+  themeColor: "#05070d",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -36,7 +35,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const counts = authed ? navCounts() : { tasks: 0, leads: 0, debts: 0, ideas: 0 };
   const clients = authed ? clientOptions() : [];
   return (
-    <html lang="uk" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+    <html lang="uk" className={`${body.variable} ${mono.variable}`}>
       <body>
         <Shell counts={counts} clients={clients}>{children}</Shell>
         <RegisterSW />

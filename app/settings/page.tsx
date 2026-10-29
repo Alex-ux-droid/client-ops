@@ -40,7 +40,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const tab = (TABS.find((t) => t.k === sp.tab)?.k ?? "general") as Tab;
   return (
     <>
-      <div className="head"><div><div className="kicker">Система</div><h1>Налаштування</h1></div></div>
+      <div className="head"><h1>Налаштування</h1></div>
       <nav className="subnav">
         {TABS.map((t) => <Link key={t.k} href={`/settings?tab=${t.k}`} className={t.k === tab ? "on" : ""}>{t.label}</Link>)}
       </nav>
@@ -89,7 +89,7 @@ async function Agent() {
   if (!models.some((m) => m.id === cfg.model)) models.unshift({ id: cfg.model, name: cfg.model });
   return (
     <form action={saveAgentAction} className="card stack" style={{ maxWidth: "48rem" }}>
-      {!key && <div className="mono" style={{ color: "var(--warn)" }}>Ключ API не задано — додай його у вкладці <Link href="/settings?tab=access" style={{ color: "var(--cyan)" }}>Доступи</Link>.</div>}
+      {!key && <div className="mono" style={{ color: "var(--warn)" }}>Ключ API не задано — додай його у вкладці <Link href="/settings?tab=access" style={{ color: "var(--link)" }}>Доступи</Link>.</div>}
       <div>
         <div className="field">
           <label htmlFor="model">Модель</label>

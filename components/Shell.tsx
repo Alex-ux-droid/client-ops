@@ -83,7 +83,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
   return (
     <div className="shell">
       <aside className="side">
-        <Link href="/" className="brand">CLIENT<span>/</span>OPS</Link>
+        <Link href="/" className="brand">Client Ops</Link>
         <button className="side-search" onClick={() => setSearch(true)}>
           <span>⌕ Пошук</span><kbd>Ctrl K</kbd>
         </button>
@@ -93,7 +93,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
       </aside>
 
       <header className="topbar">
-        <Link href="/" className="brand">CLIENT<span>/</span>OPS</Link>
+        <Link href="/" className="brand">Client Ops</Link>
         <div className="inline">
           <button className="icon-btn" onClick={() => setAdd(true)} aria-label="Додати">+</button>
           <button className="icon-btn" onClick={() => setSearch(true)} aria-label="Пошук">⌕</button>

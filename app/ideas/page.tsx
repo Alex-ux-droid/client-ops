@@ -20,7 +20,7 @@ export default async function IdeasPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <div className="head"><div><div className="kicker">Банк ідей</div><h1>Ідеї</h1></div></div>
+      <div className="head"><h1>Ідеї</h1></div>
       <form action={saveIdea} className="card" style={{ marginBottom: 14 }}>
         <div className="field"><textarea name="text" placeholder="Що спало на думку…" required style={{ minHeight: 60 }} /></div>
         <div className="inline">

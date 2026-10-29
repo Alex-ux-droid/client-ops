@@ -29,7 +29,7 @@ export default function MoneyPage() {
 
       <div className="stats">
         <div className="stat" style={{ "--c": "var(--ok)" } as React.CSSProperties}><div className="n">{money(m.received)}</div><div className="l">Отримано</div></div>
-        <div className="stat" style={{ "--c": "var(--cyan)" } as React.CSSProperties}><div className="n">{money(m.expected)}</div><div className="l">Ще очікую</div></div>
+        <div className="stat" style={{ "--c": "var(--link)" } as React.CSSProperties}><div className="n">{money(m.expected)}</div><div className="l">Ще очікую</div></div>
         <div className="stat" style={{ "--c": m.overdue ? "var(--bad)" : undefined } as React.CSSProperties}><div className="n">{money(m.overdue)}</div><div className="l">Прострочено</div></div>
         <div className="stat"><div className="n">{money(m.mrr)}</div><div className="l">Щомісячний дохід</div></div>
       </div>

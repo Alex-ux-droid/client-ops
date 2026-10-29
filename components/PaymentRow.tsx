@@ -14,7 +14,7 @@ export default function PaymentRow({ p, showClient = true }: { p: P; showClient?
         <button className={`check ${p.paid_at ? "done" : ""}`} title={p.paid_at ? "Позначити як неоплачене" : "Отримав"}>✓</button>
       </form>
       <div className="row-main">
-        <div className="row-title" style={{ fontFamily: "var(--font-mono)" }}>{money(p.amount)}</div>
+        <div className="row-title">{money(p.amount)}</div>
         <div className="meta">
           {p.paid_at ? <span className="tag ok">отримано {fmtDate(p.paid_at)}</span>
             : late ? <span className="tag bad">прострочено · {fmtDate(p.due_date)}</span>
