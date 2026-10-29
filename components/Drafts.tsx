@@ -53,9 +53,23 @@ export default function Drafts() {
       d[`${fi}|${el.name}`] = el.value;
       write(path, d);
     };
+    // Відправили форму — її чернетка більше не потрібна (інакше після «Додати» поле знову заповниться)
+    const onSubmit = (e: Event) => {
+      const fi = Array.from(document.querySelectorAll("main form:not([data-nodraft])")).indexOf(e.target as HTMLFormElement);
+      if (fi < 0) return;
+      const d = read(path);
+      for (const k of Object.keys(d)) if (k.startsWith(`${fi}|`)) delete d[k];
+      write(path, d);
+    };
     document.addEventListener("input", onInput);
     document.addEventListener("change", onInput);
-    return () => { clearTimeout(t); document.removeEventListener("input", onInput); document.removeEventListener("change", onInput); };
+    document.addEventListener("submit", onSubmit, true);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("input", onInput);
+      document.removeEventListener("change", onInput);
+      document.removeEventListener("submit", onSubmit, true);
+    };
   }, [path]);
 
   // Перевірка версії: при поверненні на вкладку і раз на 2 хв
