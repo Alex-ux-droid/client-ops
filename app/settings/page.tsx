@@ -216,9 +216,8 @@ async function TelegramTab() {
           {!token ? (
             <>
               <ol className="steps">
-                <li>У Telegram відкрий <b>@BotFather</b> → <b>/newbot</b> → назва (напр. «Асистент Саші») → юзернейм на <b>bot</b>.</li>
-                <li>Там же: <b>/setprivacy</b> → обери бота → <b>Disable</b>. Інакше в групах він бачить тільки команди.</li>
-                <li>Скопіюй токен і встав сюди.</li>
+                <li>У Telegram відкрий <b>@BotFather</b> → <b>/newbot</b> → будь-яка назва → юзернейм на <b>bot</b>.</li>
+                <li>Скопіюй токен і встав сюди. Ім'я «Джері» і опис система поставить сама.</li>
               </ol>
               <form action={connectTelegramAction} className="inline">
                 <input name="token" type="password" placeholder="123456789:AAE…" autoComplete="off" aria-label="Токен бота" />
@@ -233,7 +232,12 @@ async function TelegramTab() {
                   <span className="tag ok">@{me.username}</span>
                   {me.can_read_all_group_messages
                     ? <span className="tag ok">бачить усі повідомлення в групах</span>
-                    : <span className="tag bad">режим приватності увімкнений — /setprivacy → Disable у @BotFather, потім передодай бота в групи</span>}
+                    : <span className="tag bad">в групах бачить тільки команди</span>}
+                </div>
+              )}
+              {me && !me.can_read_all_group_messages && (
+                <div className="callout">
+                  <b>Один крок руками</b> (Telegram не дає зробити це з системи): у <b>@BotFather</b> надішли <b>/setprivacy</b> → обери <b>@{me.username}</b> → <b>Disable</b>. Потім онови цю сторінку. Якщо бот уже в групах — видали його звідти і додай знову.
                 </div>
               )}
               {hook && (hook.last_error_message

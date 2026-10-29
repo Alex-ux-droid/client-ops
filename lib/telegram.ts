@@ -51,7 +51,19 @@ export async function connectBot(token: string, origin: string): Promise<BotInfo
     allowed_updates: ["message", "edited_message", "my_chat_member"],
   });
   setSetting("tg.username", me.username);
+  await setupProfile();
   return me;
+}
+
+// Профіль бота: ім'я, опис, «про бота». Помилки не критичні — бот працює і без цього.
+async function setupProfile(): Promise<void> {
+  const steps: [string, Record<string, unknown>][] = [
+    ["setMyName", { name: "Джері" }],
+    ["setMyShortDescription", { short_description: "Асистент Олександра Бенци" }],
+    ["setMyDescription", { description: "Я Джері — асистент Олександра Бенци. Допомагаю тримати все по проєкту під контролем." }],
+    ["deleteMyCommands", {}],
+  ];
+  for (const [method, body] of steps) await tg(method, body).catch((e) => logError(`telegram-${method}`, e));
 }
 
 export async function disconnectBot(): Promise<void> {
