@@ -169,24 +169,42 @@ async function GoogleTab() {
         )}
         <div className="mono" style={{ color: "var(--dim)" }}>Що дає: папки клієнтів на Диску створюються самі; у картці клієнта — вкладка «Пошта» з листуванням, відповіддю і збереженням листів у матеріали.</div>
       </div>
-      <form action={saveGoogleClientAction} className="card stack">
+      <div className="card stack">
         <h2>Ключі Google Cloud</h2>
-        <div className="field">
-          <label htmlFor="g_redirect">Authorized redirect URI (встав у Google Cloud)</label>
-          <input id="g_redirect" readOnly value={redirect} />
-        </div>
-        <div className="field">
-          <label htmlFor="client_id">Client ID</label>
-          <input id="client_id" name="client_id" defaultValue={g.clientId} placeholder="…apps.googleusercontent.com" required autoComplete="off" />
-        </div>
-        <div className="field">
-          <label htmlFor="client_secret">Client secret {g.configured && <span className="mono">(збережено — залиш порожнім, щоб не міняти)</span>}</label>
-          <input id="client_secret" name="client_secret" type="password" placeholder="GOCSPX-…" autoComplete="off" />
-        </div>
-        <div><button className="ghost">Зберегти ключі</button></div>
+        {g.configured ? (
+          <>
+            <div><span className="tag ok">Збережено</span> <span className="mono">Client ID …{g.clientId.replace(/\.apps\.googleusercontent\.com$/, "").slice(-6)}</span></div>
+            <details className="stack">
+              <summary className="mono" style={{ color: "var(--link)" }}>Змінити ключі</summary>
+              <KeysForm redirect={redirect} configured />
+            </details>
+          </>
+        ) : (
+          <KeysForm redirect={redirect} configured={false} />
+        )}
         <div className="mono" style={{ color: "var(--dim)" }}>Зберігаються тільки в .env на сервері.</div>
-      </form>
+      </div>
     </div>
+  );
+}
+
+function KeysForm({ redirect, configured }: { redirect: string; configured: boolean }) {
+  return (
+    <form action={saveGoogleClientAction} className="stack">
+      <div className="field">
+        <label htmlFor="g_redirect">Authorized redirect URI (встав у Google Cloud)</label>
+        <input id="g_redirect" readOnly value={redirect} />
+      </div>
+      <div className="field">
+        <label htmlFor="client_id">Client ID</label>
+        <input id="client_id" name="client_id" placeholder="…apps.googleusercontent.com" required autoComplete="off" />
+      </div>
+      <div className="field">
+        <label htmlFor="client_secret">Client secret {configured && <span className="mono">(збережено — залиш порожнім, щоб не міняти)</span>}</label>
+        <input id="client_secret" name="client_secret" type="password" placeholder="GOCSPX-…" autoComplete="off" />
+      </div>
+      <div><button className="ghost">Зберегти ключі</button></div>
+    </form>
   );
 }
 
