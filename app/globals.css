@@ -124,6 +124,17 @@ h3 { font-size: 1rem; }
 
 /* ---------- Оверлеї ---------- */
 .overlay { position: fixed; inset: 0; z-index: 40; background: rgba(2, 3, 8, 0.65); backdrop-filter: blur(3px); display: flex; align-items: flex-end; justify-content: center; }
+.overlay { overscroll-behavior: contain; }
+.sheet, .modal, .palette-list, .chat.compact .chat-log { overscroll-behavior: contain; }
+html.locked, html.locked body { overflow: hidden; }
+.conn-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); }
+.conn { color: var(--text); transition: border-color .15s; }
+a.conn:hover { border-color: var(--accent); }
+.conn.soon { opacity: 0.55; }
+.conn-head { display: flex; align-items: center; gap: 0.75rem; }
+.conn-ico { display: inline-grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: 10px; background: var(--accent-soft); color: var(--link); font-weight: 700; }
+.menu-page h1 { margin-bottom: 1.25rem; }
+.menu-page .side-link { padding: 0.75rem; font-size: 1rem; }
 .overlay.top { align-items: flex-start; padding-top: calc(10vh + env(safe-area-inset-top)); }
 @media (min-width: 700px) { .overlay { align-items: center; } }
 .sheet, .modal, .palette {
