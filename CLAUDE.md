@@ -61,6 +61,7 @@
 ## Деплой
 Сервер Hetzner CX23 (Ubuntu/Debian), IP 2.28.114.219. Звідси по SSH не дістати — тому сервер сам тягне `main` кожні 2 хв (`client-ops-update.timer` → `deploy/update.sh`: збирає, перезапускає, при помилці збірки відкат).
 - Встановлення: або `deploy/cloud-init.yaml` у полі Cloud config при створенні сервера (пароль в `APP_PASSWORD`), або `curl -fsSL https://raw.githubusercontent.com/Alex-ux-droid/client-ops/main/deploy/install.sh | sudo bash`. Лог: `/var/log/client-ops-install.log`.
+- Адреси: `deploy/Caddyfile` (sslip + `ops.alexbentsa.com`, DNS у Cloudflare: A-запис `ops` → 2.28.114.219, без проксі). `update.sh` синхронізує його на кожному запуску.
 - Код у `/opt/client-ops`, база `/var/lib/client-ops/app.db`, `.env` на сервері (chmod 600), HTTPS через Caddy на `<ip-з-дефісами>.sslip.io` (можна свій домен: `DOMAIN=... `).
 - Бекап бази щодня о 03:30 у `/var/lib/client-ops/backups` (14 копій).
 - Отже: ВСЕ, що потрапляє в `main`, за 2 хв на проді. Перед мерджем — typecheck + build.
