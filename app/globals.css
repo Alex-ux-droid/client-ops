@@ -576,3 +576,35 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
   .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
   .fact { padding: 0.75rem; }
 }
+
+/* ---------- Лабораторія ---------- */
+.lab-section { margin-top: 1.75rem; }
+.lab-section > h2 { margin-bottom: 0.75rem; }
+.lab-section-head { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.lab-add { flex-wrap: wrap; }
+.lab-add > input { flex: 1 1 14rem; }
+.lab-add > select { flex: 0 1 12rem; }
+.lab-options { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); }
+.lab-option.lead { border-color: var(--ok); }
+.lab-option-head { display: flex; align-items: center; gap: 0.75rem; }
+.lab-option-name { font-size: 1.125rem; font-weight: 600; background: transparent; border-color: transparent; padding-left: 0; }
+.lab-option-name:hover { border-color: var(--line-strong); padding-left: 0.875rem; }
+.lab-option-name:focus { padding-left: 0.875rem; }
+.lab-option .field { margin-bottom: 0.625rem; }
+.lab-option textarea { min-height: 4.5rem; }
+.lab-matrix th, .lab-matrix td { padding: 0.5rem 0.625rem; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.lab-matrix td:first-child { white-space: normal; min-width: 11rem; }
+.lab-matrix th { font-weight: 500; color: var(--muted); font-size: 0.875rem; }
+.lab-matrix th.lead, .lab-matrix td.lead { color: var(--ok); }
+.lab-matrix select.score { width: auto; padding: 0.375rem 2rem 0.375rem 0.625rem; background-position: right 0.625rem center; font-size: 0.9375rem; }
+.lab-matrix tr.sum td { color: var(--muted); font-size: 0.875rem; }
+.lab-matrix tr.total td { font-weight: 700; color: var(--text); font-size: 1rem; border-bottom: 0; }
+.lab-matrix tr.total td.lead { color: var(--ok); }
+.check { display: flex; width: 100%; gap: 0.625rem; align-items: center; cursor: pointer; margin: 0; color: var(--text); font-size: 0.9375rem; }
+.check span { flex: 1; }
+.check input { width: 1.125rem; height: 1.125rem; flex: none; accent-color: var(--accent); }
+.danger-text { color: var(--bad); }
+@media (max-width: 699px) {
+  .lab-option .form-grid { grid-template-columns: 1fr 1fr; gap: 0 0.625rem; }
+  .lab-option .form-grid .wide, .lab-option .form-grid .field:has(textarea) { grid-column: 1 / -1; }
+}

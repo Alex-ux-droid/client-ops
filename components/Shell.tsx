@@ -17,7 +17,7 @@ const MOBILE = ["/", "/tasks", "/clients"];
 
 const PAGE_NAMES: [RegExp, string][] = [
   [/^\/$/, "Центр"], [/^\/tasks/, "Задачі"], [/^\/clients\/\d+/, "картка клієнта"], [/^\/clients/, "Клієнти"],
-  [/^\/journal/, "Журнал системи"], [/^\/pipeline/, "Воронка"], [/^\/money/, "Гроші"], [/^\/playbooks/, "Плейбуки"], [/^\/ideas/, "Ідеї"], [/^\/settings/, "Налаштування"],
+  [/^\/journal/, "Журнал системи"], [/^\/pipeline/, "Воронка"], [/^\/money/, "Гроші"], [/^\/playbooks/, "Плейбуки"], [/^\/ideas/, "Ідеї"], [/^\/settings/, "Налаштування"], [/^\/lab/, "Лабораторія"],
 ];
 
 export default function Shell({ counts, clients, children }: { counts: Counts; clients: Opt[]; children: React.ReactNode }) {
@@ -46,7 +46,8 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
   if (path === "/login") return <>{children}</>;
   const clientMatch = path.match(/^\/clients\/(\d+)/);
   const dockClient = clientMatch ? Number(clientMatch[1]) : null;
-  const pageName = PAGE_NAMES.find(([re]) => re.test(path))?.[1] ?? "";
+  const labMatch = path.match(/^\/lab\/(\d+)/);
+  const pageName = labMatch ? `Лабораторія, сесія lab_id ${labMatch[1]}` : PAGE_NAMES.find(([re]) => re.test(path))?.[1] ?? "";
   const on = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   const all = SECTIONS.flatMap((s) => s.items);
 

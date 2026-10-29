@@ -18,6 +18,8 @@ import { addWork, deleteWork, listWork } from "../repo/worklog";
 import { createClientFolders, googleConnected, listMail, mailQuery, readMail } from "../google";
 import { FOLDER_KINDS, isServiceType as isSvc } from "../services";
 import { addDevEntry } from "../repo/devlog";
+import { finishLab } from "../lab";
+import { addCriterion, addOption, createLab, getLab, getOption, isLabCategory, LAB_CATEGORIES, listLab, setScore, updateLab, updateOption } from "../repo/lab";
 import { addTool, enableService, findToolByName, listServices, listTools, removeService, saveFolder, updateService } from "../repo/services";
 import { isServiceType, SERVICE_TYPES, SERVICES, type ServiceDef } from "../services";
 
@@ -113,6 +115,15 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "list_playbooks", description: "Список плейбуків.", input_schema: obj({}) },
   { name: "get_playbook", description: "Текст плейбука.", input_schema: obj({ playbook_id: int("ID плейбука") }, ["playbook_id"]) },
   { name: "attach_playbook", description: "Підключити плейбук до клієнта.", input_schema: obj({ client_id: int("ID клієнта"), playbook_id: int("ID плейбука") }, ["client_id", "playbook_id"]) },
+  { name: "lab_list", description: "Лабораторія: сесії підбору рішень для клієнтів (яку CRM/телефонію/сайт обрати).", input_schema: obj({}) },
+  { name: "lab_get", description: "Лабораторія: повна сесія — що треба клієнту, критерії (з id і вагою 1-3), варіанти (з id, цінами, плюсами/мінусами, оцінками, % разом), штурм, висновок.", input_schema: obj({ lab_id: int("ID сесії") }, ["lab_id"]) },
+  { name: "lab_create", description: "Лабораторія: нова сесія підбору (додає стартові критерії для категорії).", input_schema: obj({ client_id: int("ID клієнта"), title: str("Питання: напр. «Яку CRM поставити»"), category: { type: "string", enum: Object.keys(LAB_CATEGORIES) }, brief: str("Що треба клієнту, бюджет, обмеження") }, ["title", "category"]) },
+  { name: "lab_update", description: "Лабораторія: змінити текст сесії — brief (що треба клієнту), notes (штурм), conclusion (висновок: чому цей варіант, ризики, наступні кроки), title.", input_schema: obj({ lab_id: int("ID сесії"), title: str("Питання"), brief: str("Що треба клієнту"), notes: str("Штурм — повний текст"), conclusion: str("Висновок — повний текст") }, ["lab_id"]) },
+  { name: "lab_add_option", description: "Лабораторія: додати варіант (сервіс або своє рішення) з тим, що відомо.", input_schema: obj({ lab_id: int("ID сесії"), name: str("Назва"), link: str("Посилання"), price_month: num("Ціна на місяць"), price_setup: num("Разова вартість впровадження"), pros: str("Плюси"), cons: str("Мінуси"), notes: str("Що видно на тесті") }, ["lab_id", "name"]) },
+  { name: "lab_update_option", description: "Лабораторія: оновити варіант (передавай тільки те, що змінюєш).", input_schema: obj({ option_id: int("ID варіанта"), name: str("Назва"), link: str("Посилання"), price_month: num("Ціна на місяць"), price_setup: num("Впровадження"), pros: str("Плюси"), cons: str("Мінуси"), notes: str("Що видно на тесті") }, ["option_id"]) },
+  { name: "lab_add_criterion", description: "Лабораторія: додати критерій порівняння.", input_schema: obj({ lab_id: int("ID сесії"), name: str("Критерій"), weight: int("1 неважливо, 2 важливо, 3 критично") }, ["lab_id", "name"]) },
+  { name: "lab_set_scores", description: "Лабораторія: поставити оцінки 1-5 варіантам за критеріями. Став тільки там, де маєш підстави (дані Саші, відомі факти про сервіс); якщо оцінка — твоє припущення, скажи про це.", input_schema: obj({ scores: { type: "array", items: obj({ option_id: int("ID варіанта"), criterion_id: int("ID критерію"), score: int("1-5") }, ["option_id", "criterion_id", "score"]) } }, ["scores"]) },
+  { name: "lab_finish", description: "Лабораторія: завершити сесію — зберегти вибір і висновок, закинути звіт у картку клієнта (матеріали + історія) і, якщо enable_service, поставити обраний інструмент у послугу клієнта. Тільки коли Саша каже завершити.", input_schema: obj({ lab_id: int("ID сесії"), chosen_option_id: int("ID обраного варіанта"), conclusion: str("Висновок (якщо міняєш)"), enable_service: { type: "boolean", description: "Поставити обраний варіант у послугу клієнта" } }, ["lab_id"]) },
 ];
 
 const clientName = (cid: number | null) => (cid ? getClientRow(cid)?.name ?? `#${cid}` : null);
@@ -444,6 +455,81 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const pb = need(getPlaybook(pid), "Плейбука нема");
       attachPlaybook(cid, pid);
       act("playbook", `Плейбук «${pb.title}» → ${clientName(cid)}`, `/clients/${cid}?tab=playbooks`);
+      return { ok: true };
+    }
+
+    case "lab_list":
+      return listLab().map((l) => ({ id: l.id, title: l.title, category: l.category, client: l.client_name, status: l.status, options: l.options_count }));
+
+    case "lab_get":
+      return need(getLab(need(id(input.lab_id), "lab_id обов'язковий")), "Сесії нема");
+
+    case "lab_create": {
+      const cat = s(input.category);
+      const lid = createLab({ client_id: id(input.client_id), title: need(s(input.title), "title обов'язковий"), category: isLabCategory(cat) ? cat : "other", brief: s(input.brief) });
+      act("lab", `Лабораторія: ${s(input.title)}`, `/lab/${lid}`);
+      return { ok: true, lab_id: lid };
+    }
+
+    case "lab_update": {
+      const lid = need(id(input.lab_id), "lab_id обов'язковий");
+      need(getLab(lid), "Сесії нема");
+      const patch: Record<string, string> = {};
+      for (const k of ["title", "brief", "notes", "conclusion"]) if (input[k] !== undefined) patch[k] = s(input[k]);
+      updateLab(lid, patch);
+      act("lab", `Лабораторія: оновлено ${Object.keys(patch).join(", ")}`, `/lab/${lid}`);
+      return { ok: true };
+    }
+
+    case "lab_add_option": {
+      const lid = need(id(input.lab_id), "lab_id обов'язковий");
+      need(getLab(lid), "Сесії нема");
+      const oid = addOption(lid, {
+        name: need(s(input.name), "name обов'язковий"), link: s(input.link),
+        price_month: input.price_month != null ? n(input.price_month) : null, price_setup: input.price_setup != null ? n(input.price_setup) : null,
+        pros: s(input.pros), cons: s(input.cons), notes: s(input.notes),
+      });
+      act("lab", `Варіант: ${s(input.name)}`, `/lab/${lid}#options`);
+      return { ok: true, option_id: oid };
+    }
+
+    case "lab_update_option": {
+      const o = need(getOption(need(id(input.option_id), "option_id обов'язковий")), "Варіанта нема");
+      const patch: Record<string, string | number | null> = {};
+      for (const k of ["name", "link", "pros", "cons", "notes"]) if (input[k] !== undefined) patch[k] = s(input[k]);
+      for (const k of ["price_month", "price_setup"]) if (input[k] !== undefined) patch[k] = input[k] === null ? null : n(input[k]);
+      updateOption(o.id, patch);
+      act("lab", `Варіант оновлено: ${o.name}`, `/lab/${o.session_id}#opt-${o.id}`);
+      return { ok: true };
+    }
+
+    case "lab_add_criterion": {
+      const lid = need(id(input.lab_id), "lab_id обов'язковий");
+      need(getLab(lid), "Сесії нема");
+      return { ok: true, criterion_id: addCriterion(lid, need(s(input.name), "name обов'язковий"), n(input.weight) || 2) };
+    }
+
+    case "lab_set_scores": {
+      const list = Array.isArray(input.scores) ? (input.scores as Input[]) : [];
+      let lid = 0;
+      for (const sc of list) {
+        const o = need(getOption(need(id(sc.option_id), "option_id")), "Варіанта нема");
+        lid = o.session_id;
+        setScore(o.id, need(id(sc.criterion_id), "criterion_id"), n(sc.score));
+      }
+      if (lid) act("lab", `Оцінки: ${list.length}`, `/lab/${lid}#matrix`);
+      return { ok: true, saved: list.length };
+    }
+
+    case "lab_finish": {
+      const lid = need(id(input.lab_id), "lab_id обов'язковий");
+      need(getLab(lid), "Сесії нема");
+      const { clientId } = finishLab(lid, {
+        ...(input.chosen_option_id !== undefined ? { chosenOptionId: id(input.chosen_option_id) } : {}),
+        ...(input.conclusion !== undefined ? { conclusion: s(input.conclusion) } : {}),
+        enableService: input.enable_service === true,
+      });
+      act("lab", "Сесію завершено, звіт у картці", clientId ? `/clients/${clientId}?tab=materials` : `/lab/${lid}`);
       return { ok: true };
     }
   }
