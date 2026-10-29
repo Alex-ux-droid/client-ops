@@ -8,7 +8,7 @@ export default async function NewClientPage({ searchParams }: { searchParams: Pr
     <>
       <div className="head" style={{ marginBottom: "1rem" }}>
         <h1>{lead ? "Новий лід" : "Новий клієнт"}</h1>
-        <div className="mono">Тільки головне — послуги, сайт, реклама і папки далі в картці. Або надиктуй помічнику 🎙</div>
+        <div className="mono">Тільки головне — послуги, сайт, реклама і папки далі в картці. Або надиктуй Джері 🎙</div>
       </div>
       <form action={createClientQuick} className="card quick-form">
         <div className="field qf-wide">

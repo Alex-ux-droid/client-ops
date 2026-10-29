@@ -1,7 +1,7 @@
 import { db } from "../db";
 
 export const DEV_KINDS = { request: "Доробити", bug: "Глюк", note: "Нюанс", error: "Помилка" } as const;
-export const DEV_SOURCES = { sasha: "Саша", assistant: "Помічник", system: "Система" } as const;
+export const DEV_SOURCES = { sasha: "Саша", assistant: "Джері", system: "Система" } as const;
 export type DevKind = keyof typeof DEV_KINDS;
 export type DevSource = keyof typeof DEV_SOURCES;
 export type DevEntry = { id: number; kind: DevKind; source: DevSource; title: string; body: string; context: string; status: "new" | "exported"; created_at: string; exported_at: string | null };
@@ -42,7 +42,7 @@ export function exportMarkdown(entries: DevEntry[], meta: { commit: string | nul
     "",
     `Версія: ${meta.commit ?? "?"} · записів: ${entries.length} · у базі: ${Object.entries(meta.counts).map(([k, v]) => `${k} ${v}`).join(", ")}`,
     "",
-    "Для Claude: це запити й спостереження з робочої системи. Записи від «Помічника» — його думки, перевір перед тим як робити. Пиши Саші коротко, що зроблено і що ні.",
+    "Для Claude: це запити й спостереження з робочої системи. Записи від «Джері» (помічника) — його думки, перевір перед тим як робити. Пиши Саші коротко, що зроблено і що ні.",
     "",
   ];
   const groups = (Object.keys(DEV_KINDS) as DevKind[]).map((k) => {
