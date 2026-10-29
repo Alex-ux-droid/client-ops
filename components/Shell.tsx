@@ -7,6 +7,7 @@ import Chat from "./Chat";
 import CommandPalette from "./CommandPalette";
 import QuickAdd from "./QuickAdd";
 
+import Drafts from "./Drafts";
 import Icon from "./Icon";
 import { SECTIONS, type Counts } from "./nav";
 
@@ -89,6 +90,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
       </header>
 
       <main className="main">{children}</main>
+      <Drafts />
 
       <nav className="tabbar">
         {MOBILE.slice(0, 2).map((h) => <TabLink key={h} item={all.find((i) => i.href === h)!} on={on(h)} counts={counts} />)}

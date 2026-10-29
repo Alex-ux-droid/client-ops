@@ -35,12 +35,12 @@ export default function FilesTab({ clientId, driveUrl, google, err }: { clientId
           <input type="hidden" name="client_id" value={clientId} />
           <div className="field wide">
             <label htmlFor="drive_url">Головна папка клієнта</label>
-            <input id="drive_url" name="drive_url" type="url" defaultValue={driveUrl} placeholder="https://drive.google.com/drive/folders/…" />
+            <input id="drive_url" name="drive_url" type="text" inputMode="url" autoCapitalize="off" defaultValue={driveUrl} placeholder="https://drive.google.com/drive/folders/…" />
           </div>
           {FOLDER_KINDS.map((f) => (
             <div key={f.kind} className="field">
               <label htmlFor={`f_${f.kind}`}>{f.title}</label>
-              <input id={`f_${f.kind}`} name={`f_${f.kind}`} type="url" defaultValue={url(f.kind)} placeholder="https://drive.google.com/…" />
+              <input id={`f_${f.kind}`} name={`f_${f.kind}`} type="text" inputMode="url" autoCapitalize="off" defaultValue={url(f.kind)} placeholder="https://drive.google.com/…" />
             </div>
           ))}
           <div className="wide"><button>Зберегти</button></div>

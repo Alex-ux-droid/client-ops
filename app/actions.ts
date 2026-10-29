@@ -24,6 +24,11 @@ import { getClient } from "@/lib/repo/clients";
 import { FOLDER_KINDS, isServiceType, serviceDef, TOOL_CATEGORY_LABEL, type ToolCategory } from "@/lib/services";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
+// Посилання: «site.com» → «https://site.com»; браузерну перевірку не вмикаємо, вона мовчки блокує «Зберегти»
+const link = (fd: FormData, k: string) => {
+  const v = str(fd, k);
+  return !v || /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v.replace(/^\/+/, "")}`;
+};
 const num = (fd: FormData, k: string) => {
   const n = Number(fd.get(k));
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -88,7 +93,7 @@ export async function saveServiceAction(fd: FormData) {
   const type = str(fd, "type");
   if (!id || !isServiceType(type)) return;
   const def = serviceDef(type);
-  const details = Object.fromEntries(def.fields.map((f) => [f.key, str(fd, `d_${f.key}`)]));
+  const details = Object.fromEntries(def.fields.map((f) => [f.key, f.type === "url" ? link(fd, `d_${f.key}`) : str(fd, `d_${f.key}`)]));
   let toolId = num(fd, "tool_id");
   const newTool = str(fd, "new_tool");
   if (def.tool && newTool) toolId = findToolByName(def.tool.category, newTool)?.id ?? addTool(def.tool.category, newTool);
@@ -116,9 +121,9 @@ export async function saveFoldersAction(fd: FormData) {
   await requireUser();
   const id = num(fd, "client_id");
   if (!id) return;
-  updateClient(id, { drive_url: str(fd, "drive_url") });
+  updateClient(id, { drive_url: link(fd, "drive_url") });
   for (const f of FOLDER_KINDS) {
-    const url = str(fd, `f_${f.kind}`);
+    const url = link(fd, `f_${f.kind}`);
     if (url) saveFolder(id, f.kind, f.title, url);
     else deleteFolder(id, f.kind);
   }

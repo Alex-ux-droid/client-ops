@@ -29,7 +29,7 @@ export function AddEntry() {
   const [text, setText] = useState("");
   const dict = useDictation((chunk) => setText((t) => (t && !t.endsWith(" ") ? `${t} ${chunk}` : t + chunk)));
   return (
-    <form action={async (fd) => { await addDevAction(fd); setText(""); }} className="card stack">
+    <form data-nodraft action={async (fd) => { await addDevAction(fd); setText(""); }} className="card stack">
       <div className="inline" style={{ flexWrap: "wrap" }}>
         <select name="kind" defaultValue="request" aria-label="Тип" style={{ maxWidth: "12rem" }}>
           <option value="request">Доробити</option>
