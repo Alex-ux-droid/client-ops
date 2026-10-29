@@ -13,6 +13,8 @@ import { listTasks } from "@/lib/repo/tasks";
 import { SERVICES, type ServiceType } from "@/lib/services";
 import FilesTab from "./FilesTab";
 import MailTab from "./MailTab";
+import TelegramTab from "./TelegramTab";
+import { chatsForClient } from "@/lib/repo/telegram";
 import { googleConnected } from "@/lib/google";
 import Overview from "./Overview";
 import ServiceTab from "./ServiceTab";
@@ -38,6 +40,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const tabs = [
     { k: "overview", label: "Огляд" },
     ...services.map((s) => ({ k: s.type, label: SERVICES[s.type as ServiceType].short })),
+    ...(chatsForClient(id).length ? [{ k: "telegram", label: "Telegram" }] : []),
     ...(google ? [{ k: "mail", label: "Пошта" }] : []),
     ...BASE_TABS,
   ];
@@ -111,6 +114,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       {tab === "history" && <HistoryTab id={id} />}
       {tab === "money" && <MoneyTab id={id} fee={c.fee_monthly} payDay={c.pay_day} paidTotal={paidTotal} />}
       {tab === "files" && <FilesTab clientId={id} driveUrl={c.drive_url} google={google} err={sp.err} />}
+      {tab === "telegram" && <TelegramTab clientId={id} />}
       {tab === "mail" && <MailTab clientId={id} email={c.email} open={sp.m} err={sp.err} sent={sp.sent === "1"} />}
       {tab === "materials" && <MaterialsTab id={id} />}
       {tab === "playbooks" && <PlaybooksTab id={id} />}
