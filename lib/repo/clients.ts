@@ -15,6 +15,13 @@ export type Client = {
   fee_monthly: number;
   pay_day: number;
   next_step: string;
+  owner_name: string;
+  locations: number;
+  city: string;
+  phone: string;
+  email: string;
+  work_since: string | null;
+  drive_url: string;
   offer: string;
   budget: string;
   contacts: string;
@@ -31,6 +38,7 @@ export type ClientInput = Omit<Client, "id" | "created_at" | "updated_at">;
 
 export const CLIENT_FIELDS = [
   "name", "niche", "status", "stage", "fee_monthly", "pay_day", "next_step", "offer", "budget", "contacts",
+  "owner_name", "locations", "city", "phone", "email", "work_since", "drive_url",
   "needs", "client_vision", "my_vision", "notes", "bitwarden_ref",
 ] as const;
 

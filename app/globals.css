@@ -443,3 +443,69 @@ b.bad { color: var(--bad); font-weight: 500; }
   html { font-size: 19px; }
   .main { max-width: 110rem; }
 }
+
+/* ---------- Картка клієнта: послуги, папки ---------- */
+.hub-sub { color: var(--muted); font-size: 1rem; margin-top: 0.25rem; }
+.hub-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+.h-link { color: var(--link); font-size: 0.875rem; font-weight: 500; letter-spacing: 0; }
+.callout { border: 1px solid rgba(61, 107, 255, 0.35); background: rgba(61, 107, 255, 0.08); border-radius: var(--radius); padding: 1rem 1.125rem; color: var(--muted); line-height: 1.55; }
+.callout b { color: var(--text); }
+.subnav a.svc::before { content: ""; display: inline-block; width: 0.4375rem; height: 0.4375rem; border-radius: 50%; background: var(--accent); margin-right: 0.4375rem; vertical-align: middle; }
+
+.svc-groups { display: grid; gap: 1rem; }
+@media (min-width: 1000px) { .svc-groups { grid-template-columns: 1.2fr 1.2fr 1fr; } }
+.svc-group-title { font-size: 0.8125rem; font-weight: 500; color: var(--dim); margin-bottom: 0.5rem; }
+.svc-tiles { display: grid; gap: 0.5rem; }
+.svc-tiles form { display: contents; }
+.svc-tile {
+  display: flex; align-items: center; gap: 0.75rem; width: 100%; text-align: left; padding: 0.75rem 0.875rem;
+  border: 1px dashed var(--line-strong); border-radius: var(--radius); background: transparent; color: var(--muted);
+  font-weight: 400; white-space: normal; transition: border-color .15s, background .15s, color .15s;
+}
+.svc-tile:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.svc-tile.on { border-style: solid; border-color: rgba(61, 107, 255, 0.45); background: rgba(61, 107, 255, 0.10); color: var(--text); }
+.svc-tile.on.paused { border-color: rgba(251, 191, 36, 0.4); background: var(--warn-soft); }
+.svc-tile.on.done { border-color: var(--line-strong); background: rgba(255, 255, 255, 0.03); color: var(--muted); }
+.svc-tile-ico { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; flex: none; border-radius: 10px; background: rgba(255, 255, 255, 0.05); font-size: 1rem; color: var(--text); }
+.svc-tile.on .svc-tile-ico { background: var(--accent); color: #fff; }
+.svc-tile-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.svc-tile-txt b { font-weight: 600; font-size: 0.9375rem; color: inherit; }
+.svc-tile-txt small { font-size: 0.8125rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.svc-check { flex: none; width: 1.5rem; height: 1.5rem; display: grid; place-items: center; border-radius: 50%; font-size: 0.875rem; border: 1px solid var(--line-strong); color: var(--muted); }
+.svc-tile.on .svc-check { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.svc-head { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.svc-ico { display: grid; place-items: center; width: 3rem; height: 3rem; border-radius: 14px; background: var(--accent); color: #fff; font-size: 1.25rem; flex: none; }
+.svc-links { margin-left: auto; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.danger-zone { color: var(--dim); font-size: 0.875rem; }
+.danger-zone summary { color: var(--dim); }
+.danger-zone summary:hover { color: var(--bad); }
+
+.folder-grid { display: grid; gap: 0.625rem; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); }
+.folder { display: flex; align-items: center; gap: 0.875rem; padding: 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-raise); transition: border-color .15s, background .15s; }
+a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover); }
+.folder.main { border-color: rgba(61, 107, 255, 0.4); }
+.folder.off { opacity: 0.55; cursor: default; }
+.folder-ico { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 10px; background: var(--accent-soft); color: var(--link); font-size: 1.125rem; flex: none; }
+.folder b { display: block; font-weight: 600; }
+.folder small { color: var(--muted); font-size: 0.8125rem; }
+
+/* Вибір варіанта (радіо-картки) */
+.choice { border: 0; padding: 0; margin: 0 0 0.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.choice legend { font-size: 0.875rem; font-weight: 500; color: var(--muted); margin-bottom: 0.375rem; padding: 0; }
+.choice label { display: flex; gap: 0.625rem; align-items: center; margin: 0; padding: 0.75rem 0.875rem; border: 1px solid var(--line-strong); border-radius: var(--radius); cursor: pointer; color: var(--text); }
+.choice label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.choice input { width: auto; accent-color: var(--accent); }
+.choice span { display: flex; flex-direction: column; }
+.choice b { font-weight: 600; }
+.choice small { color: var(--muted); font-size: 0.8125rem; font-weight: 400; }
+@media (max-width: 699px) {
+  .hub-top { flex-wrap: wrap; }
+  .hub-actions { justify-content: flex-start; }
+  .svc-links { margin-left: 0; }
+}
+.tool-list { display: flex; flex-wrap: wrap; gap: 0.375rem; padding: 1rem 1.125rem; }
+.tool-chip { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.3125rem 0.375rem 0.3125rem 0.75rem; border-radius: 999px; background: rgba(255, 255, 255, 0.05); font-size: 0.875rem; }
+.tool-chip a:hover { color: var(--link); }
+.tool-x { padding: 0; width: 1.375rem; height: 1.375rem; border-radius: 50%; background: transparent; border: 0; color: var(--dim); font-size: 1rem; }
+.tool-x:hover { background: var(--bad-soft); color: var(--bad); border: 0; }

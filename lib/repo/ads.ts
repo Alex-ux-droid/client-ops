@@ -19,8 +19,10 @@ export type AdStat = {
 export const AD_FIELDS = ["platform", "period_start", "period_end", "spend", "impressions", "clicks", "leads", "sales", "revenue", "note"] as const;
 export type AdInput = Omit<AdStat, "id" | "created_at">;
 
-export function listAdStats(clientId: number): AdStat[] {
-  return db().prepare("SELECT * FROM ad_stats WHERE client_id = ? ORDER BY period_end, id").all(clientId) as AdStat[];
+export function listAdStats(clientId: number, platform?: string): AdStat[] {
+  return (platform
+    ? db().prepare("SELECT * FROM ad_stats WHERE client_id = ? AND platform = ? ORDER BY period_end, id").all(clientId, platform)
+    : db().prepare("SELECT * FROM ad_stats WHERE client_id = ? ORDER BY period_end, id").all(clientId)) as AdStat[];
 }
 
 export function addAdStat(input: AdInput): number {

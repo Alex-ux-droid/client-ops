@@ -14,6 +14,8 @@ import { attachPlaybook, checklistItems, clientPlaybooks, getPlaybook, listPlayb
 import { searchAll } from "../repo/search";
 import { createTask, getTask, listTasks, setTaskStatus, updateTask, type TaskView } from "../repo/tasks";
 import { addWork, listWork } from "../repo/worklog";
+import { addTool, enableService, findToolByName, listServices, listTools, updateService } from "../repo/services";
+import { isServiceType, SERVICE_TYPES, SERVICES, type ServiceDef } from "../services";
 
 type Input = Record<string, unknown>;
 type Ctx = { actions: ChatAction[] };
@@ -54,7 +56,19 @@ const CLIENT_PROPS = {
   my_vision: str("Бачення Саші"),
   notes: str("Нотатки"),
   bitwarden_ref: str("ТІЛЬКИ назва запису в Bitwarden, ніколи не пароль"),
+  owner_name: str("Власник / хто приймає рішення"),
+  locations: int("Скільки бізнесів / точок у клієнта"),
+  city: str("Місто"),
+  phone: str("Телефон"),
+  email: str("Пошта"),
+  work_since: str("З якої дати ведемо клієнта, YYYY-MM-DD"),
+  drive_url: str("Посилання на папку клієнта в Google Диску"),
 };
+
+const SERVICE_DOC = SERVICE_TYPES.map((t) => {
+  const d = SERVICES[t] as ServiceDef;
+  return `${t} (${d.label}${d.tool ? `; інструмент: ${d.tool.label}` : ""}; поля: ${d.fields.map((f) => f.key).join(", ")})`;
+}).join("; ");
 
 export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "search", description: "Пошук по всій базі: клієнти, задачі, історія робіт, матеріали, ідеї, плейбуки.", input_schema: obj({ query: str("Що шукати, від 2 символів") }, ["query"]) },
@@ -73,6 +87,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "add_ad_stats", description: "Додати цифри з рекламного кабінету за період.", input_schema: obj({ client_id: int("ID клієнта"), period_start: str("YYYY-MM-DD"), period_end: str("YYYY-MM-DD"), spend: num("Витрачено"), impressions: int("Покази"), clicks: int("Кліки"), leads: int("Ліди"), sales: int("Продажі"), revenue: num("Виручка клієнта"), platform: str("facebook, google, tiktok, other"), note: str("Коментар") }, ["client_id", "period_start", "period_end"]) },
   { name: "add_payment", description: "Додати оплату від клієнта: отриману (paid=true) або очікувану.", input_schema: obj({ client_id: int("ID клієнта"), amount: num("Сума"), date: str("YYYY-MM-DD: дата оплати або очікувана дата"), paid: { type: "boolean" }, note: str("Коментар") }, ["client_id", "amount", "paid"]) },
   { name: "money_summary", description: "Гроші за поточний місяць: отримано, очікується, прострочено, щомісячний дохід, і список неоплачених.", input_schema: obj({}) },
+  { name: "set_service", description: `Увімкнути послугу клієнту (відкриває вкладку в картці) і/або заповнити її. Типи: ${SERVICE_DOC}. Поля в details передавай тільки ті, що відомі.`, input_schema: obj({ client_id: int("ID клієнта"), type: { type: "string", enum: [...SERVICE_TYPES] }, status: { type: "string", enum: ["active", "paused", "done"] }, started_at: str("З якої дати, YYYY-MM-DD"), tool: str("Назва інструменту: яка CRM / телефонія / на чому сайт"), details: { type: "object", description: "Поля послуги: ключ → текст", additionalProperties: { type: "string" } }, notes: str("Нотатки") }, ["client_id", "type"]) },
   { name: "list_playbooks", description: "Список плейбуків.", input_schema: obj({}) },
   { name: "get_playbook", description: "Текст плейбука.", input_schema: obj({ playbook_id: int("ID плейбука") }, ["playbook_id"]) },
   { name: "attach_playbook", description: "Підключити плейбук до клієнта.", input_schema: obj({ client_id: int("ID клієнта"), playbook_id: int("ID плейбука") }, ["client_id", "playbook_id"]) },
@@ -105,6 +120,7 @@ export function runTool(name: string, input: Input, ctx: Ctx): unknown {
         materials: listMaterials(cid).map((m) => ({ id: m.id, kind: m.kind, title: m.title, created_at: m.created_at })),
         ads: ads.map((a) => ({ ...a, cpl: cpl(a) })),
         payments: listPayments({ clientId: cid }).slice(0, 12).map((p) => ({ amount: p.amount, due_date: p.due_date, paid_at: p.paid_at, note: p.note })),
+        services: listServices(cid).map((sv) => ({ type: sv.type, status: sv.status, started_at: sv.started_at, tool: sv.tool_name, details: sv.details, notes: sv.notes })),
         playbooks: clientPlaybooks(cid).map((p) => ({ title: p.title, done: p.checked.length, total: checklistItems(p.body_md).length })),
         ideas: listIdeas({ clientId: cid, status: "new" }).map((i) => i.text),
       };
@@ -116,6 +132,8 @@ export function runTool(name: string, input: Input, ctx: Ctx): unknown {
       for (const f of CLIENT_FIELDS) {
         if (input[f] === undefined) continue;
         if (f === "fee_monthly") fields.fee_monthly = n(input[f]);
+        else if (f === "locations") fields.locations = Math.max(Math.trunc(n(input[f])) || 1, 1);
+        else if (f === "work_since") fields.work_since = date(input[f]);
         else if (f === "pay_day") fields.pay_day = Math.min(Math.max(Math.trunc(n(input[f])) || 1, 1), 31);
         else if (f === "status") { if (CLIENT_STATUSES.includes(s(input[f]) as never)) fields.status = s(input[f]) as ClientInput["status"]; }
         else if (f === "stage") { if (LEAD_STAGES.includes(s(input[f]) as never)) fields.stage = s(input[f]) as ClientInput["stage"]; }
@@ -124,7 +142,7 @@ export function runTool(name: string, input: Input, ctx: Ctx): unknown {
       if (name === "create_client") {
         need(fields.name, "name обов'язковий");
         const base = Object.fromEntries(CLIENT_FIELDS.map((f) => [f, ""])) as unknown as ClientInput;
-        const cid = createClient({ ...base, status: "lead", stage: "new", fee_monthly: 0, pay_day: 1, ...fields } as ClientInput);
+        const cid = createClient({ ...base, status: "lead", stage: "new", fee_monthly: 0, pay_day: 1, locations: 1, work_since: null, ...fields } as ClientInput);
         act("client", `Створено: ${fields.name}`, `/clients/${cid}`);
         return { ok: true, client_id: cid };
       }
@@ -209,7 +227,8 @@ export function runTool(name: string, input: Input, ctx: Ctx): unknown {
         spend: n(input.spend), impressions: Math.trunc(n(input.impressions)), clicks: Math.trunc(n(input.clicks)),
         leads: Math.trunc(n(input.leads)), sales: Math.trunc(n(input.sales)), revenue: n(input.revenue), note: s(input.note),
       });
-      act("ads", `Реклама ${clientName(cid)}: ${ps}–${pe}`, `/clients/${cid}?tab=ads`);
+      const svc = SERVICE_TYPES.find((t) => (SERVICES[t] as ServiceDef).adPlatform === (s(input.platform) || "facebook"));
+      act("ads", `Реклама ${clientName(cid)}: ${ps}–${pe}`, `/clients/${cid}?tab=${svc ?? "overview"}`);
       return { ok: true };
     }
 
@@ -225,6 +244,30 @@ export function runTool(name: string, input: Input, ctx: Ctx): unknown {
 
     case "money_summary":
       return { ...moneySummary(ymd().slice(0, 7)), unpaid: listPayments({ open: true }).map((p) => ({ client: p.client_name, amount: p.amount, due_date: p.due_date })) };
+
+    case "set_service": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      const type = s(input.type);
+      if (!isServiceType(type)) throw new Error(`Невідомий тип послуги ${type}`);
+      need(getClientRow(cid), `Клієнта ${cid} нема`);
+      const def = SERVICES[type] as ServiceDef;
+      enableService(cid, type, date(input.started_at) ?? ymd());
+      let toolId: number | null | undefined;
+      if (def.tool && s(input.tool)) toolId = findToolByName(def.tool.category, s(input.tool))?.id ?? addTool(def.tool.category, s(input.tool));
+      const raw = (input.details && typeof input.details === "object" ? input.details : {}) as Record<string, unknown>;
+      const allowed = new Set(def.fields.map((f) => f.key));
+      const details = Object.fromEntries(Object.entries(raw).filter(([k]) => allowed.has(k)).map(([k, v]) => [k, s(v)]));
+      const st = s(input.status);
+      updateService(cid, type, {
+        ...(st === "active" || st === "paused" || st === "done" ? { status: st } : {}),
+        ...(date(input.started_at) ? { started_at: date(input.started_at) } : {}),
+        ...(toolId !== undefined ? { tool_id: toolId } : {}),
+        details,
+        ...(input.notes !== undefined ? { notes: s(input.notes) } : {}),
+      });
+      act("service", `${def.label} · ${clientName(cid)}`, `/clients/${cid}?tab=${type}`);
+      return { ok: true, known_tools: def.tool ? listTools(def.tool.category).map((t) => t.name) : undefined };
+    }
 
     case "list_playbooks":
       return listPlaybooks().map((p) => ({ id: p.id, title: p.title, items: p.items, tags: p.tags }));

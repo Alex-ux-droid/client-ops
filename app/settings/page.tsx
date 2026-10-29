@@ -3,6 +3,9 @@ import Link from "next/link";
 import AgentAccess from "./AgentAccess";
 import InstallApp from "@/components/InstallApp";
 import { saveAgentAction, saveGeneralAction, saveKeyAction, testKeyAction } from "./actions";
+import { addToolAction, deleteToolAction } from "@/app/actions";
+import { listTools } from "@/lib/repo/services";
+import { TOOL_CATEGORY_LABEL, type ToolCategory } from "@/lib/services";
 import { agentConfig, EFFORT_LABEL, EFFORTS, KNOWN_MODELS } from "@/lib/agent/config";
 import { currency, CURRENCIES } from "@/lib/config";
 import { getApiKey, hasAgentToken, maskKey } from "@/lib/secrets";
@@ -11,6 +14,7 @@ import { systemInfo } from "@/lib/system";
 const TABS = [
   { k: "general", label: "Загальне" },
   { k: "agent", label: "Помічник" },
+  { k: "catalog", label: "Довідники" },
   { k: "access", label: "Доступи" },
   { k: "system", label: "Система" },
 ] as const;
@@ -47,6 +51,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {sp.msg && <div className="card" style={{ marginBottom: 16, borderColor: sp.ok ? "var(--ok)" : "var(--bad)" }}>{sp.msg}</div>}
       {tab === "general" && <General />}
       {tab === "agent" && <Agent />}
+      {tab === "catalog" && <Catalog />}
       {tab === "access" && <Access />}
       {tab === "system" && <System />}
     </>
@@ -114,6 +119,37 @@ async function Agent() {
       </div>
       <div><button>Зберегти</button></div>
     </form>
+  );
+}
+
+function Catalog() {
+  const tools = listTools();
+  const cats = Object.keys(TOOL_CATEGORY_LABEL) as ToolCategory[];
+  return (
+    <div className="stack" style={{ gap: "1.25rem" }}>
+      <div className="mono">Ці списки з'являються у вкладках послуг клієнта (яка CRM, на чому сайт тощо). Нове можна додати тут або просто вписати в картці клієнта.</div>
+      <div className="grid2">
+        {cats.map((cat) => (
+          <div key={cat} className="panel">
+            <div className="panel-head"><h2>{TOOL_CATEGORY_LABEL[cat]}</h2><span className="mono">{tools.filter((t) => t.category === cat).length}</span></div>
+            <div className="tool-list">
+              {tools.filter((t) => t.category === cat).map((t) => (
+                <form key={t.id} action={deleteToolAction} className="tool-chip">
+                  <input type="hidden" name="id" value={t.id} />
+                  {t.url ? <a href={t.url} target="_blank" rel="noreferrer">{t.name}</a> : <span>{t.name}</span>}
+                  <button className="tool-x" title="Видалити з довідника" aria-label={`Видалити ${t.name}`}>×</button>
+                </form>
+              ))}
+            </div>
+            <form action={addToolAction} className="inline" style={{ padding: "0 1.125rem 1rem" }}>
+              <input type="hidden" name="category" value={cat} />
+              <input name="name" placeholder="Додати…" required aria-label="Назва" />
+              <button className="ghost small">+</button>
+            </form>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

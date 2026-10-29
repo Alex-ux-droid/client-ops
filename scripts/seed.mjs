@@ -131,4 +131,17 @@ const insAd = db.prepare(`INSERT INTO ad_stats (client_id, period_start, period_
 
 db.prepare("INSERT INTO client_playbooks (client_id, playbook_id, checked_json) VALUES (?, ?, ?)").run(ids[0], pbCrm, "[0,1]");
 
+// Власники, послуги, папки
+const upd = db.prepare("UPDATE clients SET owner_name = ?, city = ?, phone = ?, locations = ?, work_since = ? WHERE id = ?");
+upd.run("Олена (тест)", "Київ", "+380000000001", 2, day(-120), ids[0]);
+upd.run("Ігор (тест)", "Львів", "+380000000002", 1, day(-60), ids[1]);
+upd.run("Андрій (тест)", "Житомир", "", 1, null, ids[2]);
+const tool = (cat, name) => db.prepare("SELECT id FROM tools WHERE category = ? AND name = ?").get(cat, name)?.id ?? null;
+const svc = db.prepare("INSERT INTO client_services (client_id, type, started_at, tool_id, details_json) VALUES (?, ?, ?, ?, ?)");
+svc.run(ids[0], "meta_ads", day(-110), null, JSON.stringify({ account_id: "act_000000000", budget: "1200", strategy: "Імплантація: лід-форми + відео-відгуки" }));
+svc.run(ids[0], "crm", day(-90), tool("crm", "KeyCRM"), JSON.stringify({ users: "3", setup: "Воронка запису, автозадачі на передзвон" }));
+svc.run(ids[0], "telephony", day(-90), tool("telephony", "Binotel"), JSON.stringify({ numbers: "2 номери", integration: "KeyCRM" }));
+svc.run(ids[1], "website", day(-55), tool("site", "Tilda"), JSON.stringify({ url: "https://example.com", work: "Квіз-лендинг на пробний урок" }));
+svc.run(ids[1], "meta_ads", day(-30), null, JSON.stringify({ budget: "800" }));
+
 console.log(`Seed готовий: ${ids.length} тестові клієнти.`);
