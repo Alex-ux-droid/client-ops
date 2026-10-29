@@ -1,0 +1,60 @@
+"use client";
+// Диктування голосом через вбудоване в браузер розпізнавання мови (Chrome, Edge, Safari).
+import { useCallback, useEffect, useRef, useState } from "react";
+
+type Rec = {
+  lang: string; continuous: boolean; interimResults: boolean;
+  start(): void; stop(): void;
+  onresult: ((e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+  onend: (() => void) | null;
+};
+
+const ERRORS: Record<string, string> = {
+  "not-allowed": "Нема доступу до мікрофона — дозволь його в браузері.",
+  "service-not-allowed": "Браузер не дозволив розпізнавання мови.",
+  "no-speech": "Нічого не почув — спробуй ще раз.",
+  network: "Розпізнаванню потрібен інтернет.",
+};
+
+export function useDictation(onText: (chunk: string) => void) {
+  const rec = useRef<Rec | null>(null);
+  const [listening, setListening] = useState(false);
+  const [supported, setSupported] = useState(true);
+  const [error, setError] = useState("");
+  const cb = useRef(onText);
+  cb.current = onText;
+
+  useEffect(() => {
+    const w = window as unknown as { SpeechRecognition?: new () => Rec; webkitSpeechRecognition?: new () => Rec };
+    setSupported(!!(w.SpeechRecognition || w.webkitSpeechRecognition));
+    return () => { rec.current?.stop(); };
+  }, []);
+
+  const stop = useCallback(() => { rec.current?.stop(); }, []);
+
+  const start = useCallback(() => {
+    const w = window as unknown as { SpeechRecognition?: new () => Rec; webkitSpeechRecognition?: new () => Rec };
+    const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!Ctor) { setError("Цей браузер не вміє диктувати. Натисни мікрофон на клавіатурі телефона."); return; }
+    const r = new Ctor();
+    r.lang = "uk-UA";
+    r.continuous = true;
+    r.interimResults = false;
+    r.onresult = (e) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const res = e.results[i];
+        if (res.isFinal) cb.current(res[0].transcript.trim());
+      }
+    };
+    r.onerror = (e) => { if (e.error !== "aborted") setError(ERRORS[e.error] ?? `Помилка розпізнавання: ${e.error}`); };
+    r.onend = () => setListening(false);
+    setError("");
+    rec.current = r;
+    r.start();
+    setListening(true);
+  }, []);
+
+  const toggle = useCallback(() => (listening ? stop() : start()), [listening, start, stop]);
+  return { listening, supported, error, toggle, stop };
+}

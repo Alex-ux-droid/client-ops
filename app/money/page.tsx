@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { makeMonthInvoices, savePayment } from "@/app/actions";
-import { BarChart } from "@/components/Charts";
 import PaymentRow from "@/components/PaymentRow";
 import { money } from "@/lib/config";
 import { ymd } from "@/lib/dates";
@@ -16,6 +15,7 @@ export default function MoneyPage() {
   const clients = listClients().filter((c) => c.status !== "archived");
   const payers = clients.filter((c) => c.status === "active" && c.fee_monthly > 0);
   const byMonth = receivedByMonth(12);
+  const monthMax = Math.max(1, ...byMonth.map((x) => x.total));
 
   return (
     <>
@@ -81,9 +81,17 @@ export default function MoneyPage() {
         </div>
       </div>
 
-      <div className="card section">
-        <div className="chart-title"><span>Отримано за 12 місяців</span><b>{money(byMonth.reduce((s, x) => s + x.total, 0))}</b></div>
-        <BarChart width={1100} fmt={(n) => money(n)} data={byMonth.map((x) => ({ label: monthLabel(x.month), value: x.total, tip: `${monthLabel(x.month)} ${x.month.slice(0, 4)}: ${money(x.total)}` }))} />
+      <div className="panel section">
+        <div className="panel-head"><h2>Отримано за 12 місяців</h2><span className="mono">{money(byMonth.reduce((s, x) => s + x.total, 0))}</span></div>
+        <div className="vbars money" style={{ height: "13rem" }}>
+          {byMonth.map((x, i) => (
+            <div key={x.month} className={`vb ${i === byMonth.length - 1 ? "on" : ""}`} title={`${monthLabel(x.month)} ${x.month.slice(0, 4)}: ${money(x.total)}`}>
+              <span className="vb-n">{x.total ? money(x.total) : "·"}</span>
+              <span className="vb-col"><i style={{ height: `${(x.total / monthMax) * 100}%` }} /></span>
+              <span className="vb-l">{monthLabel(x.month)}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </>
   );

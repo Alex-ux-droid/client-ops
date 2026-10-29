@@ -27,7 +27,7 @@ export default function TaskItem({ t, showClient = true }: { t: TaskRow; showCli
         </div>
         {!done && (
           <details className="close-log-wrap">
-            <summary className="mono" style={{ marginTop: 8, color: "var(--cyan)" }}>▸ закрити + записати що зробили</summary>
+            <summary className="task-close">✓ закрити зі звітом</summary>
             <form action={closeTaskWithLog} className="close-log">
               <input type="hidden" name="id" value={t.id} />
               <div className="field"><input name="what" placeholder="Що зробив" defaultValue={t.title} /></div>

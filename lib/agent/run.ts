@@ -24,21 +24,24 @@ const SYSTEM = `Ти — помічник Саші в його системі cl
 - Коли Саша каже щось зробити (створити задачу, закрити, записати, оновити) — роби це інструментами одразу і коротко підтвердь.
 - Коли Саша вставляє переписку з клієнтом чи звіт: збережи як матеріал, витягни потреби/домовленості (онови картку), сформуй задачі з дедлайнами, запиши ідеї. Потім коротко перелічи, що зробив.
 - Цифри з рекламного кабінету — записуй через add_ad_stats з правильним періодом.
+- Саша часто ДИКТУЄ голосом: текст може бути без розділових знаків, з помилками розпізнавання і «е-е». Розумій суть, не перепитуй дрібниці.
+- Коли Саша надиктовує нового клієнта чи проєкт: спершу search (чи нема вже такого), потім create_client з усіма полями, які прозвучали (ніша, що продаємо, потреби, бюджет, оплата, контакти, бачення, наступний крок; статус lead, якщо ще не домовились, active — якщо вже працюємо), задачі з дедлайнами, ідеї; якщо підходить плейбук (list_playbooks) — підключи його. В кінці коротко: що створив і чого бракує (одним рядком).
 - Дати пиши YYYY-MM-DD для інструментів; «завтра», «в п'ятницю» рахуй від сьогоднішньої дати.
 - Видаляти дані ти не можеш — якщо Саша просить видалити, скажи, де це зробити в інтерфейсі.
 - Паролі в базу НЕ записуй ніколи. Якщо в тексті є пароль чи токен — не зберігай його, порадь покласти в Bitwarden і записати лише назву запису.
 - Будь чесним: якщо ідея слабка або є ризик — скажи прямо.`;
 
-function contextBlock(clientId: number | null): string {
+function contextBlock(clientId: number | null, page: string): string {
   const d = new Date();
   const today = `${ymd(d)} (${d.toLocaleDateString("uk-UA", { weekday: "long" })})`;
   const c = clientId ? getClientRow(clientId) : null;
+  const where = page ? ` Саша зараз на сторінці «${page}».` : "";
   return c
-    ? `Сьогодні ${today}. Розмова в картці клієнта «${c.name}» (client_id ${c.id}) — за замовчуванням мова про нього.`
-    : `Сьогодні ${today}. Загальна розмова, не прив'язана до клієнта.`;
+    ? `Сьогодні ${today}. Розмова в картці клієнта «${c.name}» (client_id ${c.id}) — за замовчуванням мова про нього.${where}`
+    : `Сьогодні ${today}. Загальна розмова, не прив'язана до клієнта.${where}`;
 }
 
-export async function runAgent(clientId: number | null, userText: string): Promise<{ reply: string; actions: ChatAction[] }> {
+export async function runAgent(clientId: number | null, userText: string, page = ""): Promise<{ reply: string; actions: ChatAction[] }> {
   const key = getApiKey();
   if (!key) throw new NoKeyError("Нема ключа Anthropic API");
   const client = new Anthropic({ apiKey: key });
@@ -51,7 +54,7 @@ export async function runAgent(clientId: number | null, userText: string): Promi
   const stable = cfg.instructions.trim() ? `${SYSTEM}\n\nДодаткові інструкції від Саші:\n${cfg.instructions.trim()}` : SYSTEM;
   const system: Anthropic.Beta.BetaTextBlockParam[] = [
     { type: "text", text: stable, cache_control: { type: "ephemeral" } },
-    { type: "text", text: contextBlock(clientId) },
+    { type: "text", text: contextBlock(clientId, page) },
   ];
 
   const ctx = { actions: [] as ChatAction[] };
