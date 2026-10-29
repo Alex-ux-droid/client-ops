@@ -10,8 +10,7 @@ import { setSetting } from "@/lib/repo/settings";
 import { listVoices, saveVoiceChoice, saveVoiceKey } from "@/lib/voice";
 import { connectBot, disconnectBot } from "@/lib/telegram";
 import { linkChat } from "@/lib/repo/telegram";
-import { connectMeta, disconnectMeta, syncAccount, syncAll } from "@/lib/meta";
-import { linkAccount } from "@/lib/repo/meta";
+import { connectMeta, disconnectMeta, linkAndSync, syncAll } from "@/lib/meta";
 import { createAgentToken, getApiKey, revokeAgentToken, saveApiKey } from "@/lib/secrets";
 
 const back = (msg: string, ok = false, tab = "") => redirect(`/settings?${tab ? `tab=${tab}&` : ""}msg=${encodeURIComponent(msg)}${ok ? "&ok=1" : ""}`);
@@ -183,9 +182,8 @@ export async function linkMetaAccountAction(fd: FormData) {
   await requireUser();
   const acc = String(fd.get("account_id") ?? "");
   const clientId = Number(fd.get("client_id")) || null;
-  if (acc) linkAccount(acc, clientId);
-  if (acc && clientId) await syncAccount(acc).catch(() => {});
-  back(clientId ? "Кабінет привʼязано, цифри підтягнуто." : "Привʼязку знято.", true, "connectors&c=meta");
+  const err = acc ? await linkAndSync(acc, clientId) : "";
+  back(!clientId ? "Привʼязку знято." : err ? `Кабінет привʼязано, але цифри не підтягнулись: ${err}` : "Кабінет привʼязано, цифри вже в картці клієнта (вкладка Meta Ads).", !err, "connectors&c=meta");
 }
 
 export async function syncMetaAction() {
