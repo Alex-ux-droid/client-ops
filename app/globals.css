@@ -509,3 +509,8 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
 .tool-chip a:hover { color: var(--link); }
 .tool-x { padding: 0; width: 1.375rem; height: 1.375rem; border-radius: 50%; background: transparent; border: 0; color: var(--dim); font-size: 1rem; }
 .tool-x:hover { background: var(--bad-soft); color: var(--bad); border: 0; }
+.mail-row { align-items: center; }
+.mail-row.on { background: var(--accent-soft); }
+.mail-dir { flex: none; width: 1.75rem; height: 1.75rem; display: grid; place-items: center; border-radius: 50%; font-size: 0.875rem; }
+.mail-dir.in { background: var(--accent-soft); color: var(--link); }
+.mail-dir.out { background: rgba(255, 255, 255, 0.05); color: var(--muted); }

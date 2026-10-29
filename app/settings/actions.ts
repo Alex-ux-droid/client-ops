@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { redirect } from "next/navigation";
 import { agentConfig, saveAgentConfig } from "@/lib/agent/config";
 import { requireUser } from "@/lib/auth";
+import { disconnectGoogle, saveGoogleClient } from "@/lib/google";
 import { CURRENCIES } from "@/lib/config";
 import { setSetting } from "@/lib/repo/settings";
 import { createAgentToken, getApiKey, revokeAgentToken, saveApiKey } from "@/lib/secrets";
@@ -64,4 +65,20 @@ export async function saveGeneralAction(fd: FormData) {
   const cur = String(fd.get("currency") ?? "");
   if ((CURRENCIES as readonly string[]).includes(cur)) setSetting("currency", cur);
   back("Збережено.", true, "general");
+}
+
+export async function saveGoogleClientAction(fd: FormData) {
+  await requireUser();
+  const id = String(fd.get("client_id") ?? "").trim();
+  const secret = String(fd.get("client_secret") ?? "").trim();
+  if (!/\.apps\.googleusercontent\.com$/.test(id)) back("Client ID має закінчуватись на .apps.googleusercontent.com", false, "google");
+  if (!secret && !process.env.GOOGLE_CLIENT_SECRET) back("Встав Client secret.", false, "google");
+  saveGoogleClient(id, secret);
+  back("Ключі Google збережено. Тепер натисни «Підключити Google».", true, "google");
+}
+
+export async function disconnectGoogleAction() {
+  await requireUser();
+  await disconnectGoogle();
+  back("Google відключено.", true, "google");
 }

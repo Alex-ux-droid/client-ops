@@ -2,7 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import Link from "next/link";
 import AgentAccess from "./AgentAccess";
 import InstallApp from "@/components/InstallApp";
-import { saveAgentAction, saveGeneralAction, saveKeyAction, testKeyAction } from "./actions";
+import { disconnectGoogleAction, saveAgentAction, saveGeneralAction, saveGoogleClientAction, saveKeyAction, testKeyAction } from "./actions";
+import { headers } from "next/headers";
+import { googleStatus } from "@/lib/google";
 import { addToolAction, deleteToolAction } from "@/app/actions";
 import { listTools } from "@/lib/repo/services";
 import { TOOL_CATEGORY_LABEL, type ToolCategory } from "@/lib/services";
@@ -14,6 +16,7 @@ import { systemInfo } from "@/lib/system";
 const TABS = [
   { k: "general", label: "Загальне" },
   { k: "agent", label: "Помічник" },
+  { k: "google", label: "Google" },
   { k: "catalog", label: "Довідники" },
   { k: "access", label: "Доступи" },
   { k: "system", label: "Система" },
@@ -51,6 +54,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {sp.msg && <div className="card" style={{ marginBottom: 16, borderColor: sp.ok ? "var(--ok)" : "var(--bad)" }}>{sp.msg}</div>}
       {tab === "general" && <General />}
       {tab === "agent" && <Agent />}
+      {tab === "google" && <GoogleTab />}
       {tab === "catalog" && <Catalog />}
       {tab === "access" && <Access />}
       {tab === "system" && <System />}
@@ -119,6 +123,58 @@ async function Agent() {
       </div>
       <div><button>Зберегти</button></div>
     </form>
+  );
+}
+
+async function GoogleTab() {
+  const g = googleStatus();
+  const h = await headers();
+  const host = h.get("x-forwarded-host") || h.get("host") || "ops.alexbentsa.com";
+  const proto = h.get("x-forwarded-proto") || (host.startsWith("localhost") ? "http" : "https");
+  const redirect = `${proto}://${host}/api/google/callback`;
+  const days = g.connectedAt ? Math.floor((Date.now() - +new Date(g.connectedAt)) / 86400_000) : 0;
+  return (
+    <div className="grid2">
+      <div className="card stack">
+        <h2>Підключення</h2>
+        {g.connected ? (
+          <>
+            <div><span className="tag ok">Підключено</span> <b>{g.email}</b></div>
+            <div className="mono">Підключено {days === 0 ? "сьогодні" : `${days} дн. тому`}. Поки застосунок Google у тестовому режимі, доступ живе ~7 днів — тоді просто натисни «Перепідключити».</div>
+            {g.error && <div className="mono" style={{ color: "var(--warn)" }}>{g.error}</div>}
+            <div className="inline" style={{ flexWrap: "wrap" }}>
+              <a href="/api/google/connect" className="btn">Перепідключити</a>
+              <form action={disconnectGoogleAction}><button className="ghost">Відключити</button></form>
+            </div>
+          </>
+        ) : g.configured ? (
+          <>
+            <div className="mono">Ключі є. Натисни, увійди своєю поштою і дозволь доступ (Google попередить, що застосунок не перевірений, — це твій власний, тисни «Продовжити»).</div>
+            <div><a href="/api/google/connect" className="btn">Підключити Google</a></div>
+          </>
+        ) : (
+          <div className="mono">Спершу встав Client ID і Client secret з Google Cloud (праворуч).</div>
+        )}
+        <div className="mono" style={{ color: "var(--dim)" }}>Що дає: папки клієнтів на Диску створюються самі; у картці клієнта — вкладка «Пошта» з листуванням, відповіддю і збереженням листів у матеріали.</div>
+      </div>
+      <form action={saveGoogleClientAction} className="card stack">
+        <h2>Ключі Google Cloud</h2>
+        <div className="field">
+          <label htmlFor="g_redirect">Authorized redirect URI (встав у Google Cloud)</label>
+          <input id="g_redirect" readOnly value={redirect} />
+        </div>
+        <div className="field">
+          <label htmlFor="client_id">Client ID</label>
+          <input id="client_id" name="client_id" defaultValue={g.clientId} placeholder="…apps.googleusercontent.com" required autoComplete="off" />
+        </div>
+        <div className="field">
+          <label htmlFor="client_secret">Client secret {g.configured && <span className="mono">(збережено — залиш порожнім, щоб не міняти)</span>}</label>
+          <input id="client_secret" name="client_secret" type="password" placeholder="GOCSPX-…" autoComplete="off" />
+        </div>
+        <div><button className="ghost">Зберегти ключі</button></div>
+        <div className="mono" style={{ color: "var(--dim)" }}>Зберігаються тільки в .env на сервері.</div>
+      </form>
+    </div>
   );
 }
 
