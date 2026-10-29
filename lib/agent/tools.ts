@@ -16,6 +16,7 @@ import { createTask, getTask, listTasks, setTaskStatus, updateTask, type TaskVie
 import { addWork, listWork } from "../repo/worklog";
 import { createClientFolders, googleConnected, listMail, mailQuery, readMail } from "../google";
 import { FOLDER_KINDS } from "../services";
+import { addDevEntry } from "../repo/devlog";
 import { addTool, enableService, findToolByName, listServices, listTools, saveFolder, updateService } from "../repo/services";
 import { isServiceType, SERVICE_TYPES, SERVICES, type ServiceDef } from "../services";
 
@@ -93,6 +94,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "mail_search", description: "Gmail Саші: листування з клієнтом (за поштою з картки) або пошук за запитом Gmail (напр. 'subject:рахунок newer_than:30d'). Повертає теми, дати, уривки.", input_schema: obj({ client_id: int("ID клієнта — шукати листування з його адресами"), query: str("Довільний запит Gmail, якщо без клієнта") }) },
   { name: "mail_read", description: "Прочитати повний текст листа з Gmail за id (з mail_search).", input_schema: obj({ message_id: str("ID листа") }, ["message_id"]) },
   { name: "drive_create_folders", description: "Створити на Google Диску папку клієнта з підпапками (креативи, дані, портфоліо, документи, сайт) і прив'язати до картки.", input_schema: obj({ client_id: int("ID клієнта") }, ["client_id"]) },
+  { name: "journal_add", description: "Записати в «Журнал системи» для розробника (Claude Code): чого система не вміє, а треба (request), глюк (bug) чи незручність/нюанс (note). Пиши як готове ТЗ: що потрібно, навіщо, на якому прикладі видно, як перевірити.", input_schema: obj({ kind: { type: "string", enum: ["request", "bug", "note"] }, title: str("Коротко, до 100 символів"), body: str("ТЗ: що, навіщо, приклад, як перевірити"), context: str("Де виникло: сторінка / клієнт") }, ["kind", "title", "body"]) },
   { name: "list_playbooks", description: "Список плейбуків.", input_schema: obj({}) },
   { name: "get_playbook", description: "Текст плейбука.", input_schema: obj({ playbook_id: int("ID плейбука") }, ["playbook_id"]) },
   { name: "attach_playbook", description: "Підключити плейбук до клієнта.", input_schema: obj({ client_id: int("ID клієнта"), playbook_id: int("ID плейбука") }, ["client_id", "playbook_id"]) },
@@ -298,6 +300,14 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       for (const f of subs) saveFolder(cid, f.kind, f.title, f.url);
       act("files", `Папки на Диску: ${c.name}`, `/clients/${cid}?tab=files`);
       return { ok: true, url: mainUrl };
+    }
+
+    case "journal_add": {
+      const kind = s(input.kind);
+      if (!["request", "bug", "note"].includes(kind)) throw new Error("kind: request | bug | note");
+      addDevEntry({ kind: kind as "request" | "bug" | "note", source: "assistant", title: need(s(input.title), "title обов'язковий"), body: s(input.body), context: s(input.context) });
+      act("journal", `У журнал: ${s(input.title).slice(0, 60)}`, "/journal");
+      return { ok: true };
     }
 
     case "list_playbooks":

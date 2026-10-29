@@ -10,6 +10,7 @@ export function navCounts() {
     leads: n(`SELECT COUNT(*) n FROM clients WHERE status = 'lead'`),
     debts: n(`SELECT COUNT(*) n FROM payments WHERE paid_at IS NULL AND due_date < ?`, today),
     ideas: n(`SELECT COUNT(*) n FROM ideas WHERE status = 'new'`),
+    journal: n(`SELECT COUNT(*) n FROM dev_log WHERE status = 'new'`),
   };
 }
 

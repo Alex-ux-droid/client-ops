@@ -7,7 +7,7 @@ import Chat from "./Chat";
 import CommandPalette from "./CommandPalette";
 import QuickAdd from "./QuickAdd";
 
-type Counts = { tasks: number; leads: number; debts: number; ideas: number };
+type Counts = { tasks: number; leads: number; debts: number; ideas: number; journal: number };
 type Opt = { id: number; name: string };
 
 const SECTIONS: { title: string; items: { href: string; label: string; ico: string; count?: keyof Counts; bad?: boolean }[] }[] = [
@@ -27,6 +27,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; ico: stri
     items: [
       { href: "/playbooks", label: "Плейбуки", ico: "☰" },
       { href: "/ideas", label: "Ідеї", ico: "✦", count: "ideas" },
+      { href: "/journal", label: "Журнал системи", ico: "✎", count: "journal" },
       { href: "/settings", label: "Налаштування", ico: "⚙" },
     ],
   },
@@ -36,7 +37,7 @@ const MOBILE = ["/", "/tasks", "/clients"];
 
 const PAGE_NAMES: [RegExp, string][] = [
   [/^\/$/, "Центр"], [/^\/tasks/, "Задачі"], [/^\/clients\/\d+/, "картка клієнта"], [/^\/clients/, "Клієнти"],
-  [/^\/pipeline/, "Воронка"], [/^\/money/, "Гроші"], [/^\/playbooks/, "Плейбуки"], [/^\/ideas/, "Ідеї"], [/^\/settings/, "Налаштування"],
+  [/^\/journal/, "Журнал системи"], [/^\/pipeline/, "Воронка"], [/^\/money/, "Гроші"], [/^\/playbooks/, "Плейбуки"], [/^\/ideas/, "Ідеї"], [/^\/settings/, "Налаштування"],
 ];
 
 export default function Shell({ counts, clients, children }: { counts: Counts; clients: Opt[]; children: React.ReactNode }) {
