@@ -22,3 +22,7 @@ export function addIdea(text: string, clientId: number | null = null): number {
 export function setIdeaStatus(id: number, status: IdeaStatus): void {
   db().prepare("UPDATE ideas SET status = ? WHERE id = ?").run(status, id);
 }
+
+export function deleteIdea(id: number): void {
+  db().prepare("DELETE FROM ideas WHERE id = ?").run(id);
+}

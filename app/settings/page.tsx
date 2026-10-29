@@ -2,13 +2,13 @@ import Anthropic from "@anthropic-ai/sdk";
 import Link from "next/link";
 import AgentAccess from "./AgentAccess";
 import InstallApp from "@/components/InstallApp";
-import { disconnectGoogleAction, saveAgentAction, saveGeneralAction, saveGoogleClientAction, saveKeyAction, testKeyAction } from "./actions";
+import { disconnectGoogleAction, saveAgentAction, saveMemoryAction, saveGeneralAction, saveGoogleClientAction, saveKeyAction, testKeyAction } from "./actions";
 import { headers } from "next/headers";
 import { googleStatus } from "@/lib/google";
 import { addToolAction, deleteToolAction } from "@/app/actions";
 import { listTools } from "@/lib/repo/services";
 import { TOOL_CATEGORY_LABEL, type ToolCategory } from "@/lib/services";
-import { agentConfig, EFFORT_LABEL, EFFORTS, KNOWN_MODELS } from "@/lib/agent/config";
+import { agentConfig, agentMemory, EFFORT_LABEL, EFFORTS, KNOWN_MODELS, MEMORY_MAX } from "@/lib/agent/config";
 import { currency, CURRENCIES } from "@/lib/config";
 import { getApiKey, hasAgentToken, maskKey } from "@/lib/secrets";
 import { systemInfo } from "@/lib/system";
@@ -53,7 +53,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       </nav>
       {sp.msg && <div className="card" style={{ marginBottom: 16, borderColor: sp.ok ? "var(--ok)" : "var(--bad)" }}>{sp.msg}</div>}
       {tab === "general" && <General />}
-      {tab === "agent" && <Agent />}
+      {tab === "agent" && <div className="stack" style={{ gap: "1rem" }}><Agent /><AgentMemory /></div>}
       {tab === "google" && <GoogleTab />}
       {tab === "catalog" && <Catalog />}
       {tab === "access" && <Access />}
@@ -122,6 +122,18 @@ async function Agent() {
         Ціни — $ за 1 млн токенів (вхід / вихід). {cfg.fallback ? "Якщо модель відмовить з міркувань безпеки — API автоматично спробує іншу." : "Для цієї моделі автоматичного запасного варіанту нема."}
       </div>
       <div><button>Зберегти</button></div>
+    </form>
+  );
+}
+
+function AgentMemory() {
+  const memory = agentMemory();
+  return (
+    <form action={saveMemoryAction} className="card stack" style={{ maxWidth: "48rem" }}>
+      <h2>Пам'ять помічника</h2>
+      <div className="mono">Що він сам запам'ятав про тебе і роботу. Доповнює сам («запам'ятай: …»), можеш поправити або стерти. {memory.length}/{MEMORY_MAX}</div>
+      <textarea name="memory" defaultValue={memory} style={{ minHeight: 220 }} placeholder="Поки порожньо — скажи помічнику: «запам'ятай, що…»" aria-label="Пам'ять помічника" />
+      <div><button className="ghost">Зберегти пам'ять</button></div>
     </form>
   );
 }
