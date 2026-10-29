@@ -114,7 +114,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
           ))}
         </div>
       )}
-      <form className="chat-input" onSubmit={(e) => { e.preventDefault(); send(text); }}>
+      <form data-nodraft className="chat-input" onSubmit={(e) => { e.preventDefault(); send(text); }}>
         <div className="chat-box">
           <textarea
             ref={box}

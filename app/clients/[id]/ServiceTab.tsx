@@ -73,7 +73,7 @@ export default function ServiceTab({ clientId, service }: { clientId: number; se
               <label htmlFor={`d_${f.key}`}>{f.label}</label>
               {f.type === "textarea"
                 ? <textarea id={`d_${f.key}`} name={`d_${f.key}`} defaultValue={service.details[f.key] ?? ""} placeholder={f.placeholder} />
-                : <input id={`d_${f.key}`} name={`d_${f.key}`} type={f.type === "number" ? "text" : f.type} inputMode={f.type === "number" ? "decimal" : undefined}
+                : <input id={`d_${f.key}`} name={`d_${f.key}`} type="text" inputMode={f.type === "number" ? "decimal" : f.type === "url" ? "url" : undefined} autoCapitalize={f.type === "url" ? "off" : undefined}
                     defaultValue={service.details[f.key] ?? ""} placeholder={f.placeholder} />}
             </div>
           ))}
