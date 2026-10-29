@@ -23,7 +23,7 @@
 - `lib/db.ts` — з'єднання; `lib/migrate.mjs` — міграції (спільні з `scripts/`).
 - `lib/repo/*` — ВЕСЬ доступ до БД тільки тут.
 - `lib/session.ts` — підпис/перевірка сесії; `lib/auth.ts` — `requireUser()`; `proxy.ts` — захист сторінок; `app/login/` — вхід.
-- `app/actions.ts` — усі server actions; сторінки в `app/`; спільні шматки в `components/` (`Shell` — меню/пошук/швидке додавання, `Charts` — SVG-графіки без бібліотек).
+- `app/actions.ts` — усі server actions; сторінки в `app/`; спільні шматки в `components/` (`Shell` — меню/пошук/швидке додавання, `Icon` — SVG-іконки в стилі Lucide, `Charts` — SVG-графіки без бібліотек).
 - `app/clients/[id]/` — хаб клієнта: `page.tsx` (шапка, вкладки), `Overview.tsx` (вибір послуг), `ServiceTab.tsx`, `FilesTab.tsx`, `tabs.tsx` (задачі, історія, гроші, матеріали, плейбуки, цифри реклами).
 - `lib/config.ts` — валюта (`APP_CURRENCY`, одна на всю систему) і `money()`.
 - Пошук: SQLite LIKE не знає регістр кирилиці — використовувати `ulower()` (реєструється в `lib/db.ts`).

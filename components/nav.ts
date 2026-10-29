@@ -5,21 +5,21 @@ export const SECTIONS: { title: string; items: { href: string; label: string; ic
   {
     title: "Робота",
     items: [
-      { href: "/", label: "Центр", ico: "◎" },
-      { href: "/assistant", label: "Помічник", ico: "◉" },
-      { href: "/tasks", label: "Задачі", ico: "▣", count: "tasks" },
-      { href: "/clients", label: "Клієнти", ico: "◇" },
-      { href: "/pipeline", label: "Воронка", ico: "⟩", count: "leads" },
-      { href: "/money", label: "Гроші", ico: "◈", count: "debts", bad: true },
+      { href: "/", label: "Центр", ico: "home" },
+      { href: "/assistant", label: "Помічник", ico: "bot" },
+      { href: "/tasks", label: "Задачі", ico: "tasks", count: "tasks" },
+      { href: "/clients", label: "Клієнти", ico: "users" },
+      { href: "/pipeline", label: "Воронка", ico: "funnel", count: "leads" },
+      { href: "/money", label: "Гроші", ico: "wallet", count: "debts", bad: true },
     ],
   },
   {
     title: "Знання",
     items: [
-      { href: "/playbooks", label: "Плейбуки", ico: "☰" },
-      { href: "/ideas", label: "Ідеї", ico: "✦", count: "ideas" },
-      { href: "/journal", label: "Журнал системи", ico: "✎", count: "journal" },
-      { href: "/settings", label: "Налаштування", ico: "⚙" },
+      { href: "/playbooks", label: "Плейбуки", ico: "book" },
+      { href: "/ideas", label: "Ідеї", ico: "bulb", count: "ideas" },
+      { href: "/journal", label: "Журнал системи", ico: "wrench", count: "journal" },
+      { href: "/settings", label: "Налаштування", ico: "gear" },
     ],
   },
 ];

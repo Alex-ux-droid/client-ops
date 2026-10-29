@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { logout } from "@/app/login/actions";
+import Icon from "@/components/Icon";
 import { SECTIONS } from "@/components/nav";
 import { navCounts } from "@/lib/repo/counts";
 
@@ -18,7 +19,7 @@ export default async function MenuPage() {
             const c = i.count ? counts[i.count] : 0;
             return (
               <Link key={i.href} href={i.href} className="side-link">
-                <span className="ico">{i.ico}</span>
+                <span className="ico"><Icon name={i.ico} /></span>
                 <span className="grow">{i.label}</span>
                 {c > 0 && <span className={`count ${i.bad ? "bad" : ""}`}>{c}</span>}
               </Link>
