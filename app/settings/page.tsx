@@ -131,7 +131,7 @@ function AgentMemory() {
   return (
     <form action={saveMemoryAction} className="card stack" style={{ maxWidth: "48rem" }}>
       <h2>Пам'ять помічника</h2>
-      <div className="mono">Що він сам запам'ятав про тебе і роботу. Доповнює сам («запам'ятай: …»), можеш поправити або стерти. {memory.length}/{MEMORY_MAX}</div>
+      <div className="mono">Після кожної розмови помічник сам перечитує її і оновлює пам'ять: факти про тебе, правила, уроки з виправлень, цілі. Можеш поправити або стерти. {memory.length}/{MEMORY_MAX}</div>
       <textarea name="memory" defaultValue={memory} style={{ minHeight: 220 }} placeholder="Поки порожньо — скажи помічнику: «запам'ятай, що…»" aria-label="Пам'ять помічника" />
       <div><button className="ghost">Зберегти пам'ять</button></div>
     </form>
