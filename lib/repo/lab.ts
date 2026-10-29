@@ -24,7 +24,7 @@ const TEMPLATES: Record<LabCategory, [string, number][]> = {
     ["Ціна розробки і підтримки", 3], ["Швидкість запуску", 2], ["Клієнт сам редагує", 2],
     ["SEO і швидкість сайту", 2], ["Інтеграції (CRM, форми, оплати)", 2],
   ],
-  other: [["Ціна", 3], ["Простота", 2], ["Результат для бізнесу", 3]],
+  other: [],
 };
 
 export type LabSession = {
@@ -89,8 +89,8 @@ export function createLab(input: { client_id: number | null; title: string; cate
   return tx();
 }
 
-export function updateLab(id: number, patch: Partial<Pick<LabSession, "client_id" | "title" | "brief" | "notes" | "conclusion" | "chosen_option_id">>): void {
-  const keys = (["client_id", "title", "brief", "notes", "conclusion", "chosen_option_id"] as const).filter((k) => patch[k] !== undefined);
+export function updateLab(id: number, patch: Partial<Pick<LabSession, "client_id" | "title" | "category" | "brief" | "notes" | "conclusion" | "chosen_option_id">>): void {
+  const keys = (["client_id", "title", "category", "brief", "notes", "conclusion", "chosen_option_id"] as const).filter((k) => patch[k] !== undefined);
   if (!keys.length) return;
   db().prepare(`UPDATE lab_sessions SET ${keys.map((k) => `${k} = @${k}`).join(", ")} WHERE id = @id`).run({ ...patch, id });
 }

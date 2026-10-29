@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import SubmitButton from "@/components/SubmitButton";
+import LabAssistant from "./LabAssistant";
 import { money } from "@/lib/config";
 import { fmtDate } from "@/lib/dates";
 import { getClientRow, listClients } from "@/lib/repo/clients";
@@ -37,13 +39,15 @@ export default async function LabSessionPage({ params }: { params: Promise<{ id:
           <Link href="/lab" className="h-link">Лабораторія</Link>
           <h1>{l.title}</h1>
           <div className="meta">
-            <span className="tag accent">{cat.label}</span>
+            {l.category !== "other" && <span className="tag accent">{cat.label}</span>}
             {client && <Link href={`/clients/${client.id}`} className="tag">{client.name}</Link>}
             <span className={`tag ${done ? "ok" : "warn"}`}>{done ? `Завершено ${fmtDate(l.done_at)}` : "В роботі"}</span>
           </div>
         </div>
         {done && <form action={reopenLabAction}>{hidden}<button className="ghost">Відкрити знову</button></form>}
       </div>
+
+      <Suspense><LabAssistant id={id} empty={l.options.length === 0} /></Suspense>
 
       <div className="grid2 lab-top">
         <div className="card stack">
@@ -72,7 +76,7 @@ export default async function LabSessionPage({ params }: { params: Promise<{ id:
         </div>
         <form action={saveLabTextAction} className="card stack">
           {hidden}
-          <h2>Що треба клієнту</h2>
+          <h2>Проблема</h2>
           <textarea name="brief" defaultValue={l.brief} placeholder="Задачі, скільки людей, звідки ліди, бюджет, обмеження, що вже пробували" style={{ minHeight: "8rem" }} />
           <div><SubmitButton className="ghost">Зберегти</SubmitButton></div>
         </form>
@@ -202,8 +206,7 @@ export default async function LabSessionPage({ params }: { params: Promise<{ id:
         <form action={finishLabAction} className="card stack lab-finish">
           {hidden}
           <h2>Висновок</h2>
-          <div className="callout">Попроси помічника (кнопка «Помічник»): «проаналізуй цю сесію і напиши висновок» — він бачить усі варіанти й оцінки і сам впише висновок сюди.</div>
-          <div className="field">
+                    <div className="field">
             <label htmlFor="chosen">Що обираємо</label>
             <select id="chosen" name="chosen_option_id" defaultValue={l.chosen_option_id ?? leader?.id ?? ""}>
               <option value="">— ще не вирішили —</option>

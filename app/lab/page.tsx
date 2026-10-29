@@ -34,22 +34,13 @@ export default async function LabPage({ searchParams }: { searchParams: Promise<
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div className="field">
-            <label htmlFor="category">Що підбираємо</label>
-            <select id="category" name="category" defaultValue="crm">
-              {Object.entries(LAB_CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-          </div>
           <div className="field wide">
-            <label htmlFor="title">Питання</label>
-            <input id="title" name="title" placeholder="Яку CRM поставити: готову чи зробити свою?" />
-          </div>
-          <div className="field wide">
-            <label htmlFor="brief">Що треба клієнту, бюджет, обмеження</label>
-            <textarea id="brief" name="brief" placeholder="5 менеджерів, ліди з Facebook і сайту, бюджет до 50$/міс, потрібна телефонія…" />
+            <label htmlFor="brief">Яку проблему вирішуємо</label>
+            <textarea id="brief" name="brief" required style={{ minHeight: "7rem" }}
+              placeholder="Напр.: менеджери губляться в заявках з Facebook і сайту, 5 людей, бюджет до 50$/міс — потрібна CRM: готова чи своя на вайбкоді?" />
           </div>
         </div>
-        <div><SubmitButton>Почати</SubmitButton></div>
+        <div className="inline"><SubmitButton>Почати з помічником</SubmitButton><span className="mono" style={{ color: "var(--dim)" }}>Він запропонує варіанти і критерії</span></div>
       </form>
 
       <h2 style={{ marginBottom: "0.75rem" }}>В роботі</h2>
@@ -72,7 +63,7 @@ function SessionList({ items, empty }: { items: ReturnType<typeof listLab>; empt
           <div className="row-main">
             <div className="row-title">{s.title}</div>
             <div className="meta">
-              <span className="tag accent">{LAB_CATEGORIES[s.category]?.label ?? s.category}</span>
+              {s.category !== "other" && <span className="tag accent">{LAB_CATEGORIES[s.category]?.label ?? s.category}</span>}
               {s.client_name && <span className="tag">{s.client_name}</span>}
               <span className="mono">{s.options_count} варіант(и) · {fmtDate(s.created_at)}</span>
             </div>
