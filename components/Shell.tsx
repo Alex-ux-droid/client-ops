@@ -7,31 +7,9 @@ import Chat from "./Chat";
 import CommandPalette from "./CommandPalette";
 import QuickAdd from "./QuickAdd";
 
-type Counts = { tasks: number; leads: number; debts: number; ideas: number; journal: number };
-type Opt = { id: number; name: string };
+import { SECTIONS, type Counts } from "./nav";
 
-const SECTIONS: { title: string; items: { href: string; label: string; ico: string; count?: keyof Counts; bad?: boolean }[] }[] = [
-  {
-    title: "Робота",
-    items: [
-      { href: "/", label: "Центр", ico: "◎" },
-      { href: "/assistant", label: "Помічник", ico: "◉" },
-      { href: "/tasks", label: "Задачі", ico: "▣", count: "tasks" },
-      { href: "/clients", label: "Клієнти", ico: "◇" },
-      { href: "/pipeline", label: "Воронка", ico: "⟩", count: "leads" },
-      { href: "/money", label: "Гроші", ico: "◈", count: "debts", bad: true },
-    ],
-  },
-  {
-    title: "Знання",
-    items: [
-      { href: "/playbooks", label: "Плейбуки", ico: "☰" },
-      { href: "/ideas", label: "Ідеї", ico: "✦", count: "ideas" },
-      { href: "/journal", label: "Журнал системи", ico: "✎", count: "journal" },
-      { href: "/settings", label: "Налаштування", ico: "⚙" },
-    ],
-  },
-];
+type Opt = { id: number; name: string };
 
 const MOBILE = ["/", "/tasks", "/clients"];
 
@@ -42,7 +20,6 @@ const PAGE_NAMES: [RegExp, string][] = [
 
 export default function Shell({ counts, clients, children }: { counts: Counts; clients: Opt[]; children: React.ReactNode }) {
   const path = usePathname();
-  const [menu, setMenu] = useState(false);
   const [search, setSearch] = useState(false);
   const [add, setAdd] = useState(false);
   const [dock, setDock] = useState(false);
@@ -51,12 +28,18 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearch(true); }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") { e.preventDefault(); setDock((d) => !d); }
-      if (e.key === "Escape") { setSearch(false); setAdd(false); setMenu(false); setDock(false); }
+      if (e.key === "Escape") { setSearch(false); setAdd(false); setDock(false); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  useEffect(() => { setMenu(false); }, [path]);
+
+  // Поки відкрите вікно (помічник, пошук, додати) — сторінка ззаду не гортається
+  const locked = dock || search || add;
+  useEffect(() => {
+    document.documentElement.classList.toggle("locked", locked);
+    return () => document.documentElement.classList.remove("locked");
+  }, [locked]);
 
   if (path === "/login") return <>{children}</>;
   const clientMatch = path.match(/^\/clients\/(\d+)/);
@@ -110,17 +93,9 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
         {MOBILE.slice(0, 2).map((h) => <TabLink key={h} item={all.find((i) => i.href === h)!} on={on(h)} counts={counts} />)}
         <button className="fab" onClick={() => setDock(true)} aria-label="Помічник">🎙</button>
         <TabLink item={all.find((i) => i.href === "/clients")!} on={on("/clients")} counts={counts} />
-        <button className="tab" onClick={() => setMenu(true)}><span className="ico">≡</span>Меню</button>
+        <Link href="/menu" className={`tab ${path === "/menu" ? "on" : ""}`}><span className="ico">≡</span>Меню</Link>
       </nav>
 
-      {menu && (
-        <div className="overlay" onClick={() => setMenu(false)}>
-          <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            {links}
-            <form action={logout}><button className="ghost small" style={{ width: "100%" }}>Вийти</button></form>
-          </div>
-        </div>
-      )}
       {dock && (
         <div className="overlay dock-overlay" onClick={() => setDock(false)}>
           <aside className="dock" onClick={(e) => e.stopPropagation()}>

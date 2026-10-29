@@ -31,7 +31,7 @@ export default async function MailTab({ clientId, email, open, err, sent }: { cl
     <div className="stack" style={{ gap: "1.25rem" }}>
       {err && <div className="callout" style={{ borderColor: "var(--bad)" }}>{err}</div>}
       {sent && <div className="callout" style={{ borderColor: "var(--ok)" }}>Лист надіслано і записано в історію.</div>}
-      {loadErr && <div className="callout" style={{ borderColor: "var(--warn)" }}>{loadErr} <Link href="/settings?tab=google" className="h-link">Налаштування → Google</Link></div>}
+      {loadErr && <div className="callout" style={{ borderColor: "var(--warn)" }}>{loadErr} <Link href="/settings?tab=connectors&c=google" className="h-link">Налаштування → Конектори</Link></div>}
 
       <div className="split">
         <div>

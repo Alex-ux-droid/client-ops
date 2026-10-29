@@ -16,7 +16,7 @@ import { systemInfo } from "@/lib/system";
 const TABS = [
   { k: "general", label: "Загальне" },
   { k: "agent", label: "Помічник" },
-  { k: "google", label: "Google" },
+  { k: "connectors", label: "Конектори" },
   { k: "catalog", label: "Довідники" },
   { k: "access", label: "Доступи" },
   { k: "system", label: "Система" },
@@ -42,9 +42,11 @@ async function modelOptions(key: string | null): Promise<{ id: string; name: str
   }
 }
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string; msg?: string; ok?: string }> }) {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string; c?: string; msg?: string; ok?: string }> }) {
   const sp = await searchParams;
-  const tab = (TABS.find((t) => t.k === sp.tab)?.k ?? "general") as Tab;
+  // старі посилання ?tab=google ведуть у конектор Google
+  const conn = sp.tab === "google" ? "google" : sp.c;
+  const tab = (sp.tab === "google" ? "connectors" : TABS.find((t) => t.k === sp.tab)?.k ?? "general") as Tab;
   return (
     <>
       <div className="head"><h1>Налаштування</h1></div>
@@ -54,7 +56,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {sp.msg && <div className="card" style={{ marginBottom: 16, borderColor: sp.ok ? "var(--ok)" : "var(--bad)" }}>{sp.msg}</div>}
       {tab === "general" && <General />}
       {tab === "agent" && <div className="stack" style={{ gap: "1rem" }}><Agent /><AgentMemory /></div>}
-      {tab === "google" && <GoogleTab />}
+      {tab === "connectors" && (conn === "google" ? <GoogleTab /> : <Connectors />)}
       {tab === "catalog" && <Catalog />}
       {tab === "access" && <Access />}
       {tab === "system" && <System />}
@@ -138,6 +140,43 @@ function AgentMemory() {
   );
 }
 
+// Зовнішні сервіси, до яких підключається система і помічник
+function Connectors() {
+  const g = googleStatus();
+  const list = [
+    {
+      id: "google", name: "Google", ico: "G", desc: "Gmail і Google Диск: пошта клієнтів у картці, папки клієнтів на Диску.",
+      agent: "Помічник: шукає і читає листи, створює папки.",
+      status: g.connected ? "ok" : g.configured ? "warn" : "off",
+      label: g.connected ? "Підключено" : g.configured ? "Не підключено" : "Не налаштовано",
+    },
+    {
+      id: "meta", name: "Meta Ads", ico: "f", desc: "Автоімпорт цифр реклами з Facebook / Instagram.",
+      agent: "", status: "soon", label: "Скоро",
+    },
+  ];
+  return (
+    <div className="conn-grid">
+      {list.map((c) => {
+        const body = (
+          <>
+            <div className="conn-head">
+              <span className="conn-ico">{c.ico}</span>
+              <b className="grow">{c.name}</b>
+              <span className={`tag ${c.status === "ok" ? "ok" : c.status === "warn" ? "warn" : ""}`}>{c.label}</span>
+            </div>
+            <div className="mono">{c.desc}</div>
+            {c.agent && <div className="mono" style={{ color: "var(--dim)" }}>{c.agent}</div>}
+          </>
+        );
+        return c.status === "soon"
+          ? <div key={c.id} className="card stack conn soon">{body}</div>
+          : <Link key={c.id} href={`/settings?tab=connectors&c=${c.id}`} className="card stack conn">{body}</Link>;
+      })}
+    </div>
+  );
+}
+
 async function GoogleTab() {
   const g = googleStatus();
   const h = await headers();
@@ -146,9 +185,11 @@ async function GoogleTab() {
   const redirect = `${proto}://${host}/api/google/callback`;
   const days = g.connectedAt ? Math.floor((Date.now() - +new Date(g.connectedAt)) / 86400_000) : 0;
   return (
+    <div className="stack" style={{ gap: "1rem" }}>
+    <Link href="/settings?tab=connectors" className="h-link">← Конектори</Link>
     <div className="grid2">
       <div className="card stack">
-        <h2>Підключення</h2>
+        <h2>Google: Gmail і Диск</h2>
         {g.connected ? (
           <>
             <div><span className="tag ok">Підключено</span> <b>{g.email}</b></div>
@@ -165,7 +206,7 @@ async function GoogleTab() {
             <div><a href="/api/google/connect" className="btn">Підключити Google</a></div>
           </>
         ) : (
-          <div className="mono">Спершу встав Client ID і Client secret з Google Cloud (праворуч).</div>
+          <div className="mono">Спершу встав Client ID і Client secret з Google Cloud (у блоці «Ключі Google Cloud»).</div>
         )}
         <div className="mono" style={{ color: "var(--dim)" }}>Що дає: папки клієнтів на Диску створюються самі; у картці клієнта — вкладка «Пошта» з листуванням, відповіддю і збереженням листів у матеріали.</div>
       </div>
@@ -184,6 +225,7 @@ async function GoogleTab() {
         )}
         <div className="mono" style={{ color: "var(--dim)" }}>Зберігаються тільки в .env на сервері.</div>
       </div>
+    </div>
     </div>
   );
 }
