@@ -56,3 +56,12 @@ export function toggleChecklistItem(cpId: number, index: number): void {
   if (set.has(index)) set.delete(index); else set.add(index);
   db().prepare("UPDATE client_playbooks SET checked_json = ? WHERE id = ?").run(JSON.stringify([...set].sort((a, b) => a - b)), cpId);
 }
+
+// Поставити або зняти галочку (без перемикання навмання)
+export function setChecklistItem(cpId: number, index: number, done: boolean): void {
+  const row = db().prepare("SELECT checked_json FROM client_playbooks WHERE id = ?").get(cpId) as { checked_json: string } | undefined;
+  if (!row) throw new Error("Плейбук клієнта не знайдено");
+  const set = new Set(JSON.parse(row.checked_json) as number[]);
+  if (done) set.add(index); else set.delete(index);
+  db().prepare("UPDATE client_playbooks SET checked_json = ? WHERE id = ?").run(JSON.stringify([...set].sort((a, b) => a - b)), cpId);
+}

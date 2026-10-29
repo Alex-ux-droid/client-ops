@@ -41,3 +41,19 @@ export function saveAgentConfig(c: { model: string; effort: string; instructions
   if ((EFFORTS as readonly string[]).includes(c.effort)) setSetting("agent.effort", c.effort);
   setSetting("agent.instructions", c.instructions.slice(0, 8000));
 }
+
+// Пам'ять помічника: що він дізнався про Сашу і роботу. Помічник доповнює сам, Саша може редагувати.
+const MEMORY_LIMIT = 8000;
+export function agentMemory(): string {
+  return getSetting("agent.memory") ?? "";
+}
+export function setAgentMemory(text: string): void {
+  setSetting("agent.memory", text.slice(0, MEMORY_LIMIT));
+}
+export function addAgentMemory(note: string): number {
+  const line = `- ${new Date().toISOString().slice(0, 10)}: ${note.trim().replace(/\n+/g, " ")}`;
+  const next = `${agentMemory().trim()}\n${line}`.trim();
+  setAgentMemory(next);
+  return next.length;
+}
+export const MEMORY_MAX = MEMORY_LIMIT;

@@ -1,23 +1,24 @@
 // Інструменти помічника: читання і запис у базу через lib/repo. Видаляти нічого не вміє — навмисно.
 import type Anthropic from "@anthropic-ai/sdk";
 import { ymd } from "../dates";
-import { addAdStat, cpl, listAdStats } from "../repo/ads";
+import { addAgentMemory, setAgentMemory } from "./config";
+import { addAdStat, cpl, deleteAdStat, listAdStats } from "../repo/ads";
 import type { ChatAction } from "../repo/chat";
 import {
-  CLIENT_FIELDS, CLIENT_STATUSES, clientFlags, createClient, getClientRow, LEAD_STAGES, listClients, updateClient,
+  CLIENT_FIELDS, CLIENT_STATUSES, clientFlags, createClient, deleteClient, getClientRow, LEAD_STAGES, listClients, updateClient,
   type ClientInput,
 } from "../repo/clients";
-import { addIdea, listIdeas } from "../repo/ideas";
-import { addMaterial, getMaterial, listMaterials, MATERIAL_KINDS, type MaterialKind } from "../repo/materials";
-import { addPayment, listPayments, moneySummary } from "../repo/payments";
-import { attachPlaybook, checklistItems, clientPlaybooks, getPlaybook, listPlaybooks } from "../repo/playbooks";
+import { addIdea, deleteIdea, listIdeas, setIdeaStatus } from "../repo/ideas";
+import { addMaterial, deleteMaterial, getMaterial, listMaterials, MATERIAL_KINDS, type MaterialKind } from "../repo/materials";
+import { addPayment, deletePayment, listPayments, markPaid, moneySummary } from "../repo/payments";
+import { attachPlaybook, checklistItems, clientPlaybooks, detachPlaybook, getPlaybook, listPlaybooks, savePlaybook, setChecklistItem } from "../repo/playbooks";
 import { searchAll } from "../repo/search";
-import { createTask, getTask, listTasks, setTaskStatus, updateTask, type TaskView } from "../repo/tasks";
-import { addWork, listWork } from "../repo/worklog";
+import { createTask, deleteTask, getTask, listTasks, setTaskStatus, updateTask, type TaskView } from "../repo/tasks";
+import { addWork, deleteWork, listWork } from "../repo/worklog";
 import { createClientFolders, googleConnected, listMail, mailQuery, readMail } from "../google";
-import { FOLDER_KINDS } from "../services";
+import { FOLDER_KINDS, isServiceType as isSvc } from "../services";
 import { addDevEntry } from "../repo/devlog";
-import { addTool, enableService, findToolByName, listServices, listTools, saveFolder, updateService } from "../repo/services";
+import { addTool, enableService, findToolByName, listServices, listTools, removeService, saveFolder, updateService } from "../repo/services";
 import { isServiceType, SERVICE_TYPES, SERVICES, type ServiceDef } from "../services";
 
 type Input = Record<string, unknown>;
@@ -95,6 +96,20 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "mail_read", description: "Прочитати повний текст листа з Gmail за id (з mail_search).", input_schema: obj({ message_id: str("ID листа") }, ["message_id"]) },
   { name: "drive_create_folders", description: "Створити на Google Диску папку клієнта з підпапками (креативи, дані, портфоліо, документи, сайт) і прив'язати до картки.", input_schema: obj({ client_id: int("ID клієнта") }, ["client_id"]) },
   { name: "journal_add", description: "Записати в «Журнал системи» для розробника (Claude Code): чого система не вміє, а треба (request), глюк (bug) чи незручність/нюанс (note). Пиши як готове ТЗ: що потрібно, навіщо, на якому прикладі видно, як перевірити.", input_schema: obj({ kind: { type: "string", enum: ["request", "bug", "note"] }, title: str("Коротко, до 100 символів"), body: str("ТЗ: що, навіщо, приклад, як перевірити"), context: str("Де виникло: сторінка / клієнт") }, ["kind", "title", "body"]) },
+  { name: "delete_task", description: "Видалити задачу назавжди (якщо треба просто прибрати з планів).", input_schema: obj({ task_id: int("ID задачі") }, ["task_id"]) },
+  { name: "reopen_task", description: "Повернути закриту задачу в роботу.", input_schema: obj({ task_id: int("ID задачі") }, ["task_id"]) },
+  { name: "remove_service", description: "Прибрати послугу з картки клієнта (вкладка зникне, її поля видаляться). Якщо просто закінчили роботу — краще set_service зі status done.", input_schema: obj({ client_id: int("ID клієнта"), type: { type: "string", enum: [...SERVICE_TYPES] } }, ["client_id", "type"]) },
+  { name: "set_payment", description: "Відмітити оплату як отриману / не отриману, або видалити оплату.", input_schema: obj({ payment_id: int("ID оплати (з get_client або money_summary)"), action: { type: "string", enum: ["paid", "unpaid", "delete"] } }, ["payment_id", "action"]) },
+  { name: "list_ideas", description: "Ідеї (з id): нові, використані, відкинуті.", input_schema: obj({ client_id: int("Фільтр по клієнту"), status: { type: "string", enum: ["new", "used", "dropped"] } }) },
+  { name: "set_idea", description: "Позначити ідею використаною/відкинутою/новою або видалити.", input_schema: obj({ idea_id: int("ID ідеї"), action: { type: "string", enum: ["new", "used", "dropped", "delete"] } }, ["idea_id", "action"]) },
+  { name: "delete_record", description: "Видалити запис: work (історія робіт), material (матеріал), ad_stat (період реклами).", input_schema: obj({ kind: { type: "string", enum: ["work", "material", "ad_stat"] }, id: int("ID запису") }, ["kind", "id"]) },
+  { name: "checklist", description: "Поставити або зняти галочку в плейбуці клієнта (client_playbook_id та index — з get_client).", input_schema: obj({ client_playbook_id: int("ID плейбука клієнта"), index: int("Номер пункту з 0"), done: { type: "boolean" } }, ["client_playbook_id", "index", "done"]) },
+  { name: "detach_playbook", description: "Відключити плейбук від клієнта.", input_schema: obj({ client_playbook_id: int("ID плейбука клієнта") }, ["client_playbook_id"]) },
+  { name: "save_playbook", description: "Створити новий плейбук або оновити існуючий (передай playbook_id). body_md: заголовки '#' і пункти '- [ ] текст'.", input_schema: obj({ playbook_id: int("ID, якщо оновлюємо"), title: str("Назва"), body_md: str("Markdown з чеклістом"), tags: str("Теги через кому") }, ["title", "body_md"]) },
+  { name: "set_folder", description: "Прив'язати посилання на папку клієнта: main (головна) або creatives, data, portfolio, docs, website.", input_schema: obj({ client_id: int("ID клієнта"), kind: { type: "string", enum: ["main", ...FOLDER_KINDS.map((f) => f.kind)] }, url: str("Посилання") }, ["client_id", "kind", "url"]) },
+  { name: "delete_client", description: "ВИДАЛИТИ клієнта назавжди з усією історією, оплатами, матеріалами. Тільки коли Саша прямо сказав «видали клієнта». В інших випадках — update_client зі status archived (архів, можна повернути).", input_schema: obj({ client_id: int("ID клієнта"), confirm_name: str("Точна назва клієнта для підтвердження") }, ["client_id", "confirm_name"]) },
+  { name: "memory_add", description: "Запам'ятати надовго: факт про Сашу, його підхід, ціни, правила, вподобання, важливі рішення по роботі. Коротко, одним реченням. Не дублюй те, що вже є в пам'яті.", input_schema: obj({ note: str("Що запам'ятати") }, ["note"]) },
+  { name: "memory_rewrite", description: "Переписати пам'ять повністю — коли вона розрослась (понад ~6000 символів) або застаріла: стисни, прибери дублі й неактуальне, нічого важливого не губи.", input_schema: obj({ text: str("Нова пам'ять повністю, пунктами") }, ["text"]) },
   { name: "list_playbooks", description: "Список плейбуків.", input_schema: obj({}) },
   { name: "get_playbook", description: "Текст плейбука.", input_schema: obj({ playbook_id: int("ID плейбука") }, ["playbook_id"]) },
   { name: "attach_playbook", description: "Підключити плейбук до клієнта.", input_schema: obj({ client_id: int("ID клієнта"), playbook_id: int("ID плейбука") }, ["client_id", "playbook_id"]) },
@@ -123,13 +138,13 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
         ...c,
         flags: clientFlags(c).map((f) => f.text),
         open_tasks: listTasks("all", cid).map((t) => ({ id: t.id, title: t.title, due_date: t.due_date, status: t.status })),
-        recent_work: listWork(cid, 15).map((w) => ({ date: w.done_at, what: w.what, why: w.why, result: w.result })),
+        recent_work: listWork(cid, 15).map((w) => ({ id: w.id, date: w.done_at, what: w.what, why: w.why, result: w.result })),
         materials: listMaterials(cid).map((m) => ({ id: m.id, kind: m.kind, title: m.title, created_at: m.created_at })),
         ads: ads.map((a) => ({ ...a, cpl: cpl(a) })),
-        payments: listPayments({ clientId: cid }).slice(0, 12).map((p) => ({ amount: p.amount, due_date: p.due_date, paid_at: p.paid_at, note: p.note })),
+        payments: listPayments({ clientId: cid }).slice(0, 12).map((p) => ({ id: p.id, amount: p.amount, due_date: p.due_date, paid_at: p.paid_at, note: p.note })),
         services: listServices(cid).map((sv) => ({ type: sv.type, status: sv.status, started_at: sv.started_at, tool: sv.tool_name, details: sv.details, notes: sv.notes })),
-        playbooks: clientPlaybooks(cid).map((p) => ({ title: p.title, done: p.checked.length, total: checklistItems(p.body_md).length })),
-        ideas: listIdeas({ clientId: cid, status: "new" }).map((i) => i.text),
+        playbooks: clientPlaybooks(cid).map((p) => ({ client_playbook_id: p.id, title: p.title, items: checklistItems(p.body_md).map((t, i) => ({ index: i, text: t, done: p.checked.includes(i) })) })),
+        ideas: listIdeas({ clientId: cid }).map((i) => ({ id: i.id, text: i.text, status: i.status })),
       };
     }
 
@@ -307,6 +322,113 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       if (!["request", "bug", "note"].includes(kind)) throw new Error("kind: request | bug | note");
       addDevEntry({ kind: kind as "request" | "bug" | "note", source: "assistant", title: need(s(input.title), "title обов'язковий"), body: s(input.body), context: s(input.context) });
       act("journal", `У журнал: ${s(input.title).slice(0, 60)}`, "/journal");
+      return { ok: true };
+    }
+
+    case "delete_task": {
+      const t = need(getTask(need(id(input.task_id), "task_id")), "Задачі нема");
+      deleteTask(t.id);
+      act("delete", `Видалено задачу: ${t.title}`);
+      return { ok: true };
+    }
+
+    case "reopen_task": {
+      const t = need(getTask(need(id(input.task_id), "task_id")), "Задачі нема");
+      setTaskStatus(t.id, "todo");
+      act("task", `Знову в роботі: ${t.title}`, t.client_id ? `/clients/${t.client_id}?tab=tasks` : "/tasks?view=all");
+      return { ok: true };
+    }
+
+    case "remove_service": {
+      const cid = need(id(input.client_id), "client_id");
+      const type = s(input.type);
+      if (!isSvc(type)) throw new Error("Невідомий тип послуги");
+      removeService(cid, type);
+      act("delete", `Прибрано послугу ${SERVICES[type].label} · ${clientName(cid)}`, `/clients/${cid}`);
+      return { ok: true };
+    }
+
+    case "set_payment": {
+      const pid = need(id(input.payment_id), "payment_id");
+      const a = s(input.action);
+      if (a === "delete") deletePayment(pid); else markPaid(pid, a === "paid");
+      act("money", a === "delete" ? "Оплату видалено" : a === "paid" ? "Оплату отримано" : "Оплату позначено неотриманою", "/money");
+      return { ok: true };
+    }
+
+    case "list_ideas":
+      return listIdeas({ clientId: id(input.client_id) ?? undefined, status: (["new", "used", "dropped"].includes(s(input.status)) ? s(input.status) : undefined) as never })
+        .map((i) => ({ id: i.id, text: i.text, status: i.status, client: i.client_name }));
+
+    case "set_idea": {
+      const iid = need(id(input.idea_id), "idea_id");
+      const a = s(input.action);
+      if (a === "delete") deleteIdea(iid);
+      else if (a === "new" || a === "used" || a === "dropped") setIdeaStatus(iid, a);
+      else throw new Error("action: new | used | dropped | delete");
+      act("idea", a === "delete" ? "Ідею видалено" : `Ідея → ${a === "used" ? "використана" : a === "dropped" ? "відкинута" : "нова"}`, "/ideas");
+      return { ok: true };
+    }
+
+    case "delete_record": {
+      const rid = need(id(input.id), "id");
+      const k = s(input.kind);
+      if (k === "work") deleteWork(rid); else if (k === "material") deleteMaterial(rid); else if (k === "ad_stat") deleteAdStat(rid);
+      else throw new Error("kind: work | material | ad_stat");
+      act("delete", `Видалено запис (${k === "work" ? "історія" : k === "material" ? "матеріал" : "реклама"})`);
+      return { ok: true };
+    }
+
+    case "checklist": {
+      setChecklistItem(need(id(input.client_playbook_id), "client_playbook_id"), Math.trunc(n(input.index)), input.done === true);
+      act("playbook", input.done === true ? "Пункт плейбука виконано" : "Галочку знято");
+      return { ok: true };
+    }
+
+    case "detach_playbook": {
+      detachPlaybook(need(id(input.client_playbook_id), "client_playbook_id"));
+      act("playbook", "Плейбук відключено");
+      return { ok: true };
+    }
+
+    case "save_playbook": {
+      const pid = savePlaybook({ id: id(input.playbook_id), title: need(s(input.title), "title"), body_md: s(input.body_md), tags: s(input.tags) });
+      act("playbook", `Плейбук: ${s(input.title)}`, `/playbooks/${pid}`);
+      return { ok: true, playbook_id: pid };
+    }
+
+    case "set_folder": {
+      const cid = need(id(input.client_id), "client_id");
+      const kind = s(input.kind);
+      const url = need(s(input.url), "url");
+      if (kind === "main") updateClient(cid, { drive_url: url });
+      else {
+        const f = FOLDER_KINDS.find((x) => x.kind === kind);
+        if (!f) throw new Error("Невідомий тип папки");
+        saveFolder(cid, f.kind, f.title, url);
+      }
+      act("files", `Папка: ${kind}`, `/clients/${cid}?tab=files`);
+      return { ok: true };
+    }
+
+    case "delete_client": {
+      const cid = need(id(input.client_id), "client_id");
+      const c = need(getClientRow(cid), "Клієнта нема");
+      if (s(input.confirm_name).toLowerCase() !== c.name.toLowerCase()) throw new Error(`Для підтвердження потрібна точна назва: «${c.name}»`);
+      deleteClient(cid);
+      act("delete", `Клієнта видалено: ${c.name}`, "/clients");
+      return { ok: true };
+    }
+
+    case "memory_add": {
+      const len = addAgentMemory(need(s(input.note), "note"));
+      act("memory", `Запам'ятав: ${s(input.note).slice(0, 70)}`, "/settings?tab=agent");
+      return { ok: true, memory_chars: len, hint: len > 6000 ? "Пам'ять велика — стисни через memory_rewrite" : undefined };
+    }
+
+    case "memory_rewrite": {
+      setAgentMemory(need(s(input.text), "text"));
+      act("memory", "Пам'ять оновлено", "/settings?tab=agent");
       return { ok: true };
     }
 

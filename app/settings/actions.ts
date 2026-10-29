@@ -1,7 +1,7 @@
 "use server";
 import Anthropic from "@anthropic-ai/sdk";
 import { redirect } from "next/navigation";
-import { agentConfig, saveAgentConfig } from "@/lib/agent/config";
+import { agentConfig, saveAgentConfig, setAgentMemory } from "@/lib/agent/config";
 import { requireUser } from "@/lib/auth";
 import { disconnectGoogle, saveGoogleClient } from "@/lib/google";
 import { CURRENCIES } from "@/lib/config";
@@ -81,4 +81,10 @@ export async function disconnectGoogleAction() {
   await requireUser();
   await disconnectGoogle();
   back("Google відключено.", true, "google");
+}
+
+export async function saveMemoryAction(fd: FormData) {
+  await requireUser();
+  setAgentMemory(String(fd.get("memory") ?? ""));
+  back("Пам'ять помічника збережено.", true, "agent");
 }

@@ -117,3 +117,8 @@ export function countClientsByStatus(): Record<string, number> {
   const rows = db().prepare("SELECT status, COUNT(*) AS n FROM clients GROUP BY status").all() as { status: string; n: number }[];
   return Object.fromEntries(rows.map((r) => [r.status, r.n]));
 }
+
+// Повне видалення клієнта з усім (задачі лишаються без клієнта). Повернути — тільки з бекапу.
+export function deleteClient(id: number): void {
+  db().prepare("DELETE FROM clients WHERE id = ?").run(id);
+}
