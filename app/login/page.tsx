@@ -3,7 +3,7 @@ import LoginForm from "./LoginForm";
 export default function LoginPage() {
   return (
     <div className="login">
-      <div className="nav-brand" style={{ display: "block", padding: 0, marginBottom: 24 }}>CLIENT<span>/</span>OPS</div>
+      <div className="brand" style={{ marginBottom: 24, fontSize: "1.25rem" }}>Client Ops</div>
       <LoginForm />
     </div>
   );

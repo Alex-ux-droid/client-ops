@@ -119,11 +119,11 @@ function Overview({ c, id, tasks, paidTotal }: { c: NonNullable<ReturnType<typeo
           </dl>
         </div>
         <div>
-          <h2 style={{ marginBottom: 10, display: "flex", justifyContent: "space-between" }}>Відкриті задачі <Link href={`/clients/${id}?tab=tasks`} style={{ color: "var(--cyan)" }}>всі →</Link></h2>
+          <h2 style={{ marginBottom: 10, display: "flex", justifyContent: "space-between" }}>Відкриті задачі <Link href={`/clients/${id}?tab=tasks`} style={{ color: "var(--link)" }}>всі →</Link></h2>
           <div className="list">{tasks.length ? tasks.map((t) => <TaskItem key={t.id} t={t} showClient={false} />) : <div className="empty">Задач нема.</div>}</div>
         </div>
         <div>
-          <h2 style={{ marginBottom: 10, display: "flex", justifyContent: "space-between" }}>Останні роботи <Link href={`/clients/${id}?tab=history`} style={{ color: "var(--cyan)" }}>вся історія →</Link></h2>
+          <h2 style={{ marginBottom: 10, display: "flex", justifyContent: "space-between" }}>Останні роботи <Link href={`/clients/${id}?tab=history`} style={{ color: "var(--link)" }}>вся історія →</Link></h2>
           <div className="list timeline">
             {work.length ? work.map((w) => (
               <div key={w.id} className="row"><div className="row-main"><div className="mono">{fmtDate(w.done_at)}</div><div className="row-title">{w.what}</div>{w.result && <div className="row-sub" style={{ color: "var(--ok)" }}>{w.result}</div>}</div></div>
@@ -135,7 +135,7 @@ function Overview({ c, id, tasks, paidTotal }: { c: NonNullable<ReturnType<typeo
         <dl className="card kv">
           <div><dt>Контакти</dt><dd>{c.contacts}</dd></div>
           <div><dt>Bitwarden</dt><dd>{c.bitwarden_ref}</dd></div>
-          <div><dt>Всього отримано</dt><dd style={{ fontFamily: "var(--font-mono)" }}>{money(paidTotal)}</dd></div>
+          <div><dt>Всього отримано</dt><dd>{money(paidTotal)}</dd></div>
           <div><dt>Клієнт з</dt><dd>{fmtDate(c.created_at)}</dd></div>
         </dl>
         <div>
@@ -171,7 +171,7 @@ function HistoryTab({ id }: { id: number }) {
   return (
     <>
       <details className="card" style={{ marginBottom: 10 }} open={!work.length}>
-        <summary className="mono" style={{ color: "var(--cyan)" }}>+ записати що зробили</summary>
+        <summary className="mono" style={{ color: "var(--link)" }}>+ записати що зробили</summary>
         <form action={logWork} className="stack" style={{ marginTop: 12 }}>
           <input type="hidden" name="client_id" value={id} />
           <input name="what" placeholder="Що зробив" required aria-label="Що зробив" />
@@ -225,7 +225,7 @@ function AdsTab({ id }: { id: number }) {
       )}
 
       <details className="card" style={{ marginBottom: 10 }} open={!ads.length}>
-        <summary className="mono" style={{ color: "var(--cyan)" }}>+ додати цифри з кабінету за період</summary>
+        <summary className="mono" style={{ color: "var(--link)" }}>+ додати цифри з кабінету за період</summary>
         <form action={saveAdStat} className="form-grid" style={{ marginTop: 12 }}>
           <input type="hidden" name="client_id" value={id} />
           <div className="field"><label htmlFor="ps">Початок</label><input id="ps" type="date" name="period_start" defaultValue={addDays(-7)} required /></div>
@@ -299,7 +299,7 @@ function MaterialsTab({ id }: { id: number }) {
   return (
     <>
       <details className="card" style={{ marginBottom: 10 }} open={!materials.length}>
-        <summary className="mono" style={{ color: "var(--cyan)" }}>+ вставити чат, звіт або бриф</summary>
+        <summary className="mono" style={{ color: "var(--link)" }}>+ вставити чат, звіт або бриф</summary>
         <form action={saveMaterial} className="stack" style={{ marginTop: 12 }}>
           <input type="hidden" name="client_id" value={id} />
           <div className="inline">
@@ -378,7 +378,7 @@ function PlaybooksTab({ id }: { id: number }) {
               </div>
             </div>
           );
-        }) : <div className="empty card">Жоден плейбук не підключено. {free.length ? "Обери вище." : <Link href="/playbooks/new" style={{ color: "var(--cyan)" }}>Створи перший →</Link>}</div>}
+        }) : <div className="empty card">Жоден плейбук не підключено. {free.length ? "Обери вище." : <Link href="/playbooks/new" style={{ color: "var(--link)" }}>Створи перший →</Link>}</div>}
       </div>
     </>
   );

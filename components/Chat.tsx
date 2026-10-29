@@ -75,7 +75,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
   }
 
   if (!hasKey) {
-    return <div className="card">Помічник ще не підключений. <Link href="/settings?tab=access" style={{ color: "var(--cyan)" }}>Додай ключ API в Налаштуваннях →</Link></div>;
+    return <div className="card">Помічник ще не підключений. <Link href="/settings?tab=access" style={{ color: "var(--link)" }}>Додай ключ API в Налаштуваннях →</Link></div>;
   }
 
   const presets = clientId ? PRESETS_CLIENT : PRESETS_GLOBAL;

@@ -7,7 +7,7 @@ export default function PlaybooksPage() {
   return (
     <>
       <div className="head">
-        <div><div className="kicker">Твої процеси, щоб не робити з нуля</div><h1>Плейбуки</h1></div>
+        <h1>Плейбуки</h1>
         <Link href="/playbooks/new" className="btn">+ Плейбук</Link>
       </div>
       <div className="list">

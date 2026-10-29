@@ -77,7 +77,7 @@ export default function Home() {
         <Link href="/pipeline" className="kpi-tile">
           <div className="kpi-label">Клієнти · воронка</div>
           <div className="kpi-value">{active.length}<small> + {leads.length} лідів</small></div>
-          <div className="bar"><i style={{ width: `${clients.length ? Math.round((active.length / Math.max(1, active.length + leads.length)) * 100) : 0}%`, background: "var(--cyan)" }} /></div>
+          <div className="bar"><i style={{ width: `${clients.length ? Math.round((active.length / Math.max(1, active.length + leads.length)) * 100) : 0}%`, background: "var(--link)" }} /></div>
           <div className="kpi-sub">{potential ? `потенціал ${money(potential)}/міс` : "лідів з оцінкою нема"}</div>
         </Link>
       </section>

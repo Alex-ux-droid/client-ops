@@ -25,7 +25,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <div className="head"><div><div className="kicker">Задачі</div><h1>Що робимо</h1></div></div>
+      <div className="head"><h1>Задачі</h1></div>
       <div className="tabs">
         {VIEWS.map((x) => (
           <Link key={x.v} href={`/tasks?view=${x.v}`} className={x.v === view ? "on" : ""}>
