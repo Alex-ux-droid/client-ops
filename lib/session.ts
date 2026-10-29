@@ -36,6 +36,21 @@ export function verifySession(token: string | undefined): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+// Окремий ключ доступу для Claude (заголовок Authorization: Bearer ...). Пароль входу йому не потрібен.
+export function agentTokenMatches(header: string | null | undefined): boolean {
+  const real = process.env.AGENT_TOKEN;
+  const m = header?.match(/^Bearer\s+(.+)$/);
+  if (!real || real.length < 32 || !m) return false;
+  const a = createHmac("sha256", "cmp").update(m[1].trim()).digest();
+  const b = createHmac("sha256", "cmp").update(real).digest();
+  return timingSafeEqual(a, b);
+}
+
+// Сесія з куки або ключ Claude з заголовка
+export function isAuthed(cookie: string | undefined, authorization: string | null | undefined): boolean {
+  return verifySession(cookie) || agentTokenMatches(authorization);
+}
+
 export function passwordMatches(input: string): boolean {
   const real = process.env.APP_PASSWORD;
   if (!real) return false;

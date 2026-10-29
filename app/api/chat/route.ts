@@ -2,10 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse, type NextRequest } from "next/server";
 import { NoKeyError, runAgent } from "@/lib/agent/run";
 import { clearChat } from "@/lib/repo/chat";
-import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { logError } from "@/lib/log";
+import { isAuthed, SESSION_COOKIE } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
-  if (!verifySession(req.cookies.get(SESSION_COOKIE)?.value)) return NextResponse.json({ error: "Потрібен вхід" }, { status: 401 });
+  if (!isAuthed(req.cookies.get(SESSION_COOKIE)?.value, req.headers.get("authorization"))) return NextResponse.json({ error: "Потрібен вхід" }, { status: 401 });
   const body = (await req.json().catch(() => ({}))) as { message?: string; clientId?: number | null; clear?: boolean };
   const clientId = Number(body.clientId) > 0 ? Number(body.clientId) : null;
   if (body.clear) { clearChat(clientId); return NextResponse.json({ ok: true }); }
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
       e instanceof Anthropic.APIError ? `Помилка API ${e.status ?? ""}: ${e.message}` :
       e instanceof Anthropic.APIConnectionError ? "Нема зв'язку з API." :
       "Щось пішло не так.";
-    console.error("chat error", e);
+    logError("chat", e);
     return NextResponse.json({ error }, { status: 500 });
   }
 }

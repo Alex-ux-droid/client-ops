@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Unbounded } from "next/font/google";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Shell from "@/components/Shell";
-import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { isAuthed, SESSION_COOKIE } from "@/lib/session";
 import { clientOptions, navCounts } from "@/lib/repo/counts";
 import "./globals.css";
 
@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Без входу — жодних даних у розмітці (сторінка логіну)
-  const authed = verifySession((await cookies()).get(SESSION_COOKIE)?.value);
+  const authed = isAuthed((await cookies()).get(SESSION_COOKIE)?.value, (await headers()).get("authorization"));
   const counts = authed ? navCounts() : { tasks: 0, leads: 0, debts: 0, ideas: 0 };
   const clients = authed ? clientOptions() : [];
   return (
