@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
         { key: "Referrer-Policy", value: "same-origin" },
         { key: "Strict-Transport-Security", value: "max-age=31536000" },
         { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        { key: "Permissions-Policy", value: "camera=(), geolocation=(), payment=(), usb=(), microphone=(self)" },
       ],
     }];
   },

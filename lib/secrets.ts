@@ -16,6 +16,8 @@ export function maskKey(key: string | null): string {
 
 // Записати (або прибрати, value = null) змінну в .env і в поточний процес
 export function setEnvVar(name: string, value: string | null): void {
+  // Перенос рядка у значенні дописав би в .env чужу змінну (напр. APP_PASSWORD)
+  if (!/^[A-Z][A-Z0-9_]*$/.test(name) || (value !== null && /[\r\n]/.test(value))) throw new Error("Недопустиме значення ключа");
   const re = new RegExp(`^${name}=.*\\n?`, "m");
   let text = fs.existsSync(ENV_FILE) ? fs.readFileSync(ENV_FILE, "utf8") : "";
   text = text.replace(re, "");
