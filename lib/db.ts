@@ -13,6 +13,8 @@ export function db(): Database.Database {
     const conn = new Database(file);
     conn.pragma("journal_mode = WAL");
     conn.pragma("foreign_keys = ON");
+    // LIKE у SQLite не знає регістр кирилиці — свій lower для пошуку
+    conn.function("ulower", { deterministic: true }, (v: unknown) => (typeof v === "string" ? v.toLowerCase() : v));
     migrate(conn, path.join(process.cwd(), "db", "migrations"));
     g.__db = conn;
   }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { markIdea, saveIdea } from "@/app/actions";
+import { ideaToTask, markIdea, saveIdea } from "@/app/actions";
 import { fmtDate } from "@/lib/dates";
 import { listClients } from "@/lib/repo/clients";
 import { listIdeas, type IdeaStatus } from "@/lib/repo/ideas";
@@ -46,6 +46,7 @@ export default async function IdeasPage({ searchParams }: { searchParams: Promis
             </div>
             {status === "new" && (
               <div style={{ display: "flex", gap: 4 }}>
+                <form action={ideaToTask}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="text" value={i.text} /><input type="hidden" name="client_id" value={i.client_id ?? ""} /><button className="ghost small" title="Зробити задачею на сьогодні">→ задача</button></form>
                 <form action={markIdea}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="status" value="used" /><button className="ghost small" title="Використано">✓</button></form>
                 <form action={markIdea}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="status" value="dropped" /><button className="ghost small" title="Відкинути">✕</button></form>
               </div>

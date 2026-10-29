@@ -3,10 +3,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { ymd } from "@/lib/dates";
-import { CLIENT_FIELDS, CLIENT_STATUSES, createClient, updateClient, type ClientInput, type ClientStatus } from "@/lib/repo/clients";
+import { addAdStat, AD_FIELDS, deleteAdStat, type AdInput } from "@/lib/repo/ads";
+import {
+  CLIENT_FIELDS, CLIENT_STATUSES, createClient, LEAD_STAGES, setStage, setStatus, updateClient,
+  type ClientInput, type ClientStatus, type LeadStage,
+} from "@/lib/repo/clients";
 import { addIdea, setIdeaStatus, type IdeaStatus } from "@/lib/repo/ideas";
 import { addMaterial, deleteMaterial, MATERIAL_KINDS, type MaterialKind } from "@/lib/repo/materials";
-import { createTask, deleteTask, getTask, setTaskStatus, type TaskStatus } from "@/lib/repo/tasks";
+import { addPayment, createMonthInvoices, deletePayment, markPaid } from "@/lib/repo/payments";
+import {
+  attachPlaybook, checklistItems, clientPlaybooks, deletePlaybook, detachPlaybook, getPlaybook, savePlaybook, toggleChecklistItem,
+} from "@/lib/repo/playbooks";
+import { createTask, createTasksBulk, deleteTask, getTask, setTaskStatus, type TaskStatus } from "@/lib/repo/tasks";
 import { addWork, deleteWork } from "@/lib/repo/worklog";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
@@ -14,24 +22,50 @@ const num = (fd: FormData, k: string) => {
   const n = Number(fd.get(k));
   return Number.isFinite(n) && n > 0 ? n : null;
 };
-const back = (fd: FormData, fallback = "/") => str(fd, "back") || fallback;
+const amount = (fd: FormData, k: string) => {
+  const n = Number(String(fd.get(k) ?? "").replace(",", ".").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+};
+const done = (to?: string) => {
+  revalidatePath("/", "layout");
+  if (to) redirect(to);
+};
 
 // ---- Клієнти
-function clientFromForm(fd: FormData): ClientInput {
-  const input = Object.fromEntries(CLIENT_FIELDS.map((f) => [f, str(fd, f)])) as ClientInput;
-  if (!CLIENT_STATUSES.includes(input.status as ClientStatus)) input.status = "active";
-  return input;
-}
-
 export async function saveClient(fd: FormData) {
   await requireUser();
-  const input = clientFromForm(fd);
+  const raw = Object.fromEntries(CLIENT_FIELDS.map((f) => [f, str(fd, f)]));
+  const input = {
+    ...raw,
+    status: CLIENT_STATUSES.includes(raw.status as ClientStatus) ? raw.status : "active",
+    stage: LEAD_STAGES.includes(raw.stage as LeadStage) ? raw.stage : "new",
+    fee_monthly: amount(fd, "fee_monthly"),
+    pay_day: Math.min(Math.max(Math.round(amount(fd, "pay_day")) || 1, 1), 31),
+  } as unknown as ClientInput;
   if (!input.name) throw new Error("Потрібна назва клієнта");
   const id = num(fd, "id");
   const clientId = id ?? createClient(input);
   if (id) updateClient(id, input);
-  revalidatePath("/", "layout");
-  redirect(`/clients/${clientId}`);
+  done(`/clients/${clientId}`);
+}
+
+// Рух по воронці: stage для лідів, won -> active, lost -> archived
+export async function moveLead(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "id");
+  const to = str(fd, "to");
+  if (!id) return;
+  if (to === "won") setStatus(id, "active");
+  else if (to === "lost") setStatus(id, "archived");
+  else if (LEAD_STAGES.includes(to as LeadStage)) setStage(id, to as LeadStage);
+  done();
+}
+
+export async function saveNextStep(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "id");
+  if (id) updateClient(id, { next_step: str(fd, "next_step") });
+  done();
 }
 
 // ---- Задачі
@@ -40,7 +74,7 @@ export async function addTask(fd: FormData) {
   const title = str(fd, "title");
   if (!title) return;
   createTask({ title, client_id: num(fd, "client_id"), due_date: str(fd, "due_date") || null, details: str(fd, "details") });
-  revalidatePath("/", "layout");
+  done();
 }
 
 export async function setTask(fd: FormData) {
@@ -48,7 +82,7 @@ export async function setTask(fd: FormData) {
   const id = num(fd, "id");
   const status = str(fd, "status") as TaskStatus;
   if (id && ["todo", "doing", "done"].includes(status)) setTaskStatus(id, status);
-  revalidatePath("/", "layout");
+  done();
 }
 
 // Закрити задачу + записати що зробили (в історію клієнта)
@@ -58,18 +92,17 @@ export async function closeTaskWithLog(fd: FormData) {
   const task = id ? getTask(id) : undefined;
   if (!task) return;
   setTaskStatus(task.id, "done");
-  const what = str(fd, "what") || task.title;
   if (task.client_id) {
-    addWork({ client_id: task.client_id, task_id: task.id, done_at: ymd(), what, why: str(fd, "why"), result: str(fd, "result") });
+    addWork({ client_id: task.client_id, task_id: task.id, done_at: ymd(), what: str(fd, "what") || task.title, why: str(fd, "why"), result: str(fd, "result") });
   }
-  revalidatePath("/", "layout");
+  done();
 }
 
 export async function removeTask(fd: FormData) {
   await requireUser();
   const id = num(fd, "id");
   if (id) deleteTask(id);
-  revalidatePath("/", "layout");
+  done();
 }
 
 // ---- Історія робіт
@@ -79,14 +112,14 @@ export async function logWork(fd: FormData) {
   const what = str(fd, "what");
   if (!client_id || !what) return;
   addWork({ client_id, what, why: str(fd, "why"), result: str(fd, "result"), done_at: str(fd, "done_at") || ymd() });
-  revalidatePath("/", "layout");
+  done();
 }
 
 export async function removeWork(fd: FormData) {
   await requireUser();
   const id = num(fd, "id");
   if (id) deleteWork(id);
-  revalidatePath("/", "layout");
+  done();
 }
 
 // ---- Ідеї
@@ -94,7 +127,7 @@ export async function saveIdea(fd: FormData) {
   await requireUser();
   const text = str(fd, "text");
   if (text) addIdea(text, num(fd, "client_id"));
-  revalidatePath("/", "layout");
+  done();
 }
 
 export async function markIdea(fd: FormData) {
@@ -102,10 +135,21 @@ export async function markIdea(fd: FormData) {
   const id = num(fd, "id");
   const status = str(fd, "status") as IdeaStatus;
   if (id && ["new", "used", "dropped"].includes(status)) setIdeaStatus(id, status);
-  revalidatePath("/", "layout");
+  done();
 }
 
-// ---- Матеріали (чати, дані з реклами, брифи)
+// Ідея -> задача
+export async function ideaToTask(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "id");
+  const text = str(fd, "text");
+  if (!id || !text) return;
+  createTask({ title: text.slice(0, 200), client_id: num(fd, "client_id"), due_date: ymd() });
+  setIdeaStatus(id, "used");
+  done();
+}
+
+// ---- Матеріали
 export async function saveMaterial(fd: FormData) {
   await requireUser();
   const client_id = num(fd, "client_id");
@@ -113,13 +157,115 @@ export async function saveMaterial(fd: FormData) {
   if (!client_id || !content) return;
   const kind = (MATERIAL_KINDS.includes(str(fd, "kind") as MaterialKind) ? str(fd, "kind") : "other") as MaterialKind;
   addMaterial({ client_id, kind, title: str(fd, "title") || content.slice(0, 60), content });
-  revalidatePath("/", "layout");
+  done();
 }
 
 export async function removeMaterial(fd: FormData) {
   await requireUser();
   const id = num(fd, "id");
   if (id) deleteMaterial(id);
-  revalidatePath("/", "layout");
-  redirect(back(fd));
+  done();
+}
+
+// ---- Гроші
+export async function savePayment(fd: FormData) {
+  await requireUser();
+  const client_id = num(fd, "client_id");
+  const sum = amount(fd, "amount");
+  if (!client_id || sum <= 0) return;
+  const paid = str(fd, "paid") === "1";
+  const date = str(fd, "due_date") || ymd();
+  addPayment({ client_id, amount: sum, due_date: date, paid_at: paid ? date : null, note: str(fd, "note") });
+  done();
+}
+
+export async function togglePaid(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "id");
+  if (id) markPaid(id, str(fd, "paid") === "1");
+  done();
+}
+
+export async function removePayment(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "id");
+  if (id) deletePayment(id);
+  done();
+}
+
+export async function makeMonthInvoices(fd: FormData) {
+  await requireUser();
+  const month = str(fd, "month");
+  if (/^\d{4}-\d{2}$/.test(month)) createMonthInvoices(month);
+  done();
+}
+
+// ---- Реклама
+export async function saveAdStat(fd: FormData) {
+  await requireUser();
+  const client_id = num(fd, "client_id");
+  if (!client_id || !str(fd, "period_start") || !str(fd, "period_end")) return;
+  const input = Object.fromEntries(AD_FIELDS.map((f) => [f, ["platform", "period_start", "period_end", "note"].includes(f) ? str(fd, f) : amount(fd, f)]));
+  addAdStat({ ...input, platform: input.platform || "facebook", client_id } as AdInput);
+  done();
+}
+
+export async function removeAdStat(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "id");
+  if (id) deleteAdStat(id);
+  done();
+}
+
+// ---- Плейбуки
+export async function savePlaybookAction(fd: FormData) {
+  await requireUser();
+  const title = str(fd, "title");
+  if (!title) return;
+  const id = savePlaybook({ id: num(fd, "id"), title, body_md: String(fd.get("body_md") ?? ""), tags: str(fd, "tags") });
+  done(`/playbooks/${id}`);
+}
+
+export async function removePlaybook(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "id");
+  if (id) deletePlaybook(id);
+  done("/playbooks");
+}
+
+export async function attachPlaybookAction(fd: FormData) {
+  await requireUser();
+  const client_id = num(fd, "client_id");
+  const playbook_id = num(fd, "playbook_id");
+  if (client_id && playbook_id) attachPlaybook(client_id, playbook_id);
+  done();
+}
+
+export async function detachPlaybookAction(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "id");
+  if (id) detachPlaybook(id);
+  done();
+}
+
+export async function toggleItem(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "id");
+  const index = Number(fd.get("index"));
+  if (id && Number.isInteger(index) && index >= 0) toggleChecklistItem(id, index);
+  done();
+}
+
+// Невиконані пункти плейбука -> задачі клієнта
+export async function playbookToTasks(fd: FormData) {
+  await requireUser();
+  const cpId = num(fd, "id");
+  const client_id = num(fd, "client_id");
+  if (!cpId || !client_id) return;
+  const cp = clientPlaybooks(client_id).find((x) => x.id === cpId);
+  const pb = cp && getPlaybook(cp.playbook_id);
+  if (!cp || !pb) return;
+  const open = checklistItems(pb.body_md).filter((_, i) => !cp.checked.includes(i));
+  createTasksBulk(open.map((t) => `${t} · ${pb.title}`), client_id, str(fd, "due_date") || null);
+  done();
 }

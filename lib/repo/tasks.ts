@@ -59,6 +59,27 @@ export function updateTask(id: number, input: Partial<Pick<Task, "title" | "deta
   db().prepare(`UPDATE tasks SET ${keys.map((k) => `${k} = @${k}`).join(", ")} WHERE id = @id`).run({ ...input, id });
 }
 
+export function createTasksBulk(titles: string[], clientId: number | null, dueDate: string | null): number {
+  const ins = db().prepare("INSERT INTO tasks (title, client_id, due_date) VALUES (?, ?, ?)");
+  db().transaction(() => titles.forEach((t) => ins.run(t, clientId, dueDate)))();
+  return titles.length;
+}
+
+// Відкриті задачі на найближчі 7 днів, згруповані по днях (прострочені — в сьогодні)
+export function weekPlan(): { date: string; tasks: TaskRow[] }[] {
+  const today = ymd();
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    return ymd(d);
+  });
+  const rows = db().prepare(`${SELECT} WHERE t.status != 'done' AND t.due_date <= ? ${ORDER}`).all(days[6]) as TaskRow[];
+  return days.map((date) => ({
+    date,
+    tasks: rows.filter((t) => (date === today ? t.due_date! <= today : t.due_date === date)),
+  }));
+}
+
 export function deleteTask(id: number): void {
   db().prepare("DELETE FROM tasks WHERE id = ?").run(id);
 }

@@ -30,6 +30,7 @@ const clients = [
     contacts: "Адмін: Олена (тестовий контакт)", needs: "Більше записів на імплантацію, менше пропущених дзвінків",
     client_vision: "Хочуть 40 нових пацієнтів на місяць", my_vision: "Спочатку CRM і скрипти адмінам, потім масштабувати рекламу",
     notes: "Рішення приймає власник, відповідає ввечері", bitwarden_ref: "Bitwarden: Posmishka / FB Ads",
+    stage: "new", fee_monthly: 500, pay_day: 5, next_step: "Погодити скрипт для адмінів",
   },
   {
     name: "Тест: Школа англійської «Speakly»", niche: "освіта", status: "active",
@@ -37,6 +38,7 @@ const clients = [
     contacts: "Менеджер: Ігор (тестовий контакт)", needs: "Ліди на пробний урок",
     client_vision: "Лендинг як у конкурентів", my_vision: "Квіз-лендинг, ліди одразу в CRM",
     notes: "", bitwarden_ref: "Bitwarden: Speakly / Hosting",
+    stage: "new", fee_monthly: 400, pay_day: 15, next_step: "",
   },
   {
     name: "Тест: Меблі на замовлення «Дуб»", niche: "виробництво", status: "lead",
@@ -44,11 +46,26 @@ const clients = [
     contacts: "Власник: Андрій (тестовий контакт)", needs: "Менеджери губляться в заявках",
     client_vision: "", my_vision: "CRM + телефонія + навчання 2 менеджерів",
     notes: "Дзвінок-знайомство був на минулому тижні", bitwarden_ref: "",
+    stage: "proposal", fee_monthly: 900, pay_day: 1, next_step: "Дотиснути КП до п'ятниці",
+  },
+  {
+    name: "Тест: Автосервіс «Мотор»", niche: "авто", status: "lead",
+    offer: "Facebook-реклама", budget: "$600/міс",
+    contacts: "Власник: Сергій (тестовий контакт)", needs: "Записи на ТО",
+    client_vision: "", my_vision: "Лід-форми + автодзвін", notes: "", bitwarden_ref: "",
+    stage: "contacted", fee_monthly: 350, pay_day: 1, next_step: "Дзвінок у четвер",
+  },
+  {
+    name: "Тест: Салон краси «Lumi»", niche: "б'юті", status: "lead",
+    offer: "CRM + Instagram", budget: "",
+    contacts: "Адмін: Ірина (тестовий контакт)", needs: "", client_vision: "", my_vision: "",
+    notes: "Прийшла з рекомендації", bitwarden_ref: "",
+    stage: "new", fee_monthly: 0, pay_day: 1, next_step: "",
   },
 ];
 
-const insClient = db.prepare(`INSERT INTO clients (name, niche, status, offer, budget, contacts, needs, client_vision, my_vision, notes, bitwarden_ref)
-  VALUES (@name, @niche, @status, @offer, @budget, @contacts, @needs, @client_vision, @my_vision, @notes, @bitwarden_ref)`);
+const insClient = db.prepare(`INSERT INTO clients (name, niche, status, offer, budget, contacts, needs, client_vision, my_vision, notes, bitwarden_ref, stage, fee_monthly, pay_day, next_step)
+  VALUES (@name, @niche, @status, @offer, @budget, @contacts, @needs, @client_vision, @my_vision, @notes, @bitwarden_ref, @stage, @fee_monthly, @pay_day, @next_step)`);
 const ids = clients.map((c) => Number(insClient.run(c).lastInsertRowid));
 
 const insTask = db.prepare("INSERT INTO tasks (client_id, title, details, status, due_date) VALUES (?, ?, ?, ?, ?)");
@@ -81,7 +98,37 @@ db.prepare("INSERT INTO materials (client_id, kind, title, content) VALUES (?, ?
 );
 
 const insPb = db.prepare("INSERT INTO playbooks (title, body_md, tags) VALUES (?, ?, ?)");
-insPb.run("Налаштування CRM", "# Налаштування CRM\n\n- [ ] Етапи воронки погоджені з клієнтом\n- [ ] Поля картки ліда\n- [ ] Ролі та доступи менеджерів\n- [ ] Автозадачі на передзвон\n- [ ] Навчання менеджерів (30 хв)\n", "crm");
+const pbCrm = insPb.run("Налаштування CRM", "# Налаштування CRM\n\n- [ ] Етапи воронки погоджені з клієнтом\n- [ ] Поля картки ліда\n- [ ] Ролі та доступи менеджерів\n- [ ] Автозадачі на передзвон\n- [ ] Навчання менеджерів (30 хв)\n", "crm").lastInsertRowid;
 insPb.run("Пуш лідів з Facebook у CRM", "# Пуш лідів з Facebook\n\n- [ ] Доступ до сторінки та лід-форм\n- [ ] Інтеграція з CRM\n- [ ] Тестовий лід пройшов\n- [ ] Сповіщення менеджеру\n", "facebook,crm");
+
+// Оплати: 5 місяців історії по двох активних клієнтах + поточний місяць
+const insPay = db.prepare("INSERT INTO payments (client_id, amount, due_date, paid_at, note) VALUES (?, ?, ?, ?, ?)");
+const monthDay = (back, d) => {
+  const x = new Date();
+  x.setDate(1);
+  x.setMonth(x.getMonth() - back);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+};
+for (let back = 5; back >= 1; back--) {
+  insPay.run(ids[0], 500, monthDay(back, 5), monthDay(back, 6), "щомісячна оплата");
+  if (back <= 3) insPay.run(ids[1], 400, monthDay(back, 15), monthDay(back, 16), "щомісячна оплата");
+}
+insPay.run(ids[1], 300, monthDay(4, 20), monthDay(4, 22), "лендинг, передоплата");
+insPay.run(ids[0], 500, day(-3), null, "щомісячна оплата");
+insPay.run(ids[1], 400, day(10), null, "щомісячна оплата");
+
+// Реклама: 6 тижнів по стоматології
+const insAd = db.prepare(`INSERT INTO ad_stats (client_id, period_start, period_end, spend, impressions, clicks, leads, sales, revenue, note)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+[
+  [280, 21000, 310, 15, 3, 2400, "старт кампанії"],
+  [300, 23500, 360, 17, 4, 3100, ""],
+  [310, 22800, 330, 14, 3, 2600, "вигорання креативу"],
+  [290, 26000, 470, 24, 6, 4800, "нові відео-відгуки"],
+  [295, 27100, 500, 26, 7, 5200, ""],
+  [305, 27800, 520, 27, 6, 4900, ""],
+].forEach((r, i) => insAd.run(ids[0], day(-7 * (6 - i) - 6), day(-7 * (6 - i)), ...r));
+
+db.prepare("INSERT INTO client_playbooks (client_id, playbook_id, checked_json) VALUES (?, ?, ?)").run(ids[0], pbCrm, "[0,1]");
 
 console.log(`Seed готовий: ${ids.length} тестові клієнти.`);
