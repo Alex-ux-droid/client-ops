@@ -674,3 +674,11 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
 .dock-head { align-items: center; gap: 0.75rem; }
 .lab-bot { display: flex; gap: 1rem; align-items: flex-start; margin-bottom: 1rem; border-color: rgba(61, 107, 255, 0.4); background: linear-gradient(135deg, rgba(61, 107, 255, 0.12), var(--bg-raise) 60%); }
 .lab-bot b { font-size: 1.0625rem; }
+
+/* Картка клієнта: компактна шапка на робочих вкладках, вкладки липнуть до верху */
+.hub-compact { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.5rem; }
+.hub-compact-name { display: flex; flex-direction: column; min-width: 0; color: var(--text); }
+.hub-compact-name b { font-size: 1.25rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-compact-name:hover b { color: var(--link); }
+.hub-tabs { position: sticky; top: calc(3.75rem + env(safe-area-inset-top)); z-index: 5; background: var(--bg); }
+@media (min-width: 900px) { .hub-tabs { top: 0; } }

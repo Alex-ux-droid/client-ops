@@ -57,6 +57,16 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
 
   return (
     <>
+      {/* Повна шапка з цифрами — тільки на «Огляді»; на інших вкладках компактний рядок, решта місця під роботу */}
+      {tab !== "overview" ? (
+        <div className="hub-compact">
+          <Link href={`/clients/${id}`} className="hub-compact-name" scroll={false}>
+            <span className="kicker">Клієнт</span>
+            <b>{c.name}</b>
+          </Link>
+          <span className={`tag ${STATUS_TAG[c.status]}`}>{STATUS_LABEL[c.status]}</span>
+        </div>
+      ) : (
       <div className="hub-head">
         <div className="hub-top">
           <div style={{ minWidth: 0 }}>
@@ -89,8 +99,9 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
           <div className="kpi"><div className="n">{c.last_work ? fmtDate(c.last_work) : "—"}</div><div className="l">Остання робота</div></div>
         </div>
       </div>
+      )}
 
-      <nav className="subnav">
+      <nav className="subnav hub-tabs">
         {tabs.map((t) => (
           <Link key={t.k} href={`/clients/${id}?tab=${t.k}`} className={`${t.k === tab ? "on" : ""} ${services.some((s) => s.type === t.k) ? "svc" : ""}`} scroll={false}>
             {t.label}{badge[t.k] ? <b>{badge[t.k]}</b> : null}
