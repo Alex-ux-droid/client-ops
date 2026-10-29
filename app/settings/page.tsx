@@ -244,7 +244,7 @@ async function TelegramTab() {
                 ? <div className="mono" style={{ color: "var(--warn)" }}>Остання помилка доставки: {hook.last_error_message}</div>
                 : <div className="mono" style={{ color: "var(--dim)" }}>Зв'язок з Telegram: ок{hook.pending_update_count ? `, у черзі ${hook.pending_update_count}` : ""}.</div>)}
               {owner ? (
-                <div className="mono">Твій Telegram прив'язаний: <b>{getSetting("tg.owner_name") || owner}</b>. Пиши або надиктовуй боту в особисті — відповідатиме помічник.</div>
+                <div className="mono">Твій Telegram прив'язаний: <b>{getSetting("tg.owner_name") || owner}</b>. Пиши або надиктовуй боту в особисті — відповідатиме Джері.</div>
               ) : me ? (
                 <div className="stack">
                   <div className="mono">Тепер покажи боту, що ти — це ти (щоб чужі не могли ним керувати):</div>
