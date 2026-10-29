@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Встановлення client-ops на чистий Ubuntu/Debian сервер. Запуск один раз:
 #   curl -fsSL https://raw.githubusercontent.com/Alex-ux-droid/client-ops/main/deploy/install.sh | sudo bash
+# Без питань (для cloud-init): ... | APP_PASSWORD='пароль' bash
 # Ставить Node 22, Caddy (HTTPS), сервіс, автооновлення з main кожні 2 хв, щоденний бекап бази.
 set -euo pipefail
 
@@ -57,11 +58,15 @@ chmod 700 "$DATA_DIR"
 
 if [ ! -f "$APP_DIR/.env" ]; then
   say "Пароль для входу в систему"
-  while true; do
+  p1="${APP_PASSWORD:-}"
+  [ -n "$p1" ] && [ ${#p1} -lt 10 ] && die "APP_PASSWORD коротший за 10 символів"
+  [ "$p1" = "ZAMINY_NA_SVIY_PAROL" ] && die "заміни пароль у cloud-config на свій"
+  while [ -z "$p1" ]; do
     read -rsp "Придумай пароль (мін. 10 символів): " p1 </dev/tty; echo
     read -rsp "Повтори пароль: " p2 </dev/tty; echo
     [ "$p1" = "$p2" ] && [ ${#p1} -ge 10 ] && break
     echo "Не збігається або коротший за 10 символів, ще раз."
+    p1=""
   done
   umask 077
   cat > "$APP_DIR/.env" <<ENV
@@ -71,7 +76,7 @@ DATABASE_PATH=$DATA_DIR/app.db
 ANTHROPIC_API_KEY=
 AGENT_MODEL=
 ENV
-  unset p1 p2
+  unset p1 p2 APP_PASSWORD
   chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
   chmod 600 "$APP_DIR/.env"
 fi
