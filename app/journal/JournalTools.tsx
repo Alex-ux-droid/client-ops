@@ -1,4 +1,5 @@
 "use client";
+import Icon from "@/components/Icon";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useDictation } from "@/components/useDictation";
@@ -40,7 +41,9 @@ export function AddEntry() {
       </div>
       <div className="chat-box">
         <textarea name="body" value={text} onChange={(e) => setText(e.target.value)} placeholder="Деталі — можна надиктувати" aria-label="Деталі" />
-        <button type="button" className={`mic ${dict.listening ? "on" : ""}`} onClick={dict.toggle} aria-label="Диктувати">{dict.listening ? "■" : "🎙"}</button>
+        <button type="button" className={`mic ${dict.listening ? "on" : ""}`} onClick={dict.toggle} disabled={dict.transcribing} aria-label="Диктувати">
+          {dict.transcribing ? <span className="mic-wait" /> : dict.listening ? <span className="mic-stop" /> : <Icon name="mic" size={22} />}
+        </button>
       </div>
       {dict.error && <div className="mono" style={{ color: "var(--warn)" }}>{dict.error}</div>}
       <div><button>Додати в журнал</button></div>

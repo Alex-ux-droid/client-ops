@@ -8,6 +8,10 @@ export function upsertChat(chatId: number, title: string, type: string, active =
     ON CONFLICT(chat_id) DO UPDATE SET title = excluded.title, type = excluded.type, active = excluded.active`).run(chatId, title, type, active ? 1 : 0);
 }
 
+export function knownChat(chatId: number): boolean {
+  return !!db().prepare("SELECT 1 FROM tg_chats WHERE chat_id = ?").get(chatId);
+}
+
 export function listChats(): TgChat[] {
   return db().prepare(`SELECT t.*, c.name AS client_name, (SELECT COUNT(*) FROM tg_messages m WHERE m.chat_id = t.chat_id) AS messages
     FROM tg_chats t LEFT JOIN clients c ON c.id = t.client_id WHERE t.type != 'private' ORDER BY t.active DESC, t.last_message_at DESC`).all() as TgChat[];
