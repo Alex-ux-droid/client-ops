@@ -135,7 +135,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
             )}
           </div>
         ))}
-        {busy && <div className="bubble assistant">{compact && <Bot size={26} state="thinking" className="bot-xs" />}<div className="bubble-text typing">Думаю і вношу в базу…</div></div>}
+        {busy && <div className="bubble assistant">{compact && <Bot size={26} state="thinking" className="bot-xs" />}<div className="bubble-text typing">Секунду…</div></div>}
         <div ref={end} />
       </div>
       {err && <div className="mono" style={{ color: "var(--bad)" }}>{err}</div>}
