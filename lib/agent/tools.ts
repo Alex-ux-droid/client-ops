@@ -14,7 +14,9 @@ import { attachPlaybook, checklistItems, clientPlaybooks, getPlaybook, listPlayb
 import { searchAll } from "../repo/search";
 import { createTask, getTask, listTasks, setTaskStatus, updateTask, type TaskView } from "../repo/tasks";
 import { addWork, listWork } from "../repo/worklog";
-import { addTool, enableService, findToolByName, listServices, listTools, updateService } from "../repo/services";
+import { createClientFolders, googleConnected, listMail, mailQuery, readMail } from "../google";
+import { FOLDER_KINDS } from "../services";
+import { addTool, enableService, findToolByName, listServices, listTools, saveFolder, updateService } from "../repo/services";
 import { isServiceType, SERVICE_TYPES, SERVICES, type ServiceDef } from "../services";
 
 type Input = Record<string, unknown>;
@@ -88,6 +90,9 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "add_payment", description: "Додати оплату від клієнта: отриману (paid=true) або очікувану.", input_schema: obj({ client_id: int("ID клієнта"), amount: num("Сума"), date: str("YYYY-MM-DD: дата оплати або очікувана дата"), paid: { type: "boolean" }, note: str("Коментар") }, ["client_id", "amount", "paid"]) },
   { name: "money_summary", description: "Гроші за поточний місяць: отримано, очікується, прострочено, щомісячний дохід, і список неоплачених.", input_schema: obj({}) },
   { name: "set_service", description: `Увімкнути послугу клієнту (відкриває вкладку в картці) і/або заповнити її. Типи: ${SERVICE_DOC}. Поля в details передавай тільки ті, що відомі.`, input_schema: obj({ client_id: int("ID клієнта"), type: { type: "string", enum: [...SERVICE_TYPES] }, status: { type: "string", enum: ["active", "paused", "done"] }, started_at: str("З якої дати, YYYY-MM-DD"), tool: str("Назва інструменту: яка CRM / телефонія / на чому сайт"), details: { type: "object", description: "Поля послуги: ключ → текст", additionalProperties: { type: "string" } }, notes: str("Нотатки") }, ["client_id", "type"]) },
+  { name: "mail_search", description: "Gmail Саші: листування з клієнтом (за поштою з картки) або пошук за запитом Gmail (напр. 'subject:рахунок newer_than:30d'). Повертає теми, дати, уривки.", input_schema: obj({ client_id: int("ID клієнта — шукати листування з його адресами"), query: str("Довільний запит Gmail, якщо без клієнта") }) },
+  { name: "mail_read", description: "Прочитати повний текст листа з Gmail за id (з mail_search).", input_schema: obj({ message_id: str("ID листа") }, ["message_id"]) },
+  { name: "drive_create_folders", description: "Створити на Google Диску папку клієнта з підпапками (креативи, дані, портфоліо, документи, сайт) і прив'язати до картки.", input_schema: obj({ client_id: int("ID клієнта") }, ["client_id"]) },
   { name: "list_playbooks", description: "Список плейбуків.", input_schema: obj({}) },
   { name: "get_playbook", description: "Текст плейбука.", input_schema: obj({ playbook_id: int("ID плейбука") }, ["playbook_id"]) },
   { name: "attach_playbook", description: "Підключити плейбук до клієнта.", input_schema: obj({ client_id: int("ID клієнта"), playbook_id: int("ID плейбука") }, ["client_id", "playbook_id"]) },
@@ -95,7 +100,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
 
 const clientName = (cid: number | null) => (cid ? getClientRow(cid)?.name ?? `#${cid}` : null);
 
-export function runTool(name: string, input: Input, ctx: Ctx): unknown {
+export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unknown> {
   const act = (kind: string, text: string, href?: string) => ctx.actions.push({ kind, text, href });
   switch (name) {
     case "search":
@@ -267,6 +272,32 @@ export function runTool(name: string, input: Input, ctx: Ctx): unknown {
       });
       act("service", `${def.label} · ${clientName(cid)}`, `/clients/${cid}?tab=${type}`);
       return { ok: true, known_tools: def.tool ? listTools(def.tool.category).map((t) => t.name) : undefined };
+    }
+
+    case "mail_search": {
+      if (!googleConnected()) throw new Error("Google не підключено (Налаштування → Google)");
+      const cid = id(input.client_id);
+      const q = cid ? mailQuery(need(getClientRow(cid), "Клієнта нема").email) : s(input.query);
+      if (!q) throw new Error(cid ? "У картці клієнта нема пошти" : "Потрібен query або client_id");
+      return (await listMail(q, 15)).map((m) => ({ id: m.id, from: m.from, to: m.to, subject: m.subject, date: m.date.slice(0, 10), snippet: m.snippet, incoming: m.incoming }));
+    }
+
+    case "mail_read": {
+      if (!googleConnected()) throw new Error("Google не підключено");
+      const m = await readMail(need(s(input.message_id), "message_id обов'язковий"));
+      return { from: m.from, to: m.to, subject: m.subject, date: m.date, body: m.body.slice(0, 20_000) };
+    }
+
+    case "drive_create_folders": {
+      if (!googleConnected()) throw new Error("Google не підключено");
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      const c = need(getClientRow(cid), "Клієнта нема");
+      if (c.drive_url) return { ok: true, already: c.drive_url };
+      const { mainUrl, subs } = await createClientFolders(c.name, FOLDER_KINDS);
+      updateClient(cid, { drive_url: mainUrl });
+      for (const f of subs) saveFolder(cid, f.kind, f.title, f.url);
+      act("files", `Папки на Диску: ${c.name}`, `/clients/${cid}?tab=files`);
+      return { ok: true, url: mainUrl };
     }
 
     case "list_playbooks":

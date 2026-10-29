@@ -15,7 +15,7 @@ export function maskKey(key: string | null): string {
 }
 
 // Записати (або прибрати, value = null) змінну в .env і в поточний процес
-function setEnvVar(name: string, value: string | null): void {
+export function setEnvVar(name: string, value: string | null): void {
   const re = new RegExp(`^${name}=.*\\n?`, "m");
   let text = fs.existsSync(ENV_FILE) ? fs.readFileSync(ENV_FILE, "utf8") : "";
   text = text.replace(re, "");

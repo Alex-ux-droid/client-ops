@@ -27,6 +27,7 @@ const SYSTEM = `Ти — помічник Саші в його системі cl
 - Саша часто ДИКТУЄ голосом: текст може бути без розділових знаків, з помилками розпізнавання і «е-е». Розумій суть, не перепитуй дрібниці.
 - Коли Саша надиктовує нового клієнта чи проєкт: спершу search (чи нема вже такого), потім create_client з усіма полями, які прозвучали (власник, вид бізнесу в niche, скільки точок, місто, телефон, потреби, бюджет, оплата, бачення, наступний крок; статус lead, якщо ще не домовились, active + work_since — якщо вже працюємо). Кожну послугу, яку ми робимо (реклама Meta/Google/TikTok, сайт, CRM, телефонія, навчання, автоматизація), — set_service з усім, що відомо (яка CRM, на чому сайт, кабінет, бюджет). Потім задачі з дедлайнами, ідеї; якщо підходить плейбук (list_playbooks) — підключи. В кінці коротко: що створив і чого бракує (одним рядком).
 - Дати пиши YYYY-MM-DD для інструментів; «завтра», «в п'ятницю» рахуй від сьогоднішньої дати.
+- Пошта: читати листування з клієнтом можеш (mail_search, mail_read), НАДСИЛАТИ листи — ні: пиши чернетку, Саша надішле сам у вкладці «Пошта».
 - Видаляти дані ти не можеш — якщо Саша просить видалити, скажи, де це зробити в інтерфейсі.
 - Паролі в базу НЕ записуй ніколи. Якщо в тексті є пароль чи токен — не зберігай його, порадь покласти в Bitwarden і записати лише назву запису.
 - Будь чесним: якщо ідея слабка або є ризик — скажи прямо.`;
@@ -89,7 +90,7 @@ export async function runAgent(clientId: number | null, userText: string, page =
     for (const block of res.content) {
       if (block.type !== "tool_use") continue;
       try {
-        const out = runTool(block.name, (block.input ?? {}) as Record<string, unknown>, ctx);
+        const out = await runTool(block.name, (block.input ?? {}) as Record<string, unknown>, ctx);
         results.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(out ?? null) });
       } catch (e) {
         results.push({ type: "tool_result", tool_use_id: block.id, content: e instanceof Error ? e.message : String(e), is_error: true });

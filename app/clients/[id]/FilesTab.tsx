@@ -1,13 +1,21 @@
-import { saveFoldersAction } from "@/app/actions";
+import { createDriveFoldersAction, saveFoldersAction } from "@/app/actions";
 import { listFolders } from "@/lib/repo/services";
 import { FOLDER_KINDS } from "@/lib/services";
 
 // Папки клієнта: головна папка на Диску і стандартні підпапки. Поки Google не підключено — посилання вставляються вручну.
-export default function FilesTab({ clientId, driveUrl }: { clientId: number; driveUrl: string }) {
+export default function FilesTab({ clientId, driveUrl, google, err }: { clientId: number; driveUrl: string; google: boolean; err?: string }) {
   const folders = listFolders(clientId);
   const url = (kind: string) => folders.find((f) => f.kind === kind)?.url ?? "";
   return (
     <div className="stack" style={{ gap: "1.5rem" }}>
+      {err && <div className="callout" style={{ borderColor: "var(--bad)" }}>{err}</div>}
+      {google && !driveUrl && (
+        <form action={createDriveFoldersAction} className="callout inline" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
+          <input type="hidden" name="client_id" value={clientId} />
+          <span>Google Диск підключено. Створити папку клієнта з підпапками одним кліком?</span>
+          <button>Створити папки на Диску</button>
+        </form>
+      )}
       <div className="folder-grid">
         <a className={`folder main ${driveUrl ? "" : "off"}`} href={driveUrl || undefined} target="_blank" rel="noreferrer">
           <span className="folder-ico">▣</span>
@@ -38,7 +46,7 @@ export default function FilesTab({ clientId, driveUrl }: { clientId: number; dri
           <div className="wide"><button>Зберегти</button></div>
         </form>
       </details>
-      <div className="mono">Після підключення Google Диска (Налаштування) ці папки створюватимуться самі для кожного нового клієнта.</div>
+      {!google && <div className="mono">Після підключення Google (Налаштування → Google) папки створюватимуться самі для кожного нового клієнта.</div>}
     </div>
   );
 }

@@ -17,6 +17,9 @@ import {
 import { createTask, createTasksBulk, deleteTask, getTask, setTaskStatus, type TaskStatus } from "@/lib/repo/tasks";
 import { addWork, deleteWork } from "@/lib/repo/worklog";
 import { addTool, deleteFolder, deleteTool, enableService, findToolByName, removeService, saveFolder, updateService } from "@/lib/repo/services";
+import { createClientFolders, googleConnected, readMail, sendMail } from "@/lib/google";
+import { logError } from "@/lib/log";
+import { getClient } from "@/lib/repo/clients";
 import { FOLDER_KINDS, isServiceType, serviceDef, TOOL_CATEGORY_LABEL, type ToolCategory } from "@/lib/services";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
@@ -64,6 +67,7 @@ export async function createClientQuick(fd: FormData) {
     status, stage: "new", fee_monthly: 0, pay_day: 1, locations: Math.max(Math.round(amount(fd, "locations")) || 1, 1),
     work_since: status === "active" ? (str(fd, "work_since") || ymd()) : null,
   } as ClientInput);
+  if (googleConnected()) await makeDriveFolders(id, name).catch((e) => logError("drive-folders", e));
   done(`/clients/${id}?new=1`);
 }
 
@@ -118,6 +122,55 @@ export async function saveFoldersAction(fd: FormData) {
     else deleteFolder(id, f.kind);
   }
   done();
+}
+
+// ---- Google Диск: папка клієнта і підпапки
+async function makeDriveFolders(clientId: number, name: string) {
+  const { mainUrl, subs } = await createClientFolders(name, FOLDER_KINDS);
+  updateClient(clientId, { drive_url: mainUrl });
+  for (const f of subs) saveFolder(clientId, f.kind, f.title, f.url);
+}
+
+export async function createDriveFoldersAction(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "client_id");
+  const c = id ? getClient(id) : undefined;
+  if (!c) return;
+  try {
+    await makeDriveFolders(c.id, c.name);
+  } catch (e) {
+    logError("drive-folders", e);
+    redirect(`/clients/${c.id}?tab=files&err=${encodeURIComponent(e instanceof Error ? e.message : "Помилка Google")}`);
+  }
+  done(`/clients/${c.id}?tab=files`);
+}
+
+// ---- Gmail
+export async function sendMailAction(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "client_id");
+  const to = str(fd, "to");
+  const body = String(fd.get("body") ?? "").trim();
+  const back = `/clients/${id}?tab=mail`;
+  if (!to || !body) redirect(`${back}&err=${encodeURIComponent("Вкажи адресу і текст")}`);
+  try {
+    await sendMail({ to, subject: str(fd, "subject") || "(без теми)", body, threadId: str(fd, "thread_id") || undefined, inReplyTo: str(fd, "in_reply_to") || undefined });
+    if (id) addWork({ client_id: id, what: `Лист клієнту: ${str(fd, "subject") || "(без теми)"}`, done_at: ymd() });
+  } catch (e) {
+    logError("gmail-send", e);
+    redirect(`${back}&err=${encodeURIComponent(e instanceof Error ? e.message : "Не вдалось надіслати")}`);
+  }
+  done(`${back}&sent=1`);
+}
+
+export async function saveMailToMaterials(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "client_id");
+  const mid = str(fd, "message_id");
+  if (!id || !mid) return;
+  const m = await readMail(mid);
+  addMaterial({ client_id: id, kind: "chat", title: `Лист: ${m.subject}`, content: `Від: ${m.from}\nКому: ${m.to}\nДата: ${m.date.slice(0, 10)}\n\n${m.body}` });
+  done(`/clients/${id}?tab=materials`);
 }
 
 // ---- Довідники

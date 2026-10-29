@@ -15,6 +15,8 @@ import { listTasks } from "@/lib/repo/tasks";
 import { getApiKey } from "@/lib/secrets";
 import { SERVICES, type ServiceType } from "@/lib/services";
 import FilesTab from "./FilesTab";
+import MailTab from "./MailTab";
+import { googleConnected } from "@/lib/google";
 import Overview from "./Overview";
 import ServiceTab from "./ServiceTab";
 import { HistoryTab, MaterialsTab, MoneyTab, PlaybooksTab, TasksTab } from "./tabs";
@@ -29,14 +31,20 @@ const BASE_TABS = [
   { k: "assistant", label: "Помічник" },
 ];
 
-export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; new?: string }> }) {
+export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; new?: string; m?: string; err?: string; sent?: string }> }) {
   const id = Number((await params).id);
   const c = getClientRow(id);
   if (!c) notFound();
   const sp = await searchParams;
   const services = listServices(id);
   // Вкладки: огляд, потім по одній на кожну увімкнену послугу, потім загальні
-  const tabs = [{ k: "overview", label: "Огляд" }, ...services.map((s) => ({ k: s.type, label: SERVICES[s.type as ServiceType].short })), ...BASE_TABS];
+  const google = googleConnected();
+  const tabs = [
+    { k: "overview", label: "Огляд" },
+    ...services.map((s) => ({ k: s.type, label: SERVICES[s.type as ServiceType].short })),
+    ...(google ? [{ k: "mail", label: "Пошта" }] : []),
+    ...BASE_TABS,
+  ];
   const tab = tabs.find((t) => t.k === sp.tab)?.k ?? "overview";
   const service = services.find((s) => s.type === tab);
   const flags = clientFlags(c);
@@ -96,7 +104,8 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       {tab === "tasks" && <TasksTab id={id} />}
       {tab === "history" && <HistoryTab id={id} />}
       {tab === "money" && <MoneyTab id={id} fee={c.fee_monthly} payDay={c.pay_day} paidTotal={paidTotal} />}
-      {tab === "files" && <FilesTab clientId={id} driveUrl={c.drive_url} />}
+      {tab === "files" && <FilesTab clientId={id} driveUrl={c.drive_url} google={google} err={sp.err} />}
+      {tab === "mail" && <MailTab clientId={id} email={c.email} open={sp.m} err={sp.err} sent={sp.sent === "1"} />}
       {tab === "materials" && <MaterialsTab id={id} />}
       {tab === "playbooks" && <PlaybooksTab id={id} />}
     </>
