@@ -14,6 +14,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; ico: stri
     title: "Робота",
     items: [
       { href: "/", label: "Центр", ico: "◎" },
+      { href: "/assistant", label: "Помічник", ico: "◉" },
       { href: "/tasks", label: "Задачі", ico: "▣", count: "tasks" },
       { href: "/clients", label: "Клієнти", ico: "◇" },
       { href: "/pipeline", label: "Воронка", ico: "⟩", count: "leads" },
@@ -25,11 +26,12 @@ const SECTIONS: { title: string; items: { href: string; label: string; ico: stri
     items: [
       { href: "/playbooks", label: "Плейбуки", ico: "☰" },
       { href: "/ideas", label: "Ідеї", ico: "✦", count: "ideas" },
+      { href: "/settings", label: "Налаштування", ico: "⚙" },
     ],
   },
 ];
 
-const MOBILE = ["/", "/tasks", "/clients", "/money"];
+const MOBILE = ["/", "/tasks", "/clients", "/assistant"];
 
 export default function Shell({ counts, clients, children }: { counts: Counts; clients: Opt[]; children: React.ReactNode }) {
   const path = usePathname();
@@ -45,7 +47,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  useEffect(() => setMenu(false), [path]);
+  useEffect(() => { setMenu(false); }, [path]);
 
   if (path === "/login") return <>{children}</>;
   const on = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));

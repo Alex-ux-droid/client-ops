@@ -5,6 +5,9 @@ import {
   saveAdStat, saveIdea, saveMaterial, saveNextStep, savePayment, toggleItem,
 } from "@/app/actions";
 import AddTask from "@/components/AddTask";
+import Chat from "@/components/Chat";
+import { listChat } from "@/lib/repo/chat";
+import { getApiKey } from "@/lib/secrets";
 import { LineChart } from "@/components/Charts";
 import PaymentRow from "@/components/PaymentRow";
 import TaskItem from "@/components/TaskItem";
@@ -22,6 +25,7 @@ import { listWork } from "@/lib/repo/worklog";
 
 const TABS = [
   { k: "overview", label: "Огляд" },
+  { k: "assistant", label: "Помічник" },
   { k: "tasks", label: "Задачі" },
   { k: "history", label: "Історія" },
   { k: "ads", label: "Реклама" },
@@ -86,6 +90,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       </nav>
 
       {tab === "overview" && <Overview c={c} id={id} tasks={tasks.slice(0, 5)} paidTotal={paidTotal} />}
+      {tab === "assistant" && <Chat clientId={id} initial={listChat(id)} hasKey={!!getApiKey()} />}
       {tab === "tasks" && <TasksTab id={id} />}
       {tab === "history" && <HistoryTab id={id} />}
       {tab === "ads" && <AdsTab id={id} />}

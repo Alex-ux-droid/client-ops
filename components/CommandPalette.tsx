@@ -21,7 +21,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
   const [sel, setSel] = useState(0);
   const input = useRef<HTMLInputElement>(null);
 
-  useEffect(() => input.current?.focus(), []);
+  useEffect(() => { input.current?.focus(); }, []);
   useEffect(() => {
     if (q.trim().length < 2) { setHits([]); return; }
     const ctl = new AbortController();
