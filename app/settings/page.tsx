@@ -4,7 +4,7 @@ import SubmitButton from "@/components/SubmitButton";
 import AgentAccess from "./AgentAccess";
 import InstallApp from "@/components/InstallApp";
 import { connectMetaAction, disconnectMetaAction, linkMetaAccountAction, syncMetaAction } from "./actions";
-import { lastSync, metaToken } from "@/lib/meta";
+import { lastSync, metaToken, tokenAgeDays } from "@/lib/meta";
 import { ACCOUNT_STATUS, listAccounts } from "@/lib/repo/meta";
 import { fmtDate } from "@/lib/dates";
 import { connectTelegramAction, disconnectTelegramAction, disconnectVoiceAction, linkTelegramChatAction, saveVoiceChoiceAction, saveVoiceKeyAction } from "./actions";
@@ -216,11 +216,12 @@ function MetaTab() {
           <h2>Meta Ads — тільки читання</h2>
           {!token ? (
             <>
+              <div className="mono">Найпростіше — <b>особистий токен</b>: бачить усі кабінети з усіх твоїх портфоліо, живе ~60 днів (система нагадає оновити).</div>
               <ol className="steps">
-                <li>На <b>developers.facebook.com</b> → Мої застосунки → <b>Створити</b> → тип «Інше» → <b>Business</b> → назва «Client Ops» → привʼяжи до свого Business Manager.</li>
-                <li>У <b>business.facebook.com</b> → Налаштування компанії → Користувачі → <b>Системні користувачі</b> → Додати («Client Ops», роль «Працівник»).</li>
-                <li>У цього користувача → <b>Призначити ресурси</b> → Рекламні акаунти → обери всі потрібні → дозвіл <b>«Переглядати ефективність»</b>. Також додай йому застосунок «Client Ops».</li>
-                <li><b>Згенерувати маркер</b> → застосунок «Client Ops» → термін <b>«Ніколи»</b> → дозвіл <b>ads_read</b> → скопіюй і встав сюди.</li>
+                <li><b>developers.facebook.com/apps</b> → Створити застосунок «Client Ops» → сценарій «Створення реклами і керування нею через Marketing API» (Create &amp; manage ads).</li>
+                <li><b>developers.facebook.com/tools/explorer</b> → справа обери застосунок Client Ops → «Маркер користувача» → дозвіл <b>ads_read</b> → «Згенерувати маркер» → дозволь.</li>
+                <li>Скопіюй маркер → <b>developers.facebook.com/tools/debug/accesstoken</b> → встав → «Налагодити» → внизу <b>«Продовжити маркер доступу»</b> → скопіюй новий довгий маркер.</li>
+                <li>Встав його сюди.</li>
               </ol>
               <form action={connectMetaAction} className="inline">
                 <input name="token" type="password" placeholder="EAAG…" autoComplete="off" aria-label="Токен Meta" />
@@ -232,12 +233,20 @@ function MetaTab() {
             <>
               <div className="inline" style={{ flexWrap: "wrap" }}>
                 <span className="tag ok">Підключено</span>
+                {(tokenAgeDays() ?? 0) >= 50 && <span className="tag warn">токену {tokenAgeDays()} дн. — якщо він особистий, онови (живе ~60)</span>}
                 <span className="mono">{accounts.length} кабінет(ів) · оновлення кожні 2 год{synced ? ` · востаннє ${fmtDate(synced)} ${new Date(synced).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Kyiv" })}` : ""}</span>
               </div>
               <div className="inline" style={{ flexWrap: "wrap" }}>
                 <form action={syncMetaAction}><SubmitButton className="ghost small">Оновити зараз</SubmitButton></form>
                 <form action={disconnectMetaAction}><button className="ghost small">Відключити</button></form>
               </div>
+              <details>
+                <summary className="h-link">Оновити токен</summary>
+                <form action={connectMetaAction} className="inline" style={{ marginTop: "0.5rem" }}>
+                  <input name="token" type="password" placeholder="новий маркер EAAG…" autoComplete="off" aria-label="Новий токен Meta" />
+                  <button className="ghost">Зберегти</button>
+                </form>
+              </details>
             </>
           )}
         </div>

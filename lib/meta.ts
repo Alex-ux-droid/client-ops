@@ -53,6 +53,7 @@ const budget = (v: unknown) => (v == null || v === "" ? null : Number(v) / 100);
 export async function connectMeta(token: string): Promise<number> {
   const n = await refreshAccounts(token);
   setEnvVar("META_ACCESS_TOKEN", token);
+  setSetting("meta.connected_at", new Date().toISOString());
   return n;
 }
 
@@ -130,3 +131,10 @@ export async function syncAll(): Promise<{ ok: number; failed: number }> {
 }
 
 export const lastSync = () => getSetting("meta.last_sync");
+
+// Особистий токен (з Graph API Explorer, продовжений) живе ~60 днів; системного користувача — без терміну.
+// Точного терміну без секрету застосунку не дізнатись, тому рахуємо від дня підключення.
+export function tokenAgeDays(): number | null {
+  const at = getSetting("meta.connected_at");
+  return at ? Math.floor((Date.now() - +new Date(at)) / 86400_000) : null;
+}
