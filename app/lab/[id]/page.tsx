@@ -218,7 +218,7 @@ export default async function LabSessionPage({ params }: { params: Promise<{ id:
             <textarea id="conclusion" name="conclusion" defaultValue={l.conclusion} style={{ minHeight: "8rem" }} placeholder="Чому цей варіант, ризики, наступні кроки" />
           </div>
           {client && HAS_SERVICE.includes(l.category) && (
-            <label className="inline check">
+            <label className="check-line">
               <input type="checkbox" name="enable_service" defaultChecked />
               <span>Поставити обраний варіант у вкладку «{l.category === "site" ? "Сайт" : cat.label}» клієнта</span>
             </label>

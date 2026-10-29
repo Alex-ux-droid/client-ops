@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import { runAgent } from "./agent/run";
 import { logError } from "./log";
 import { getSetting, setSetting } from "./repo/settings";
-import { addMessage, editMessage, setMessageText, upsertChat } from "./repo/telegram";
+import { addMessage, editMessage, knownChat, setMessageText, upsertChat } from "./repo/telegram";
 import { setEnvVar } from "./secrets";
 import { transcribe, voiceKey } from "./voice";
 
@@ -23,7 +23,7 @@ type TgMsg = {
 };
 export type TgUpdate = {
   update_id: number; message?: TgMsg; edited_message?: TgMsg;
-  my_chat_member?: { chat: TgChatRaw; new_chat_member: { status: string } };
+  my_chat_member?: { chat: TgChatRaw; from?: TgUser; new_chat_member: { status: string } };
 };
 
 export async function tg<T = unknown>(method: string, body: Record<string, unknown> = {}): Promise<T> {
@@ -97,8 +97,16 @@ function parse(m: TgMsg): { kind: string; text: string; fileName: string; voiceI
 
 export async function handleUpdate(u: TgUpdate): Promise<void> {
   if (u.my_chat_member) {
-    const { chat, new_chat_member } = u.my_chat_member;
-    if (chat.type !== "private") upsertChat(chat.id, chatTitle(chat), chat.type, !["left", "kicked"].includes(new_chat_member.status));
+    const { chat, from, new_chat_member } = u.my_chat_member;
+    if (chat.type === "private") return;
+    const active = !["left", "kicked"].includes(new_chat_member.status);
+    // Записуємо тільки групи, куди бота додав Саша; з чужих — виходимо
+    const owner = tgOwner();
+    if (active && owner && from?.id !== owner && !knownChat(chat.id)) {
+      await tg("leaveChat", { chat_id: chat.id }).catch(() => {});
+      return;
+    }
+    upsertChat(chat.id, chatTitle(chat), chat.type, active);
     return;
   }
   if (u.edited_message) {
@@ -113,7 +121,8 @@ export async function handleUpdate(u: TgUpdate): Promise<void> {
 
   if (m.chat.type === "private") return handlePrivate(m, fromOwner);
 
-  // Група: мовчки записуємо
+  // Група: мовчки записуємо — тільки ті, куди бота додав Саша (поки Саша не прив'язаний — приймаємо всі)
+  if (owner && !knownChat(m.chat.id)) return;
   upsertChat(m.chat.id, m.new_chat_title ?? chatTitle(m.chat), m.chat.type);
   const p = parse(m);
   const rowId = addMessage({
