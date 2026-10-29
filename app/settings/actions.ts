@@ -10,6 +10,8 @@ import { setSetting } from "@/lib/repo/settings";
 import { listVoices, saveVoiceChoice, saveVoiceKey } from "@/lib/voice";
 import { connectBot, disconnectBot } from "@/lib/telegram";
 import { linkChat } from "@/lib/repo/telegram";
+import { connectMeta, disconnectMeta, syncAccount, syncAll } from "@/lib/meta";
+import { linkAccount } from "@/lib/repo/meta";
 import { createAgentToken, getApiKey, revokeAgentToken, saveApiKey } from "@/lib/secrets";
 
 const back = (msg: string, ok = false, tab = "") => redirect(`/settings?${tab ? `tab=${tab}&` : ""}msg=${encodeURIComponent(msg)}${ok ? "&ok=1" : ""}`);
@@ -155,4 +157,39 @@ export async function linkTelegramChatAction(fd: FormData) {
   const clientId = Number(fd.get("client_id")) || null;
   if (chatId) linkChat(chatId, clientId);
   back(clientId ? "Групу прив'язано до клієнта — нові повідомлення підуть у його картку." : "Прив'язку знято.", true, "connectors&c=telegram");
+}
+
+// ---- Meta Ads (тільки читання)
+export async function connectMetaAction(fd: FormData) {
+  await requireUser();
+  const token = String(fd.get("token") ?? "").trim();
+  if (token.length < 50 || /\s/.test(token)) back("Токен виглядає неправильно — скопіюй його повністю.", false, "connectors&c=meta");
+  try {
+    const n = await connectMeta(token);
+    back(`Meta підключена: знайшов ${n} кабінет(ів). Привʼяжи їх до клієнтів нижче.`, true, "connectors&c=meta");
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("NEXT_REDIRECT")) throw e;
+    back(e instanceof Error ? e.message : "Не вдалось підключити Meta", false, "connectors&c=meta");
+  }
+}
+
+export async function disconnectMetaAction() {
+  await requireUser();
+  disconnectMeta();
+  back("Meta відключено. Збережені цифри лишились.", true, "connectors&c=meta");
+}
+
+export async function linkMetaAccountAction(fd: FormData) {
+  await requireUser();
+  const acc = String(fd.get("account_id") ?? "");
+  const clientId = Number(fd.get("client_id")) || null;
+  if (acc) linkAccount(acc, clientId);
+  if (acc && clientId) await syncAccount(acc).catch(() => {});
+  back(clientId ? "Кабінет привʼязано, цифри підтягнуто." : "Привʼязку знято.", true, "connectors&c=meta");
+}
+
+export async function syncMetaAction() {
+  await requireUser();
+  const r = await syncAll();
+  back(r.failed ? `Оновлено ${r.ok}, з помилкою ${r.failed} — деталі біля кабінетів.` : `Оновлено кабінетів: ${r.ok}.`, !r.failed, "connectors&c=meta");
 }

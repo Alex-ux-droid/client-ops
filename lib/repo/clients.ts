@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { metaAlerts } from "./meta";
 
 export const CLIENT_STATUSES = ["lead", "active", "paused", "archived"] as const;
 export type ClientStatus = (typeof CLIENT_STATUSES)[number];
@@ -80,6 +81,7 @@ export function clientFlags(c: ClientRow, today = new Date()): Flag[] {
     if (!c.open_tasks) flags.push({ level: "warn", text: "нема задач" });
   }
   if (c.status === "lead" && !c.next_step) flags.push({ level: "warn", text: "нема наступного кроку" });
+  flags.push(...metaAlerts(c.id));
   return flags;
 }
 
