@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Rec = {
   lang: string; continuous: boolean; interimResults: boolean;
-  start(): void; stop(): void;
+  start(): void; stop(): void; abort(): void;
   onresult: ((e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
   onerror: ((e: { error: string }) => void) | null;
   onend: (() => void) | null;
@@ -31,27 +31,36 @@ export function useDictation(onText: (chunk: string) => void) {
     return () => { rec.current?.stop(); };
   }, []);
 
-  // Текст збираємо весь і віддаємо на «стоп»: Safari на iPhone часто не позначає результат як остаточний.
-  const heard = useRef("");
-  const flushed = useRef(true);
-  const flush = useCallback(() => {
-    if (flushed.current) return;
-    flushed.current = true;
-    const text = heard.current.trim();
+  // Кожне натискання — окрема сесія зі своїм текстом. Текст віддаємо на «стоп»:
+  // Safari на iPhone часто не позначає результат як остаточний і інколи не надсилає onend.
+  type Sess = { r: Rec; heard: string; done: boolean };
+  const sess = useRef<Sess | null>(null);
+  const flush = useCallback((x: Sess) => {
+    if (x.done) return;
+    x.done = true;
+    const text = x.heard.trim();
     if (text) cb.current(text);
     else setError(ERRORS["no-speech"]);
   }, []);
 
   const stop = useCallback(() => {
-    rec.current?.stop();
-    setTimeout(flush, 1500); // якщо onend так і не прийде
+    const x = sess.current;
+    setListening(false); // одразу, не чекаючи onend — інакше наступне натискання знову «зупиняє»
+    if (!x) return;
+    try { x.r.stop(); } catch {}
+    setTimeout(() => { flush(x); try { x.r.abort(); } catch {} }, 1200);
   }, [flush]);
 
   const start = useCallback(() => {
     const w = window as unknown as { SpeechRecognition?: new () => Rec; webkitSpeechRecognition?: new () => Rec };
     const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!Ctor) { setError("Цей браузер не вміє диктувати. Натисни мікрофон на клавіатурі телефона."); return; }
+    // Попередня сесія ще висить — віддаємо, що встигла почути, і глушимо
+    const prev = sess.current;
+    if (prev && !prev.done) { flush(prev); try { prev.r.abort(); } catch {} }
+    window.speechSynthesis?.cancel(); // помічник замовкає, коли Саша говорить
     const r = new Ctor();
+    const x: Sess = { r, heard: "", done: false };
     r.lang = "uk-UA";
     r.continuous = true;
     r.interimResults = true;
@@ -64,16 +73,14 @@ export function useDictation(onText: (chunk: string) => void) {
         if (t.toLowerCase().startsWith(acc.toLowerCase())) acc = t;
         else if (!acc.toLowerCase().endsWith(t.toLowerCase())) acc = `${acc} ${t}`;
       }
-      heard.current = acc;
+      x.heard = acc;
     };
     r.onerror = (e) => { if (e.error !== "aborted" && e.error !== "no-speech") setError(ERRORS[e.error] ?? `Помилка розпізнавання: ${e.error}`); };
-    r.onend = () => { setListening(false); flush(); };
+    r.onend = () => { if (sess.current === x) setListening(false); flush(x); };
     setError("");
-    heard.current = "";
-    flushed.current = false;
+    sess.current = x;
     rec.current = r;
-    r.start();
-    setListening(true);
+    try { r.start(); setListening(true); } catch { setError("Мікрофон зайнятий — спробуй ще раз."); }
   }, [flush]);
 
   const toggle = useCallback(() => (listening ? stop() : start()), [listening, start, stop]);

@@ -28,7 +28,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
   const [add, setAdd] = useState(false);
   const [dock, setDock] = useState(false);
   const [seed, setSeed] = useState<AssistantSeed | null>(null);
-  const [botState, setBotState] = useState<"idle" | "listening" | "thinking">("idle");
+  const [botState, setBotState] = useState<"idle" | "listening" | "thinking" | "speaking">("idle");
   const [mobile, setMobile] = useState(false);
 
   // Інші сторінки відкривають помічника подією (напр. Лабораторія: «розгорни ідею»)
