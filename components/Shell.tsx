@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { logout } from "@/app/login/actions";
+import Chat from "./Chat";
 import CommandPalette from "./CommandPalette";
 import QuickAdd from "./QuickAdd";
 
@@ -31,18 +32,25 @@ const SECTIONS: { title: string; items: { href: string; label: string; ico: stri
   },
 ];
 
-const MOBILE = ["/", "/tasks", "/clients", "/assistant"];
+const MOBILE = ["/", "/tasks", "/clients"];
+
+const PAGE_NAMES: [RegExp, string][] = [
+  [/^\/$/, "Центр"], [/^\/tasks/, "Задачі"], [/^\/clients\/\d+/, "картка клієнта"], [/^\/clients/, "Клієнти"],
+  [/^\/pipeline/, "Воронка"], [/^\/money/, "Гроші"], [/^\/playbooks/, "Плейбуки"], [/^\/ideas/, "Ідеї"], [/^\/settings/, "Налаштування"],
+];
 
 export default function Shell({ counts, clients, children }: { counts: Counts; clients: Opt[]; children: React.ReactNode }) {
   const path = usePathname();
   const [menu, setMenu] = useState(false);
   const [search, setSearch] = useState(false);
   const [add, setAdd] = useState(false);
+  const [dock, setDock] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearch(true); }
-      if (e.key === "Escape") { setSearch(false); setAdd(false); setMenu(false); }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") { e.preventDefault(); setDock((d) => !d); }
+      if (e.key === "Escape") { setSearch(false); setAdd(false); setMenu(false); setDock(false); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -50,6 +58,9 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
   useEffect(() => { setMenu(false); }, [path]);
 
   if (path === "/login") return <>{children}</>;
+  const clientMatch = path.match(/^\/clients\/(\d+)/);
+  const dockClient = clientMatch ? Number(clientMatch[1]) : null;
+  const pageName = PAGE_NAMES.find(([re]) => re.test(path))?.[1] ?? "";
   const on = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   const all = SECTIONS.flatMap((s) => s.items);
 
@@ -83,15 +94,18 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
 
       <header className="topbar">
         <Link href="/" className="brand">CLIENT<span>/</span>OPS</Link>
-        <button className="icon-btn" onClick={() => setSearch(true)} aria-label="Пошук">⌕</button>
+        <div className="inline">
+          <button className="icon-btn" onClick={() => setAdd(true)} aria-label="Додати">+</button>
+          <button className="icon-btn" onClick={() => setSearch(true)} aria-label="Пошук">⌕</button>
+        </div>
       </header>
 
       <main className="main">{children}</main>
 
       <nav className="tabbar">
         {MOBILE.slice(0, 2).map((h) => <TabLink key={h} item={all.find((i) => i.href === h)!} on={on(h)} counts={counts} />)}
-        <button className="fab" onClick={() => setAdd(true)} aria-label="Додати">+</button>
-        {MOBILE.slice(2).map((h) => <TabLink key={h} item={all.find((i) => i.href === h)!} on={on(h)} counts={counts} />)}
+        <button className="fab" onClick={() => setDock(true)} aria-label="Помічник">🎙</button>
+        <TabLink item={all.find((i) => i.href === "/clients")!} on={on("/clients")} counts={counts} />
         <button className="tab" onClick={() => setMenu(true)}><span className="ico">≡</span>Меню</button>
       </nav>
 
@@ -101,6 +115,23 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
             {links}
             <form action={logout}><button className="ghost small" style={{ width: "100%" }}>Вийти</button></form>
           </div>
+        </div>
+      )}
+      {path !== "/assistant" && !dock && (
+        <button className="dock-btn" onClick={() => setDock(true)} title="Помічник (Ctrl+J)">🎙 Помічник</button>
+      )}
+      {dock && (
+        <div className="overlay dock-overlay" onClick={() => setDock(false)}>
+          <aside className="dock" onClick={(e) => e.stopPropagation()}>
+            <div className="dock-head">
+              <div>
+                <h2>Помічник</h2>
+                <div className="mono">{dockClient ? "про цього клієнта" : pageName ? `зараз: ${pageName}` : ""}</div>
+              </div>
+              <button className="icon-btn" onClick={() => setDock(false)} aria-label="Закрити">✕</button>
+            </div>
+            <Chat key={dockClient ?? 0} clientId={dockClient} page={pageName} compact />
+          </aside>
         </div>
       )}
       {search && <CommandPalette onClose={() => setSearch(false)} />}

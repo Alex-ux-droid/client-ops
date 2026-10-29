@@ -1,13 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse, type NextRequest } from "next/server";
 import { NoKeyError, runAgent } from "@/lib/agent/run";
-import { clearChat } from "@/lib/repo/chat";
+import { clearChat, listChat } from "@/lib/repo/chat";
+import { getApiKey } from "@/lib/secrets";
 import { logError } from "@/lib/log";
 import { isAuthed, SESSION_COOKIE } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   if (!isAuthed(req.cookies.get(SESSION_COOKIE)?.value, req.headers.get("authorization"))) return NextResponse.json({ error: "Потрібен вхід" }, { status: 401 });
-  const body = (await req.json().catch(() => ({}))) as { message?: string; clientId?: number | null; clear?: boolean };
+  const body = (await req.json().catch(() => ({}))) as { message?: string; clientId?: number | null; clear?: boolean; page?: string };
   const clientId = Number(body.clientId) > 0 ? Number(body.clientId) : null;
   if (body.clear) { clearChat(clientId); return NextResponse.json({ ok: true }); }
   const message = String(body.message ?? "").trim();
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
   if (message.length > 100_000) return NextResponse.json({ error: "Задовгий текст (макс. 100 000 символів)" }, { status: 400 });
 
   try {
-    return NextResponse.json(await runAgent(clientId, message));
+    return NextResponse.json(await runAgent(clientId, message, String(body.page ?? "").slice(0, 200)));
   } catch (e) {
     const error =
       e instanceof NoKeyError ? "Нема ключа API. Додай його в Налаштуваннях." :
@@ -29,4 +30,10 @@ export async function POST(req: NextRequest) {
     logError("chat", e);
     return NextResponse.json({ error }, { status: 500 });
   }
+}
+
+export async function GET(req: NextRequest) {
+  if (!isAuthed(req.cookies.get(SESSION_COOKIE)?.value, req.headers.get("authorization"))) return NextResponse.json({ error: "Потрібен вхід" }, { status: 401 });
+  const id = Number(req.nextUrl.searchParams.get("clientId"));
+  return NextResponse.json({ messages: listChat(id > 0 ? id : null), hasKey: !!getApiKey() });
 }

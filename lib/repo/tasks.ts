@@ -95,11 +95,13 @@ export function taskCounts() {
     FROM tasks WHERE status != 'done'
   `).get({ today, week: endOfWeek() }) as Record<string, number | null>;
   const doneWeek = db().prepare(`SELECT COUNT(*) AS n FROM tasks WHERE status = 'done' AND done_at >= date('now','-6 days')`).get() as { n: number };
+  const doneToday = db().prepare(`SELECT COUNT(*) AS n FROM tasks WHERE status = 'done' AND date(done_at,'localtime') = date('now','localtime')`).get() as { n: number };
   return {
     overdue: row.overdue ?? 0,
     today: row.today ?? 0,
     week: row.week ?? 0,
     open: row.open ?? 0,
     doneWeek: doneWeek.n,
+    doneToday: doneToday.n,
   };
 }
