@@ -7,6 +7,7 @@ import Chat from "./Chat";
 import CommandPalette from "./CommandPalette";
 import QuickAdd from "./QuickAdd";
 
+import Icon from "./Icon";
 import { SECTIONS, type Counts } from "./nav";
 
 type Opt = { id: number; name: string };
@@ -55,7 +56,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
         const c = i.count ? counts[i.count] : 0;
         return (
           <Link key={i.href} href={i.href} className={`side-link ${on(i.href) ? "on" : ""}`}>
-            <span className="ico">{i.ico}</span>
+            <span className="ico"><Icon name={i.ico} /></span>
             <span className="grow">{i.label}</span>
             {c > 0 && <span className={`count ${i.bad ? "bad" : ""}`}>{c}</span>}
           </Link>
@@ -69,11 +70,11 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
       <aside className="side">
         <Link href="/" className="brand">Client Ops</Link>
         <button className="side-search" onClick={() => setSearch(true)}>
-          <span>⌕ Пошук</span><kbd>Ctrl K</kbd>
+          <span className="inline"><Icon name="search" size={16} /> Пошук</span><kbd>Ctrl K</kbd>
         </button>
         <div className="side-actions">
-          <button className="side-add" onClick={() => setAdd(true)}>+ Додати</button>
-          <button className="side-ai ghost" onClick={() => setDock(true)} title="Помічник (Ctrl+J)">🎙 Помічник</button>
+          <button className="side-add" onClick={() => setAdd(true)}><Icon name="plus" size={18} stroke={2.5} /> Додати</button>
+          <button className="side-ai ghost" onClick={() => setDock(true)} title="Помічник (Ctrl+J)"><Icon name="mic" size={18} /> Помічник</button>
         </div>
         {links}
         <form action={logout} className="side-foot"><button className="ghost small">Вийти</button></form>
@@ -82,8 +83,8 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
       <header className="topbar">
         <Link href="/" className="brand">Client Ops</Link>
         <div className="inline">
-          <button className="icon-btn" onClick={() => setAdd(true)} aria-label="Додати">+</button>
-          <button className="icon-btn" onClick={() => setSearch(true)} aria-label="Пошук">⌕</button>
+          <button className="icon-btn" onClick={() => setAdd(true)} aria-label="Додати"><Icon name="plus" /></button>
+          <button className="icon-btn" onClick={() => setSearch(true)} aria-label="Пошук"><Icon name="search" /></button>
         </div>
       </header>
 
@@ -91,9 +92,9 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
 
       <nav className="tabbar">
         {MOBILE.slice(0, 2).map((h) => <TabLink key={h} item={all.find((i) => i.href === h)!} on={on(h)} counts={counts} />)}
-        <button className="fab" onClick={() => setDock(true)} aria-label="Помічник">🎙</button>
+        <button className="fab" onClick={() => setDock(true)} aria-label="Помічник"><Icon name="mic" size={24} /></button>
         <TabLink item={all.find((i) => i.href === "/clients")!} on={on("/clients")} counts={counts} />
-        <Link href="/menu" className={`tab ${path === "/menu" ? "on" : ""}`}><span className="ico">≡</span>Меню</Link>
+        <Link href="/menu" className={`tab ${path === "/menu" ? "on" : ""}`}><span className="ico"><Icon name="menu" size={22} /></span>Меню</Link>
       </nav>
 
       {dock && (
@@ -104,7 +105,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
                 <h2>Помічник</h2>
                 <div className="mono">{dockClient ? "про цього клієнта" : pageName ? `зараз: ${pageName}` : ""}</div>
               </div>
-              <button className="icon-btn" onClick={() => setDock(false)} aria-label="Закрити">✕</button>
+              <button className="icon-btn" onClick={() => setDock(false)} aria-label="Закрити"><Icon name="close" /></button>
             </div>
             <Chat key={dockClient ?? 0} clientId={dockClient} page={pageName} compact />
           </aside>
@@ -120,7 +121,7 @@ function TabLink({ item, on, counts }: { item: (typeof SECTIONS)[number]["items"
   const c = item.count ? counts[item.count] : 0;
   return (
     <Link href={item.href} className={`tab ${on ? "on" : ""}`}>
-      <span className="ico">{item.ico}{c > 0 && <i className={item.bad ? "bad" : ""} />}</span>
+      <span className="ico"><Icon name={item.ico} size={22} />{c > 0 && <i className={item.bad ? "bad" : ""} />}</span>
       {item.label}
     </Link>
   );
