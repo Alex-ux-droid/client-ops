@@ -1,0 +1,5 @@
+#cloud-config
+# Вставити в Hetzner → Create Server → Cloud config. Замінити пароль (мін. 10 символів, тільки букви і цифри).
+# Лог встановлення на сервері: /var/log/client-ops-install.log
+runcmd:
+  - curl -fsSL https://raw.githubusercontent.com/Alex-ux-droid/client-ops/main/deploy/install.sh | APP_PASSWORD='ZAMINY_NA_SVIY_PAROL' bash > /var/log/client-ops-install.log 2>&1
