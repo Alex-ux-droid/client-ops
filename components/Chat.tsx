@@ -7,6 +7,7 @@ import type { AssistantSeed } from "./assistant";
 import Bot from "./Bot";
 import Icon from "./Icon";
 import { useDictation } from "./useDictation";
+import { useSpeech } from "./useSpeech";
 
 const PRESETS_GLOBAL = [
   "Що в мене сьогодні і що горить?",
@@ -30,7 +31,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
   hasKey?: boolean;
   compact?: boolean;
   seed?: AssistantSeed | null;
-  onState?: (s: "idle" | "listening" | "thinking") => void;
+  onState?: (s: "idle" | "listening" | "thinking" | "speaking") => void;
 }) {
   const router = useRouter();
   const [msgs, setMsgs] = useState<Msg[]>(initial ?? []);
@@ -40,6 +41,8 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
   const [err, setErr] = useState("");
   const end = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
+  const [speaking, setSpeaking] = useState(false);
+  const voice = useSpeech(setSpeaking);
   const dict = useDictation((chunk) => setText((t) => (t && !t.endsWith(" ") && !t.endsWith("\n") ? `${t} ${chunk}` : t + chunk)));
 
   // Без initial (плаваюча панель) — підвантажуємо розмову самі
@@ -53,7 +56,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [msgs, busy]);
 
   // Робот у шапці: слухає / думає
-  useEffect(() => { onState?.(busy ? "thinking" : dict.listening ? "listening" : "idle"); }, [busy, dict.listening, onState]);
+  useEffect(() => { onState?.(busy ? "thinking" : dict.listening ? "listening" : speaking ? "speaking" : "idle"); }, [busy, dict.listening, speaking, onState]);
 
   // Запит від сторінки (кнопка «Розгорнути з помічником» тощо)
   const seen = useRef(0);
@@ -77,6 +80,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Помилка");
       setMsgs((m) => [...m, { role: "assistant", content: data.reply, actions: data.actions }]);
+      if (voice.enabled) voice.speak(data.reply);
       if (data.actions?.length) router.refresh();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Помилка");
@@ -151,8 +155,17 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
           </button>
         </div>
         {dict.error && <div className="mono" style={{ color: "var(--warn)" }}>{dict.error}</div>}
+        {voice.enabled && !voice.hasUk && <div className="mono" style={{ color: "var(--dim)" }}>У цьому браузері нема українського голосу — читатиме з акцентом. На iPhone: Параметри → Універсальний доступ → Усний контент → Голоси → Українська.</div>}
         <div className="inline" style={{ justifyContent: "space-between" }}>
-          <button type="button" className="ghost small" onClick={clear} disabled={busy || !msgs.length}>Нова розмова</button>
+          <div className="inline">
+            <button type="button" className="ghost small" onClick={clear} disabled={busy || !msgs.length}>Нова розмова</button>
+            {voice.supported && (
+              <button type="button" className={`ghost small voice-btn ${voice.enabled ? "on" : ""}`} onClick={voice.toggle}
+                title={voice.enabled ? "Вимкнути голос помічника" : "Помічник читатиме відповіді вголос"} aria-pressed={voice.enabled}>
+                <Icon name={voice.enabled ? "volume" : "mute"} size={16} /> Голос
+              </button>
+            )}
+          </div>
           <button disabled={busy || !text.trim()}>{busy ? "…" : "Надіслати"}</button>
         </div>
       </form>

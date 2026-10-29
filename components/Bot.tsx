@@ -1,7 +1,7 @@
 import { useId } from "react";
 
 // Персонаж помічника: маленький робот з екраном-обличчям. Стан: idle | listening | thinking.
-export default function Bot({ size = 64, state = "idle", className = "" }: { size?: number; state?: "idle" | "listening" | "thinking"; className?: string }) {
+export default function Bot({ size = 64, state = "idle", className = "" }: { size?: number; state?: "idle" | "listening" | "thinking" | "speaking"; className?: string }) {
   // Свої id градієнтів: прихована копія (напр. кнопка в нижньому меню на компʼютері) не має ламати видиму
   const u = useId().replace(/:/g, "");
   const head = `bh${u}`, body = `bb${u}`, glow = `bg${u}`;
