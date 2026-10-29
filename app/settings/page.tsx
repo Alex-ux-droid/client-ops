@@ -21,7 +21,7 @@ import { systemInfo } from "@/lib/system";
 
 const TABS = [
   { k: "general", label: "Загальне" },
-  { k: "agent", label: "Помічник" },
+  { k: "agent", label: "Джері" },
   { k: "connectors", label: "Конектори" },
   { k: "catalog", label: "Довідники" },
   { k: "access", label: "Доступи" },
@@ -31,7 +31,7 @@ type Tab = (typeof TABS)[number]["k"];
 
 const TABLE_LABEL: Record<string, string> = {
   clients: "Клієнти", tasks: "Задачі", work_log: "Історія робіт", payments: "Оплати", ad_stats: "Періоди реклами",
-  materials: "Матеріали", ideas: "Ідеї", playbooks: "Плейбуки", chat_messages: "Повідомлення помічника",
+  materials: "Матеріали", ideas: "Ідеї", playbooks: "Плейбуки", chat_messages: "Повідомлення Джері",
 };
 
 // Список моделей з API (якщо є ключ), інакше — відомі моделі
@@ -122,7 +122,7 @@ async function Agent() {
         </div>
       </div>
       <div className="field">
-        <label htmlFor="instructions">Твої інструкції помічнику</label>
+        <label htmlFor="instructions">Твої інструкції для Джері</label>
         <textarea id="instructions" name="instructions" defaultValue={cfg.instructions} style={{ minHeight: 200 }}
           placeholder={"Напр.: Відповідай максимально коротко.\nЗвіти клієнтам пиши на «Ви», без води.\nЦіна моєї години — $30, враховуй у пропозиціях."} />
       </div>
@@ -138,9 +138,9 @@ function AgentMemory() {
   const memory = agentMemory();
   return (
     <form action={saveMemoryAction} className="card stack" style={{ maxWidth: "48rem" }}>
-      <h2>Пам'ять помічника</h2>
-      <div className="mono">Після кожної розмови помічник сам перечитує її і оновлює пам'ять: факти про тебе, правила, уроки з виправлень, цілі. Можеш поправити або стерти. {memory.length}/{MEMORY_MAX}</div>
-      <textarea name="memory" defaultValue={memory} style={{ minHeight: 220 }} placeholder="Поки порожньо — скажи помічнику: «запам'ятай, що…»" aria-label="Пам'ять помічника" />
+      <h2>Пам'ять Джері</h2>
+      <div className="mono">Після кожної розмови Джері сам перечитує її і оновлює пам'ять: факти про тебе, правила, уроки з виправлень, цілі. Можеш поправити або стерти. {memory.length}/{MEMORY_MAX}</div>
+      <textarea name="memory" defaultValue={memory} style={{ minHeight: 220 }} placeholder="Поки порожньо — скажи Джері: «запам'ятай, що…»" aria-label="Пам'ять Джері" />
       <div><button className="ghost">Зберегти пам'ять</button></div>
     </form>
   );
@@ -153,19 +153,19 @@ function Connectors() {
   const list = [
     {
       id: "google", name: "Google", ico: "G", desc: "Gmail і Google Диск: пошта клієнтів у картці, папки клієнтів на Диску.",
-      agent: "Помічник: шукає і читає листи, створює папки.",
+      agent: "Джері: шукає і читає листи, створює папки.",
       status: g.connected ? "ok" : g.configured ? "warn" : "off",
       label: g.connected ? "Підключено" : g.configured ? "Не підключено" : "Не налаштовано",
     },
     {
-      id: "voice", name: "ElevenLabs", ico: "🎙", desc: "Голос помічника і точне розпізнавання того, що ти диктуєш.",
-      agent: "Помічник: говорить відповіді вголос, чує диктування без пропусків.",
+      id: "voice", name: "ElevenLabs", ico: "🎙", desc: "Голос Джері і точне розпізнавання того, що ти диктуєш.",
+      agent: "Джері: говорить відповіді вголос, чує диктування без пропусків.",
       status: v.configured && v.voiceId ? "ok" : v.configured ? "warn" : "off",
       label: v.configured && v.voiceId ? "Підключено" : v.configured ? "Обери голос" : "Не налаштовано",
     },
     {
-      id: "telegram", name: "Telegram", ico: "✈", desc: "Бот у групах з клієнтами мовчки збирає переписку в картку. В особистих — твій помічник.",
-      agent: "Помічник: читає переписку клієнта, відповідає тобі в Telegram, розбирає голосові.",
+      id: "telegram", name: "Telegram", ico: "✈", desc: "Бот у групах з клієнтами мовчки збирає переписку в картку. В особистих — Джері.",
+      agent: "Джері: читає переписку клієнта, відповідає тобі в Telegram, розбирає голосові.",
       status: tgToken() && tgOwner() ? "ok" : tgToken() ? "warn" : "off",
       label: tgToken() && tgOwner() ? "Підключено" : tgToken() ? "Прив'яжи свій Telegram" : "Не налаштовано",
     },
@@ -313,7 +313,7 @@ async function VoiceTab() {
             <h2>Голос</h2>
             {err && <div className="mono" style={{ color: "var(--bad)" }}>{err}</div>}
             <div className="field">
-              <label htmlFor="voice">Яким голосом говорить помічник</label>
+              <label htmlFor="voice">Яким голосом говорить Джері</label>
               <select id="voice" name="voice" defaultValue={v.voiceId ? `${v.voiceId}|${v.voiceName}` : ""}>
                 <option value="">— обери —</option>
                 {voices.map((x) => (
@@ -480,7 +480,7 @@ function System() {
           {kv("Працює без перезапуску", `${s.uptimeMin} хв`)}
           {kv("Часовий пояс сервера", s.tz)}
           {kv("Розмір бази", s.dbKb !== null ? `${s.dbKb} КБ` : "—")}
-          {kv("Помічник", `${s.agent.model} · ${s.agent.effort} · ключ ${s.agent.hasKey ? "є" : "нема"}`)}
+          {kv("Джері", `${s.agent.model} · ${s.agent.effort} · ключ ${s.agent.hasKey ? "є" : "нема"}`)}
         </dl>
       </div>
       <div className="grid2">

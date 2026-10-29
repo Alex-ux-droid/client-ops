@@ -40,7 +40,7 @@ export default async function LabPage({ searchParams }: { searchParams: Promise<
               placeholder="Напр.: менеджери губляться в заявках з Facebook і сайту, 5 людей, бюджет до 50$/міс — потрібна CRM: готова чи своя на вайбкоді?" />
           </div>
         </div>
-        <div className="inline"><SubmitButton>Почати з помічником</SubmitButton><span className="mono" style={{ color: "var(--dim)" }}>Він запропонує варіанти і критерії</span></div>
+        <div className="inline"><SubmitButton>Почати з Джері</SubmitButton><span className="mono" style={{ color: "var(--dim)" }}>Він запропонує варіанти і критерії</span></div>
       </form>
 
       <h2 style={{ marginBottom: "0.75rem" }}>В роботі</h2>

@@ -14,7 +14,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
       <div className="head">
         <div>
           <h1>Журнал системи</h1>
-          <div className="hub-sub">Що доробити, глюки і нюанси. Пише помічник, ти і сама система. Експортуй і кидай Claude.</div>
+          <div className="hub-sub">Що доробити, глюки і нюанси. Пише Джері, ти і сама система. Експортуй і кидай Claude.</div>
         </div>
         {!archive && (
           <div className="inline" style={{ flexWrap: "wrap" }}>

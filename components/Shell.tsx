@@ -114,25 +114,25 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
 
       <nav className="tabbar">
         {MOBILE.slice(0, 2).map((h) => <TabLink key={h} item={all.find((i) => i.href === h)!} on={on(h)} counts={counts} />)}
-        <button className="fab bot-fab" onClick={() => setDock(true)} aria-label="Помічник"><Bot size={44} /></button>
+        <button className="fab bot-fab" onClick={() => setDock(true)} aria-label="Джері"><Bot size={44} /></button>
         <TabLink item={all.find((i) => i.href === "/clients")!} on={on("/clients")} counts={counts} />
         <Link href="/menu" className={`tab ${path === "/menu" ? "on" : ""}`}><span className="ico"><Icon name="menu" size={22} /></span>Меню</Link>
       </nav>
 
       {/* Помічник завжди на виду: робот у кутку (на телефоні — кнопка по центру знизу) */}
       {!dock && (
-        <button className="bot-float-btn" onClick={() => setDock(true)} aria-label="Помічник" title="Помічник (Ctrl+J)">
+        <button className="bot-float-btn" onClick={() => setDock(true)} aria-label="Джері" title="Джері (Ctrl+J)">
           <Bot size={76} />
-          <span className="bot-label">Натисни і скажи, що треба</span>
+          <span className="bot-label">Джері — натисни і скажи, що треба</span>
         </button>
       )}
       {dock && (
         <div className="overlay dock-overlay" onClick={() => setDock(false)}>
-          <aside className="dock" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Помічник">
+          <aside className="dock" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Джері">
             <div className="dock-head">
               <Bot size={44} state={botState} />
               <div className="grow" style={{ minWidth: 0 }}>
-                <h2>Помічник</h2>
+                <h2>Джері</h2>
                 <div className="mono">{dockClient ? "про цього клієнта" : pageName ? `зараз: ${pageName.replace(/, сесія lab_id \d+/, "")}` : "на зв'язку"}</div>
               </div>
               <button className="icon-btn" onClick={() => setDock(false)} aria-label="Закрити"><Icon name="close" /></button>

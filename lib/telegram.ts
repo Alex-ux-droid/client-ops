@@ -149,7 +149,7 @@ async function handlePrivate(m: TgMsg, fromOwner: boolean): Promise<void> {
       setSetting("tg.owner_id", String(m.from?.id ?? ""));
       setSetting("tg.owner_name", userName(m.from));
       setSetting("tg.owner_code", ""); // одноразовий
-      await tg("sendMessage", { chat_id: m.chat.id, text: "Привіт, Саша! Тепер я твій помічник і тут 🙌 Пиши або надиктовуй голосові — я все зроблю в системі." });
+      await tg("sendMessage", { chat_id: m.chat.id, text: "Привіт, Саша! Це Джері 🙌 Тепер я з тобою і тут. Пиши або надиктовуй голосові — я все зроблю в системі." });
     } else if (!fromOwner) {
       await tg("sendMessage", { chat_id: m.chat.id, text: "Це особистий бот, вибач 🙂" });
     }
