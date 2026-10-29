@@ -89,13 +89,23 @@ export async function syncAccount(accountId: string): Promise<void> {
       level: "ad", fields: "ad_id,campaign_id,spend,impressions,clicks,actions", time_range: range, limit: "500",
     });
 
-    // Креативи тільки для оголошень з витратами (решта нецікава)
+    // Креативи тільки для оголошень з витратами. Через ребро /ads з фільтром по id
+    // (параметр ?ids= у v26 прибрали). Якщо не вийде — цифри все одно зберігаємо, просто без картинок.
     const spent = adStats.filter((x) => num(x.spend) > 0).sort((a, b) => num(b.spend) - num(a.spend)).slice(0, 60);
     type AdInfo = { id: string; name?: string; effective_status?: string; campaign_id?: string; creative?: { thumbnail_url?: string; body?: string; title?: string } };
     const info: Record<string, AdInfo> = {};
-    for (let i = 0; i < spent.length; i += 50) {
-      const ids = spent.slice(i, i + 50).map((x) => x.ad_id).filter(Boolean).join(",");
-      if (ids) Object.assign(info, await get<Record<string, AdInfo>>("", { ids, fields: "name,effective_status,campaign_id,creative{thumbnail_url,body,title}" }));
+    const adIds = spent.map((x) => x.ad_id).filter(Boolean) as string[];
+    try {
+      for (let i = 0; i < adIds.length; i += 50) {
+        const list = await all<AdInfo>(`${accountId}/ads`, {
+          fields: "id,name,effective_status,campaign_id,creative{thumbnail_url,body,title}",
+          filtering: JSON.stringify([{ field: "id", operator: "IN", value: adIds.slice(i, i + 50) }]),
+          limit: "50",
+        });
+        for (const a of list) info[a.id] = a;
+      }
+    } catch (e) {
+      logError(`meta-creatives ${accountId}`, e);
     }
 
     const campaigns: Omit<MetaCampaign, "account_id">[] = camps.map((c) => ({
