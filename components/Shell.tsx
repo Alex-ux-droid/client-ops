@@ -1,0 +1,118 @@
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { logout } from "@/app/login/actions";
+import CommandPalette from "./CommandPalette";
+import QuickAdd from "./QuickAdd";
+
+type Counts = { tasks: number; leads: number; debts: number; ideas: number };
+type Opt = { id: number; name: string };
+
+const SECTIONS: { title: string; items: { href: string; label: string; ico: string; count?: keyof Counts; bad?: boolean }[] }[] = [
+  {
+    title: "Робота",
+    items: [
+      { href: "/", label: "Центр", ico: "◎" },
+      { href: "/tasks", label: "Задачі", ico: "▣", count: "tasks" },
+      { href: "/clients", label: "Клієнти", ico: "◇" },
+      { href: "/pipeline", label: "Воронка", ico: "⟩", count: "leads" },
+      { href: "/money", label: "Гроші", ico: "◈", count: "debts", bad: true },
+    ],
+  },
+  {
+    title: "Знання",
+    items: [
+      { href: "/playbooks", label: "Плейбуки", ico: "☰" },
+      { href: "/ideas", label: "Ідеї", ico: "✦", count: "ideas" },
+    ],
+  },
+];
+
+const MOBILE = ["/", "/tasks", "/clients", "/money"];
+
+export default function Shell({ counts, clients, children }: { counts: Counts; clients: Opt[]; children: React.ReactNode }) {
+  const path = usePathname();
+  const [menu, setMenu] = useState(false);
+  const [search, setSearch] = useState(false);
+  const [add, setAdd] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearch(true); }
+      if (e.key === "Escape") { setSearch(false); setAdd(false); setMenu(false); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  useEffect(() => setMenu(false), [path]);
+
+  if (path === "/login") return <>{children}</>;
+  const on = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+  const all = SECTIONS.flatMap((s) => s.items);
+
+  const links = SECTIONS.map((s) => (
+    <div key={s.title} className="side-group">
+      <div className="side-title">{s.title}</div>
+      {s.items.map((i) => {
+        const c = i.count ? counts[i.count] : 0;
+        return (
+          <Link key={i.href} href={i.href} className={`side-link ${on(i.href) ? "on" : ""}`}>
+            <span className="ico">{i.ico}</span>
+            <span className="grow">{i.label}</span>
+            {c > 0 && <span className={`count ${i.bad ? "bad" : ""}`}>{c}</span>}
+          </Link>
+        );
+      })}
+    </div>
+  ));
+
+  return (
+    <div className="shell">
+      <aside className="side">
+        <Link href="/" className="brand">CLIENT<span>/</span>OPS</Link>
+        <button className="side-search" onClick={() => setSearch(true)}>
+          <span>⌕ Пошук</span><kbd>Ctrl K</kbd>
+        </button>
+        <button className="side-add" onClick={() => setAdd(true)}>+ Додати</button>
+        {links}
+        <form action={logout} className="side-foot"><button className="ghost small">Вийти</button></form>
+      </aside>
+
+      <header className="topbar">
+        <Link href="/" className="brand">CLIENT<span>/</span>OPS</Link>
+        <button className="icon-btn" onClick={() => setSearch(true)} aria-label="Пошук">⌕</button>
+      </header>
+
+      <main className="main">{children}</main>
+
+      <nav className="tabbar">
+        {MOBILE.slice(0, 2).map((h) => <TabLink key={h} item={all.find((i) => i.href === h)!} on={on(h)} counts={counts} />)}
+        <button className="fab" onClick={() => setAdd(true)} aria-label="Додати">+</button>
+        {MOBILE.slice(2).map((h) => <TabLink key={h} item={all.find((i) => i.href === h)!} on={on(h)} counts={counts} />)}
+        <button className="tab" onClick={() => setMenu(true)}><span className="ico">≡</span>Меню</button>
+      </nav>
+
+      {menu && (
+        <div className="overlay" onClick={() => setMenu(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            {links}
+            <form action={logout}><button className="ghost small" style={{ width: "100%" }}>Вийти</button></form>
+          </div>
+        </div>
+      )}
+      {search && <CommandPalette onClose={() => setSearch(false)} />}
+      {add && <QuickAdd clients={clients} onClose={() => setAdd(false)} />}
+    </div>
+  );
+}
+
+function TabLink({ item, on, counts }: { item: (typeof SECTIONS)[number]["items"][number]; on: boolean; counts: Counts }) {
+  const c = item.count ? counts[item.count] : 0;
+  return (
+    <Link href={item.href} className={`tab ${on ? "on" : ""}`}>
+      <span className="ico">{item.ico}{c > 0 && <i className={item.bad ? "bad" : ""} />}</span>
+      {item.label}
+    </Link>
+  );
+}

@@ -1,22 +1,32 @@
 import Link from "next/link";
-import AddTask from "@/components/AddTask";
+import { BarChart } from "@/components/Charts";
 import TaskItem from "@/components/TaskItem";
-import { saveIdea } from "@/app/actions";
-import { fmtDate } from "@/lib/dates";
-import { listClients } from "@/lib/repo/clients";
+import { money } from "@/lib/config";
+import { ymd } from "@/lib/dates";
+import { monthLabel, STAGE_LABEL } from "@/lib/labels";
+import { clientFlags, LEAD_STAGES, listClients } from "@/lib/repo/clients";
 import { listIdeas } from "@/lib/repo/ideas";
-import { listTasks, taskCounts } from "@/lib/repo/tasks";
-import { listWork } from "@/lib/repo/worklog";
+import { moneySummary, receivedByMonth } from "@/lib/repo/payments";
+import { listTasks, taskCounts, weekPlan } from "@/lib/repo/tasks";
 
-export const dynamic = "force-dynamic";
+const DAYS = ["нд", "пн", "вт", "ср", "чт", "пт", "сб"];
 
 export default function Home() {
+  const today = ymd();
   const counts = taskCounts();
   const focus = [...listTasks("overdue"), ...listTasks("today")];
   const clients = listClients();
-  const active = clients.filter((c) => c.status === "active" || c.status === "lead");
-  const work = listWork(undefined, 5);
-  const ideas = listIdeas({ status: "new" }).slice(0, 3);
+  const active = clients.filter((c) => c.status === "active");
+  const leads = clients.filter((c) => c.status === "lead");
+  const attention = clients
+    .filter((c) => c.status === "active" || c.status === "lead")
+    .map((c) => ({ c, flags: clientFlags(c) }))
+    .filter((x) => x.flags.length)
+    .sort((a, b) => b.flags.filter((f) => f.level === "bad").length - a.flags.filter((f) => f.level === "bad").length);
+  const m = moneySummary(today.slice(0, 7));
+  const byMonth = receivedByMonth(6);
+  const week = weekPlan();
+  const ideas = listIdeas({ status: "new" }).slice(0, 4);
   const date = new Date().toLocaleDateString("uk-UA", { weekday: "long", day: "numeric", month: "long" });
 
   return (
@@ -29,75 +39,87 @@ export default function Home() {
       </div>
 
       <div className="stats">
-        <Link href="/tasks?view=overdue" className="stat" style={{ "--c": counts.overdue ? "var(--bad)" : undefined } as React.CSSProperties}>
-          <div className="n">{counts.overdue}</div><div className="l">Прострочено</div>
+        <Link href="/tasks" className="stat" style={{ "--c": counts.overdue ? "var(--bad)" : "var(--accent)" } as React.CSSProperties}>
+          <div className="n">{counts.today + counts.overdue}</div>
+          <div className="l">Задач сьогодні{counts.overdue ? ` · ${counts.overdue} простр.` : ""}</div>
         </Link>
-        <Link href="/tasks?view=today" className="stat" style={{ "--c": "var(--accent)" } as React.CSSProperties}>
-          <div className="n">{counts.today}</div><div className="l">Сьогодні</div>
+        <Link href="/money" className="stat" style={{ "--c": "var(--ok)" } as React.CSSProperties}>
+          <div className="n">{money(m.received)}</div>
+          <div className="l">Отримано за місяць</div>
         </Link>
-        <Link href="/tasks?view=week" className="stat" style={{ "--c": "var(--cyan)" } as React.CSSProperties}>
-          <div className="n">{counts.week}</div><div className="l">Ще цього тижня</div>
+        <Link href="/money" className="stat" style={{ "--c": m.overdue ? "var(--bad)" : "var(--cyan)" } as React.CSSProperties}>
+          <div className="n">{money(m.overdue || m.expected)}</div>
+          <div className="l">{m.overdue ? "Винні мені" : "Ще очікую"}</div>
         </Link>
-        <div className="stat" style={{ "--c": "var(--ok)" } as React.CSSProperties}>
-          <div className="n">{counts.doneWeek}</div><div className="l">Зроблено за 7 днів</div>
-        </div>
+        <Link href="/clients" className="stat">
+          <div className="n">{active.length}</div>
+          <div className="l">Клієнтів · {money(m.mrr)}/міс</div>
+        </Link>
       </div>
 
-      <div className="section">
-        <h2>Фокус на сьогодні <Link href="/tasks">всі →</Link></h2>
-        <div className="list">
-          {focus.length ? focus.map((t) => <TaskItem key={t.id} t={t} />) : <div className="empty">На сьогодні все чисто.</div>}
-        </div>
-      </div>
-
-      <div className="section">
-        <h2>Швидко додати</h2>
-        <div className="grid2">
-          <AddTask clients={clients} />
-          <form action={saveIdea} className="card">
-            <div className="field"><input name="text" placeholder="Ідея, щоб не забути…" required /></div>
-            <div className="inline">
-              <select name="client_id" defaultValue="">
-                <option value="">Загальна</option>
-                {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <button>✦</button>
+      <div className="split section">
+        <div>
+          <div className="section" style={{ marginTop: 0 }}>
+            <h2>Фокус на сьогодні <Link href="/tasks">всі →</Link></h2>
+            <div className="list">
+              {focus.length ? focus.map((t) => <TaskItem key={t.id} t={t} />) : <div className="empty">На сьогодні все чисто. Додай задачу кнопкою «+».</div>}
             </div>
-          </form>
+          </div>
+        </div>
+
+        <div>
+          <div className="section" style={{ marginTop: 0 }}>
+            <h2>Потребують уваги</h2>
+            <div className="list">
+              {attention.length ? attention.slice(0, 6).map(({ c, flags }) => (
+                <Link key={c.id} href={`/clients/${c.id}`} className="row">
+                  <div className="row-main">
+                    <div className="row-title">{c.name}</div>
+                    <div className="meta">{flags.map((f) => <span key={f.text} className={`tag ${f.level}`}>{f.text}</span>)}</div>
+                  </div>
+                </Link>
+              )) : <div className="empty">Усі клієнти в порядку.</div>}
+            </div>
+          </div>
+
+          <div className="section">
+            <h2>Воронка <Link href="/pipeline">відкрити →</Link></h2>
+            <div className="kpis">
+              {LEAD_STAGES.map((s) => (
+                <Link key={s} href="/pipeline" className="kpi">
+                  <div className="n">{leads.filter((l) => l.stage === s).length}</div>
+                  <div className="l">{STAGE_LABEL[s]}</div>
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="section">
-        <h2>Клієнти в роботі <Link href="/clients">всі →</Link></h2>
-        <div className="list">
-          {active.map((c) => (
-            <Link key={c.id} href={`/clients/${c.id}`} className="row">
-              <div className="row-main">
-                <div className="row-title">{c.name}</div>
-                <div className="row-sub">{c.offer || c.niche}</div>
+        <h2>План на тиждень <Link href="/tasks?view=week">детально →</Link></h2>
+        <div className="week">
+          {week.map((d) => {
+            const dt = new Date(d.date);
+            return (
+              <div key={d.date} className={`day ${d.date === today ? "today" : ""}`}>
+                <div className="day-head"><span>{d.date === today ? "сьогодні" : DAYS[dt.getDay()]}</span><span>{dt.getDate()}</span></div>
+                {d.tasks.length ? d.tasks.slice(0, 5).map((t) => (
+                  <div key={t.id} className={`day-task ${t.due_date! < today ? "late" : ""}`}>
+                    {t.title}{t.client_name && <small>{t.client_name}</small>}
+                  </div>
+                )) : <div className="mono" style={{ color: "var(--dim)" }}>—</div>}
+                {d.tasks.length > 5 && <div className="mono">+{d.tasks.length - 5}</div>}
               </div>
-              <div style={{ textAlign: "right" }}>
-                <div className="mono" style={{ color: c.open_tasks ? "var(--accent)" : undefined }}>{c.open_tasks} задач</div>
-                <div className="mono">{c.last_work ? fmtDate(c.last_work) : "—"}</div>
-              </div>
-            </Link>
-          ))}
+            );
+          })}
         </div>
       </div>
 
       <div className="grid2 section">
-        <div>
-          <h2 style={{ marginBottom: 10 }}>Останні роботи</h2>
-          <div className="list timeline">
-            {work.length ? work.map((w) => (
-              <div key={w.id} className="row">
-                <div className="row-main">
-                  <div className="row-title">{w.what}</div>
-                  <div className="row-sub">{w.client_name} · {fmtDate(w.done_at)}{w.result ? ` · ${w.result}` : ""}</div>
-                </div>
-              </div>
-            )) : <div className="empty">Ще нічого не записано.</div>}
-          </div>
+        <div className="card">
+          <div className="chart-title"><span>Отримано по місяцях</span><b>{money(byMonth.reduce((s, x) => s + x.total, 0))}</b></div>
+          <BarChart fmt={(n) => money(n)} data={byMonth.map((x) => ({ label: monthLabel(x.month), value: x.total, tip: `${monthLabel(x.month)}: ${money(x.total)}` }))} />
         </div>
         <div>
           <h2 style={{ marginBottom: 10, display: "flex", justifyContent: "space-between" }}>Свіжі ідеї <Link href="/ideas" style={{ color: "var(--cyan)" }}>всі →</Link></h2>

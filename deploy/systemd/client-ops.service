@@ -7,6 +7,7 @@ User=clientops
 WorkingDirectory=/opt/client-ops
 EnvironmentFile=/opt/client-ops/.env
 Environment=NODE_ENV=production
+Environment=TZ=Europe/Kyiv
 ExecStart=/usr/bin/node /opt/client-ops/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000
 Restart=always
 RestartSec=3
