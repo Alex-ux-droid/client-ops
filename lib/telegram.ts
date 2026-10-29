@@ -137,6 +137,8 @@ export async function handleUpdate(u: TgUpdate): Promise<void> {
   if (owner && !knownChat(m.chat.id)) return;
   upsertChat(m.chat.id, m.new_chat_title ?? chatTitle(m.chat), m.chat.type);
   const p = parse(m);
+  // Службові повідомлення (додали/вийшов учасник, змінили назву) — без тексту, не записуємо
+  if (p.kind === "other" && !p.text) return;
   const rowId = addMessage({
     chat_id: m.chat.id, message_id: m.message_id, from_id: m.from?.id ?? null, from_name: userName(m.from),
     is_owner: fromOwner ? 1 : 0, kind: p.kind, text: p.text, file_name: p.fileName, sent_at: iso(m.date),

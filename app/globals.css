@@ -702,3 +702,39 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
 .tg-kind { font-size: 0.8125rem; color: var(--muted); }
 .tg-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
 .tg-time { font-size: 0.75rem; color: var(--dim); text-align: right; margin-top: 0.125rem; }
+
+/* ---------- Клієнт: ліва «карта» замість загального меню ---------- */
+.client-side { display: none; }
+.desk-only { display: none; }
+@media (min-width: 900px) {
+  .phone-only { display: none !important; }
+  .desk-only { display: block; }
+  .client-side {
+    display: flex; flex-direction: column; gap: 0.25rem; position: fixed; top: 0; bottom: 0; left: 0; z-index: 21; width: 15rem; overflow-y: auto;
+    padding: 1.5rem 0.875rem; border-right: 1px solid var(--line); background: rgb(8, 11, 20); scrollbar-width: none;
+  }
+  .client-side::-webkit-scrollbar { display: none; }
+  .client-back { display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.5rem; color: var(--muted); font-size: 0.9375rem; font-weight: 500; border-radius: 10px; }
+  .client-back:hover { color: var(--text); background: var(--bg-hover); }
+  .client-name { display: flex; flex-direction: column; align-items: flex-start; gap: 0.375rem; padding: 0.75rem 0.5rem 1rem; margin-bottom: 0.25rem; border-bottom: 1px solid var(--line); color: var(--text); }
+  .client-name b { font-size: 1.25rem; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+  .client-side .side-group:first-of-type { margin-top: 0.5rem; }
+  .section-title { font-size: 1.75rem; margin-bottom: 1.25rem; }
+}
+/* Огляд клієнта */
+.ov-now { display: flex; flex-direction: column; gap: 1rem; }
+.ov-now-row { display: grid; gap: 1rem; grid-template-columns: 2fr 1fr 1fr 1fr; align-items: start; }
+.ov-stat { display: flex; flex-direction: column; gap: 0.375rem; min-width: 0; }
+.ov-stat > span { font-size: 0.8125rem; color: var(--dim); }
+.ov-stat > b { font-size: 1.0625rem; font-weight: 600; }
+.ov-card h2 { font-size: 1.125rem; }
+.ov-money { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1rem; }
+.ov-money div { display: flex; flex-direction: column; gap: 0.125rem; }
+.ov-money b { font-size: 1.375rem; font-weight: 700; }
+.ov-money span { font-size: 0.8125rem; color: var(--dim); }
+.ov-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.75rem; font-size: 1.125rem; }
+.ov-dim { color: var(--dim); }
+.ov-contacts summary { list-style: none; cursor: pointer; }
+.ov-contacts summary h2 { font-size: 1.125rem; display: inline; }
+.ov-contacts summary::after { content: " ▾"; color: var(--dim); }
+@media (max-width: 699px) { .ov-now-row { grid-template-columns: 1fr 1fr; } .ov-now-row .ov-stat:first-child { grid-column: 1 / -1; } }

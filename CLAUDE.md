@@ -24,7 +24,7 @@
 - `lib/repo/*` — ВЕСЬ доступ до БД тільки тут.
 - `lib/session.ts` — підпис/перевірка сесії; `lib/auth.ts` — `requireUser()`; `proxy.ts` — захист сторінок; `app/login/` — вхід.
 - `app/actions.ts` — усі server actions; сторінки в `app/`; спільні шматки в `components/` (`Shell` — меню/пошук/швидке додавання, `Icon` — SVG-іконки в стилі Lucide, `Charts` — SVG-графіки без бібліотек).
-- `app/clients/[id]/` — хаб клієнта: `page.tsx` (шапка, вкладки), `Overview.tsx` (вибір послуг), `ServiceTab.tsx`, `FilesTab.tsx`, `tabs.tsx` (задачі, історія, гроші, матеріали, плейбуки, цифри реклами).
+- `app/clients/[id]/` — хаб клієнта: `layout.tsx` + `ClientNav.tsx` (на компʼютері ліва панель замінюється «картою» клієнта; розділи — `sections.ts`, Пошта тільки якщо в клієнта є email), `page.tsx` (шапка; вкладки лише на телефоні), `Overview.tsx` (зведення: де ми, куди йдемо, гроші, у роботі, зроблено, Telegram, ідеї), `SetupTab.tsx` (послуги, дані, звʼязок), `ServiceTab.tsx`, `FilesTab.tsx`, `tabs.tsx` (задачі, історія, гроші, матеріали, плейбуки, цифри реклами).
 - `lib/config.ts` — валюта (`APP_CURRENCY`, одна на всю систему) і `money()`.
 - Пошук: SQLite LIKE не знає регістр кирилиці — використовувати `ulower()` (реєструється в `lib/db.ts`).
 - `scripts/seed.mjs` — тестові дані.
