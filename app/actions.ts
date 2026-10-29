@@ -19,6 +19,7 @@ import { addWork, deleteWork } from "@/lib/repo/worklog";
 import { addTool, deleteFolder, deleteTool, enableService, findToolByName, removeService, saveFolder, updateService } from "@/lib/repo/services";
 import { createClientFolders, googleConnected, readMail, sendMail } from "@/lib/google";
 import { logError } from "@/lib/log";
+import { addDevEntry, deleteDev } from "@/lib/repo/devlog";
 import { getClient } from "@/lib/repo/clients";
 import { FOLDER_KINDS, isServiceType, serviceDef, TOOL_CATEGORY_LABEL, type ToolCategory } from "@/lib/services";
 
@@ -171,6 +172,23 @@ export async function saveMailToMaterials(fd: FormData) {
   const m = await readMail(mid);
   addMaterial({ client_id: id, kind: "chat", title: `Лист: ${m.subject}`, content: `Від: ${m.from}\nКому: ${m.to}\nДата: ${m.date.slice(0, 10)}\n\n${m.body}` });
   done(`/clients/${id}?tab=materials`);
+}
+
+// ---- Журнал системи
+export async function addDevAction(fd: FormData) {
+  await requireUser();
+  const title = str(fd, "title");
+  const kind = str(fd, "kind");
+  if (!title || !["request", "bug", "note"].includes(kind)) return;
+  addDevEntry({ kind: kind as "request" | "bug" | "note", source: "sasha", title, body: String(fd.get("body") ?? "").trim() });
+  done();
+}
+
+export async function deleteDevAction(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "id");
+  if (id) deleteDev(id);
+  done();
 }
 
 // ---- Довідники

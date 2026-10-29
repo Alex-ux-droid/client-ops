@@ -32,7 +32,7 @@ export const dynamic = "force-dynamic";
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Без входу — жодних даних у розмітці (сторінка логіну)
   const authed = isAuthed((await cookies()).get(SESSION_COOKIE)?.value, (await headers()).get("authorization"));
-  const counts = authed ? navCounts() : { tasks: 0, leads: 0, debts: 0, ideas: 0 };
+  const counts = authed ? navCounts() : { tasks: 0, leads: 0, debts: 0, ideas: 0, journal: 0 };
   const clients = authed ? clientOptions() : [];
   return (
     <html lang="uk" className={`${body.variable} ${mono.variable}`}>
