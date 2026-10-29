@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { logout } from "@/app/login/actions";
 
 const ITEMS = [
   { href: "/", label: "Центр", ico: "◎" },
@@ -11,6 +12,7 @@ const ITEMS = [
 
 export default function Nav() {
   const path = usePathname();
+  if (path === "/login") return null;
   return (
     <nav className="nav">
       <div className="nav-brand">CLIENT<span>/</span>OPS</div>
@@ -23,6 +25,7 @@ export default function Nav() {
           </Link>
         );
       })}
+      <form action={logout} className="nav-logout"><button>Вийти</button></form>
     </nav>
   );
 }
