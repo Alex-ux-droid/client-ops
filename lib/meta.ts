@@ -3,6 +3,8 @@
 import { logError } from "./log";
 import { autoLinkFromServices, kyivDay, saveSync, setSyncResult, upsertAccount, listAccounts, type MetaAd, type MetaCampaign } from "./repo/meta";
 import { getSetting, setSetting } from "./repo/settings";
+import { enableService, getService } from "./repo/services";
+import { linkAccount } from "./repo/meta";
 import { setEnvVar } from "./secrets";
 
 const VERSION = () => process.env.META_API_VERSION || "v26.0";
@@ -137,4 +139,12 @@ export const lastSync = () => getSetting("meta.last_sync");
 export function tokenAgeDays(): number | null {
   const at = getSetting("meta.connected_at");
   return at ? Math.floor((Date.now() - +new Date(at)) / 86400_000) : null;
+}
+
+// Привʼязати кабінет до клієнта: вмикаємо йому послугу Meta Ads (там показуються цифри) і одразу тягнемо дані
+export async function linkAndSync(accountId: string, clientId: number | null): Promise<string> {
+  linkAccount(accountId, clientId);
+  if (!clientId) return "";
+  if (!getService(clientId, "meta_ads")) enableService(clientId, "meta_ads");
+  try { await syncAccount(accountId); return ""; } catch (e) { return e instanceof Error ? e.message : "помилка"; }
 }
