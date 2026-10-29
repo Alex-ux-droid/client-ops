@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import Link from "next/link";
 import AgentAccess from "./AgentAccess";
+import InstallApp from "@/components/InstallApp";
 import { saveAgentAction, saveGeneralAction, saveKeyAction, testKeyAction } from "./actions";
 import { agentConfig, EFFORT_LABEL, EFFORTS, KNOWN_MODELS } from "@/lib/agent/config";
 import { currency, CURRENCIES } from "@/lib/config";
@@ -67,6 +68,11 @@ function General() {
         <div className="mono" style={{ color: "var(--dim)" }}>Суми не перераховуються — міняється тільки знак. Тримай усі суми в одній валюті.</div>
         <div><button>Зберегти</button></div>
       </form>
+      <div className="card stack">
+        <h2>Застосунок на телефоні</h2>
+        <div className="mono" style={{ color: "var(--dim)" }}>Іконка на головному екрані, відкривається на весь екран без панелей браузера.</div>
+        <InstallApp />
+      </div>
       <div className="card stack">
         <h2>Вхід</h2>
         <div className="mono">Пароль входу задається на сервері (змінна APP_PASSWORD у .env). Сесія живе 30 днів.</div>
