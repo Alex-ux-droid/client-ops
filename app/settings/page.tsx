@@ -1,7 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import Link from "next/link";
+import SubmitButton from "@/components/SubmitButton";
 import AgentAccess from "./AgentAccess";
 import InstallApp from "@/components/InstallApp";
+import { connectMetaAction, disconnectMetaAction, linkMetaAccountAction, syncMetaAction } from "./actions";
+import { lastSync, metaToken } from "@/lib/meta";
+import { ACCOUNT_STATUS, listAccounts } from "@/lib/repo/meta";
+import { fmtDate } from "@/lib/dates";
 import { connectTelegramAction, disconnectTelegramAction, disconnectVoiceAction, linkTelegramChatAction, saveVoiceChoiceAction, saveVoiceKeyAction } from "./actions";
 import { ownerLinkCode, tg, tgOwner, tgToken, type BotInfo, type WebhookInfo } from "@/lib/telegram";
 import { listChats } from "@/lib/repo/telegram";
@@ -62,7 +67,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {sp.msg && <div className="card" style={{ marginBottom: 16, borderColor: sp.ok ? "var(--ok)" : "var(--bad)" }}>{sp.msg}</div>}
       {tab === "general" && <General />}
       {tab === "agent" && <div className="stack" style={{ gap: "1rem" }}><Agent /><AgentMemory /></div>}
-      {tab === "connectors" && (conn === "google" ? <GoogleTab /> : conn === "voice" ? <VoiceTab /> : conn === "telegram" ? <TelegramTab /> : <Connectors />)}
+      {tab === "connectors" && (conn === "google" ? <GoogleTab /> : conn === "voice" ? <VoiceTab /> : conn === "telegram" ? <TelegramTab /> : conn === "meta" ? <MetaTab /> : <Connectors />)}
       {tab === "catalog" && <Catalog />}
       {tab === "access" && <Access />}
       {tab === "system" && <System />}
@@ -170,8 +175,10 @@ function Connectors() {
       label: tgToken() && tgOwner() ? "Підключено" : tgToken() ? "Прив'яжи свій Telegram" : "Не налаштовано",
     },
     {
-      id: "meta", name: "Meta Ads", ico: "f", desc: "Автоімпорт цифр реклами з Facebook / Instagram.",
-      agent: "", status: "soon", label: "Скоро",
+      id: "meta", name: "Meta Ads", ico: "f", desc: "Цифри з рекламних кабінетів Facebook / Instagram самі підтягуються в картки клієнтів (тільки читання).",
+      agent: "Джері: бачить витрати, ліди, ціну ліда, кампанії і креативи; помічає, коли щось іде не так.",
+      status: metaToken() ? "ok" : "off",
+      label: metaToken() ? "Підключено" : "Не налаштовано",
     },
   ];
   return (
@@ -192,6 +199,74 @@ function Connectors() {
           ? <div key={c.id} className="card stack conn soon">{body}</div>
           : <Link key={c.id} href={`/settings?tab=connectors&c=${c.id}`} className="card stack conn">{body}</Link>;
       })}
+    </div>
+  );
+}
+
+function MetaTab() {
+  const token = metaToken();
+  const accounts = token ? listAccounts() : [];
+  const clients = listClients().filter((c) => c.status !== "archived");
+  const synced = lastSync();
+  return (
+    <div className="stack" style={{ gap: "1rem" }}>
+      <Link href="/settings?tab=connectors" className="h-link">← Конектори</Link>
+      <div className="grid2">
+        <div className="card stack">
+          <h2>Meta Ads — тільки читання</h2>
+          {!token ? (
+            <>
+              <ol className="steps">
+                <li>На <b>developers.facebook.com</b> → Мої застосунки → <b>Створити</b> → тип «Інше» → <b>Business</b> → назва «Client Ops» → привʼяжи до свого Business Manager.</li>
+                <li>У <b>business.facebook.com</b> → Налаштування компанії → Користувачі → <b>Системні користувачі</b> → Додати («Client Ops», роль «Працівник»).</li>
+                <li>У цього користувача → <b>Призначити ресурси</b> → Рекламні акаунти → обери всі потрібні → дозвіл <b>«Переглядати ефективність»</b>. Також додай йому застосунок «Client Ops».</li>
+                <li><b>Згенерувати маркер</b> → застосунок «Client Ops» → термін <b>«Ніколи»</b> → дозвіл <b>ads_read</b> → скопіюй і встав сюди.</li>
+              </ol>
+              <form action={connectMetaAction} className="inline">
+                <input name="token" type="password" placeholder="EAAG…" autoComplete="off" aria-label="Токен Meta" />
+                <button>Підключити</button>
+              </form>
+              <div className="mono" style={{ color: "var(--dim)" }}>Система нічого не змінює в кабінетах — лише читає. Токен лежить тільки в .env на сервері.</div>
+            </>
+          ) : (
+            <>
+              <div className="inline" style={{ flexWrap: "wrap" }}>
+                <span className="tag ok">Підключено</span>
+                <span className="mono">{accounts.length} кабінет(ів) · оновлення кожні 2 год{synced ? ` · востаннє ${fmtDate(synced)} ${new Date(synced).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Kyiv" })}` : ""}</span>
+              </div>
+              <div className="inline" style={{ flexWrap: "wrap" }}>
+                <form action={syncMetaAction}><SubmitButton className="ghost small">Оновити зараз</SubmitButton></form>
+                <form action={disconnectMetaAction}><button className="ghost small">Відключити</button></form>
+              </div>
+            </>
+          )}
+        </div>
+        {token && (
+          <div className="card stack">
+            <h2>Кабінети</h2>
+            <div className="mono" style={{ color: "var(--dim)" }}>Привʼяжи кабінет до клієнта — цифри зʼявляться у вкладці Meta клієнта і Джері їх бачитиме. Кабінети, ID яких уже вписаний у картці клієнта, привʼязуються самі.</div>
+            {accounts.length === 0 && <div className="empty">Кабінетів не видно. Перевір, що системному користувачу призначені рекламні акаунти.</div>}
+            {accounts.map((a) => (
+              <form key={a.account_id} action={linkMetaAccountAction} className="tg-chat">
+                <input type="hidden" name="account_id" value={a.account_id} />
+                <div style={{ minWidth: 0 }}>
+                  <b>{a.name}</b>
+                  <div className="mono" style={{ color: a.last_error || (a.account_status && a.account_status !== 1) ? "var(--warn)" : "var(--dim)" }}>
+                    {a.account_id.replace("act_", "")} · {a.currency}{a.account_status && a.account_status !== 1 ? ` · ${ACCOUNT_STATUS[a.account_status] ?? "проблема"}` : ""}{a.last_error ? ` · ${a.last_error}` : ""}
+                  </div>
+                </div>
+                <div className="inline">
+                  <select name="client_id" defaultValue={a.client_id ?? ""} aria-label="Клієнт">
+                    <option value="">— не привʼязано —</option>
+                    {clients.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </select>
+                  <SubmitButton className="ghost small">Ок</SubmitButton>
+                </div>
+              </form>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

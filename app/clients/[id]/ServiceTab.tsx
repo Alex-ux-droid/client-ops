@@ -6,6 +6,8 @@ import { fmtDate } from "@/lib/dates";
 import { listFolders, listTools, type ClientService } from "@/lib/repo/services";
 import { serviceDef, type ServiceType } from "@/lib/services";
 import { AdsStats } from "./tabs";
+import MetaLive from "./MetaLive";
+import { accountsForClient } from "@/lib/repo/meta";
 
 const STATUS = [
   { v: "active", label: "Ведемо зараз" },
@@ -98,9 +100,10 @@ export default function ServiceTab({ clientId, service, edit, saved }: { clientI
         <ServiceView service={service} type={type} clientId={clientId} saved={saved} />
       )}
 
+      {type === "meta_ads" && <MetaLive clientId={clientId} />}
       {def.adPlatform && (
         <div>
-          <h2 style={{ marginBottom: "0.75rem" }}>Цифри з кабінету</h2>
+          <h2 style={{ marginBottom: "0.75rem" }}>{type === "meta_ads" && accountsForClient(clientId).length ? "Періоди, внесені вручну" : "Цифри з кабінету"}</h2>
           <AdsStats id={clientId} platform={def.adPlatform} />
         </div>
       )}
