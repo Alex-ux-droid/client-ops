@@ -1,5 +1,5 @@
 import { saveClient } from "@/app/actions";
-import { CURRENCY } from "@/lib/config";
+import { currency } from "@/lib/config";
 import { STAGE_LABEL, STATUS_LABEL } from "@/lib/labels";
 import { CLIENT_STATUSES, LEAD_STAGES, type Client } from "@/lib/repo/clients";
 
@@ -38,7 +38,7 @@ export default function ClientForm({ c }: { c?: Partial<Client> }) {
 
       <h2 style={{ margin: "12px 0" }}>Гроші</h2>
       <div className="form-grid">
-        <F name="fee_monthly" label={`Платить мені щомісяця, ${CURRENCY}`} c={c} placeholder="0" mode="decimal" />
+        <F name="fee_monthly" label={`Платить мені щомісяця, ${currency()}`} c={c} placeholder="0" mode="decimal" />
         <F name="pay_day" label="День оплати (1–31)" c={c} placeholder="1" mode="numeric" />
         <F name="budget" label="Рекламний бюджет / умови" c={c} placeholder="$1000/міс на рекламу" wide />
       </div>

@@ -3,22 +3,24 @@ import Anthropic from "@anthropic-ai/sdk";
 import { redirect } from "next/navigation";
 import { agentConfig, saveAgentConfig } from "@/lib/agent/config";
 import { requireUser } from "@/lib/auth";
+import { CURRENCIES } from "@/lib/config";
+import { setSetting } from "@/lib/repo/settings";
 import { createAgentToken, getApiKey, revokeAgentToken, saveApiKey } from "@/lib/secrets";
 
-const back = (msg: string, ok = false) => redirect(`/settings?msg=${encodeURIComponent(msg)}${ok ? "&ok=1" : ""}`);
+const back = (msg: string, ok = false, tab = "") => redirect(`/settings?${tab ? `tab=${tab}&` : ""}msg=${encodeURIComponent(msg)}${ok ? "&ok=1" : ""}`);
 
 export async function saveKeyAction(fd: FormData) {
   await requireUser();
   const key = String(fd.get("key") ?? "").trim();
-  if (!/^sk-ant-[\w-]{20,}$/.test(key)) back("Це не схоже на ключ Anthropic (має починатися з sk-ant-).");
+  if (!/^sk-ant-[\w-]{20,}$/.test(key)) back("Це не схоже на ключ Anthropic (має починатися з sk-ant-).", false, "access");
   saveApiKey(key);
-  back("Ключ збережено. Натисни «Перевірити ключ».", true);
+  back("Ключ збережено. Натисни «Перевірити ключ».", true, "access");
 }
 
 export async function testKeyAction() {
   await requireUser();
   const key = getApiKey();
-  if (!key) back("Ключа нема.");
+  if (!key) back("Ключа нема.", false, "access");
   const model = agentConfig().model;
   let msg = "";
   let ok = false;
@@ -32,7 +34,7 @@ export async function testKeyAction() {
       e instanceof Anthropic.NotFoundError ? `Модель ${model} недоступна для цього ключа.` :
       e instanceof Anthropic.APIError ? `Помилка API: ${e.message}` : "Нема зв'язку з API.";
   }
-  back(msg, ok);
+  back(msg, ok, "access");
 }
 
 export async function saveAgentAction(fd: FormData) {
@@ -42,7 +44,7 @@ export async function saveAgentAction(fd: FormData) {
     effort: String(fd.get("effort") ?? ""),
     instructions: String(fd.get("instructions") ?? ""),
   });
-  back("Налаштування помічника збережено.", true);
+  back("Налаштування помічника збережено.", true, "agent");
 }
 
 // Ключ доступу для Claude показується один раз — повертаємо його у форму, не в URL
@@ -54,5 +56,12 @@ export async function createAgentTokenAction(): Promise<string> {
 export async function revokeAgentTokenAction() {
   await requireUser();
   revokeAgentToken();
-  back("Доступ Claude вимкнено.", true);
+  back("Доступ Claude вимкнено.", true, "access");
+}
+
+export async function saveGeneralAction(fd: FormData) {
+  await requireUser();
+  const cur = String(fd.get("currency") ?? "");
+  if ((CURRENCIES as readonly string[]).includes(cur)) setSetting("currency", cur);
+  back("Збережено.", true, "general");
 }
