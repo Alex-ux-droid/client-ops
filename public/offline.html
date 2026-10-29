@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04060a">
+<title>Нема зв'язку · Client Ops</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+    background: #04060a; color: #e9eef5; font: 15px/1.5 system-ui, sans-serif; text-align: center; padding: 24px; box-sizing: border-box; }
+  img { width: 72px; height: 72px; border-radius: 16px; }
+  p { color: #8592a3; margin: 0; max-width: 300px; }
+  button { font: 600 11px ui-monospace, monospace; letter-spacing: .14em; text-transform: uppercase; padding: 12px 18px;
+    background: #ff6a3d; color: #0a0a0a; border: 0; border-radius: 4px; }
+</style>
+</head>
+<body>
+  <img src="/icons/icon-192.png" alt="">
+  <b>Нема інтернету</b>
+  <p>Система працює тільки онлайн, щоб дані завжди були свіжі. Перевір зв'язок.</p>
+  <button onclick="location.reload()">Спробувати ще</button>
+</body>
+</html>

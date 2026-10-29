@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Unbounded } from "next/font/google";
 import { cookies, headers } from "next/headers";
+import RegisterSW from "@/components/RegisterSW";
 import Shell from "@/components/Shell";
 import { isAuthed, SESSION_COOKIE } from "@/lib/session";
 import { clientOptions, navCounts } from "@/lib/repo/counts";
@@ -14,6 +15,10 @@ export const metadata: Metadata = {
   title: "Client Ops",
   description: "Центр управління клієнтами",
   appleWebApp: { capable: true, title: "Client Ops", statusBarStyle: "black-translucent" },
+  icons: {
+    icon: [{ url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" }, { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -34,6 +39,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="uk" className={`${display.variable} ${body.variable} ${mono.variable}`}>
       <body>
         <Shell counts={counts} clients={clients}>{children}</Shell>
+        <RegisterSW />
       </body>
     </html>
   );
