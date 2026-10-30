@@ -9,7 +9,9 @@ export const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/drive.file",
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/calendar.events",
 ];
+const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 
 export class GoogleReconnectError extends Error {}
 
@@ -25,6 +27,7 @@ export function googleStatus() {
     email: getSetting("google.email") ?? "",
     connectedAt: getSetting("google.connected_at") ?? "",
     error: getSetting("google.error") ?? "",
+    calendar: calendarAllowed(),
   };
 }
 
@@ -47,7 +50,7 @@ export function authUrl(redirectUri: string, state: string): string {
   return `https://accounts.google.com/o/oauth2/v2/auth?${q}`;
 }
 
-type TokenResponse = { access_token: string; expires_in: number; refresh_token?: string; id_token?: string; error?: string; error_description?: string };
+type TokenResponse = { access_token: string; expires_in: number; refresh_token?: string; id_token?: string; scope?: string; error?: string; error_description?: string };
 
 async function tokenRequest(body: Record<string, string>): Promise<TokenResponse> {
   const r = await fetch("https://oauth2.googleapis.com/token", {
@@ -69,6 +72,7 @@ export async function finishAuth(code: string, redirectUri: string): Promise<str
   const me = (await (await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { authorization: `Bearer ${t.access_token}` } })).json()) as { email?: string };
   setSetting("google.email", me.email ?? "");
   setSetting("google.connected_at", new Date().toISOString());
+  setSetting("google.scopes", t.scope ?? "");
   setSetting("google.error", "");
   return me.email ?? "";
 }
@@ -245,4 +249,41 @@ export async function sendMail(input: { to: string; subject: string; body: strin
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ raw, ...(input.threadId ? { threadId: input.threadId } : {}) }),
   });
+}
+
+// ---------- Календар ----------
+// Доступ до календаря додали пізніше: хто підключав Google раніше — треба перепідключити (Налаштування → Конектори → Google)
+export const calendarAllowed = () => googleConnected() && (getSetting("google.scopes") ?? "").includes(CALENDAR_SCOPE);
+const CAL = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+
+export type CalendarEvent = { summary: string; description: string; date: string; reminderMinutes?: number };
+
+// Подія на весь день (дедлайн задачі) з нагадуванням. Повертає id події.
+export async function calendarUpsert(ev: CalendarEvent, eventId?: string | null): Promise<string> {
+  if (!googleConnected()) throw new GoogleReconnectError("Google не підключено");
+  const end = new Date(`${ev.date}T00:00:00Z`);
+  end.setUTCDate(end.getUTCDate() + 1);
+  const body = JSON.stringify({
+    summary: ev.summary,
+    description: ev.description,
+    start: { date: ev.date },
+    end: { date: end.toISOString().slice(0, 10) },
+    // для подій на весь день нагадування рахується від початку дня: 15 год до = 9:00 напередодні
+    reminders: { useDefault: false, overrides: [{ method: "popup", minutes: ev.reminderMinutes ?? 15 * 60 }] },
+  });
+  try {
+    const r = await api<{ id: string }>(eventId ? `${CAL}/${eventId}` : CAL, { method: eventId ? "PUT" : "POST", headers: { "content-type": "application/json" }, body });
+    return r.id;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    // подію видалили в календарі вручну — створюємо заново
+    if (eventId && /Google (404|410)/.test(msg)) return calendarUpsert(ev, null);
+    if (/Google 403/.test(msg)) throw new GoogleReconnectError("Нема доступу до Календаря. Перепідключи Google (Налаштування → Конектори → Google) і перевір, що Google Calendar API увімкнений у Google Cloud.");
+    throw e;
+  }
+}
+
+export async function calendarDelete(eventId: string): Promise<void> {
+  const token = await accessToken();
+  await fetch(`${CAL}/${eventId}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` } }).catch(() => {});
 }

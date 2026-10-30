@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { logout } from "@/app/login/actions";
 import Chat from "./Chat";
 import CommandPalette from "./CommandPalette";
 import QuickAdd from "./QuickAdd";
+import TaskModal from "./TaskModal";
 
 import type { AssistantSeed } from "./assistant";
 import Bot from "./Bot";
@@ -146,6 +147,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
       )}
       {search && <CommandPalette onClose={() => setSearch(false)} />}
       {add && <QuickAdd clients={clients} onClose={() => setAdd(false)} />}
+      <Suspense fallback={null}><TaskModal /></Suspense>
     </div>
   );
 }

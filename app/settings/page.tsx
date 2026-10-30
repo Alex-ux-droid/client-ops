@@ -157,10 +157,10 @@ function Connectors() {
   const v = voiceConfig();
   const list = [
     {
-      id: "google", name: "Google", ico: "G", desc: "Gmail і Google Диск: пошта клієнтів у картці, папки клієнтів на Диску.",
-      agent: "Джері: шукає і читає листи, створює папки.",
-      status: g.connected ? "ok" : g.configured ? "warn" : "off",
-      label: g.connected ? "Підключено" : g.configured ? "Не підключено" : "Не налаштовано",
+      id: "google", name: "Google", ico: "G", desc: "Gmail, Google Диск і Календар: пошта клієнтів у картці, папки клієнтів на Диску, задачі в календар.",
+      agent: "Джері: шукає і читає листи, створює папки, ставить задачі в календар.",
+      status: g.connected && g.calendar ? "ok" : g.configured ? "warn" : "off",
+      label: g.connected ? (g.calendar ? "Підключено" : "Перепідключи для Календаря") : g.configured ? "Не підключено" : "Не налаштовано",
     },
     {
       id: "voice", name: "ElevenLabs", ico: "🎙", desc: "Голос Джері і точне розпізнавання того, що ти диктуєш.",
@@ -442,6 +442,11 @@ async function GoogleTab() {
         {g.connected ? (
           <>
             <div><span className="tag ok">Підключено</span> <b>{g.email}</b></div>
+            {!g.calendar && (
+              <div className="callout" style={{ borderColor: "var(--warn)" }}>
+                <b>Календар:</b> доступ до Google Календаря додали пізніше. Щоб задачі ставились у календар: 1) у Google Cloud увімкни <b>Google Calendar API</b> (APIs &amp; Services → Library → Google Calendar API → Enable); 2) натисни «Перепідключити» нижче і дай дозвіл на календар.
+              </div>
+            )}
             <div className="mono">Підключено {days === 0 ? "сьогодні" : `${days} дн. тому`}. Поки застосунок Google у тестовому режимі, доступ живе ~7 днів — тоді просто натисни «Перепідключити».</div>
             {g.error && <div className="mono" style={{ color: "var(--warn)" }}>{g.error}</div>}
             <div className="inline" style={{ flexWrap: "wrap" }}>

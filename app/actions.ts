@@ -1,5 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { refreshTaskEvent, removeTaskEvent, taskToCalendar } from "@/lib/taskCalendar";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { ymd } from "@/lib/dates";
@@ -13,7 +15,7 @@ import { addPayment, createMonthInvoices, deletePayment, markPaid } from "@/lib/
 import {
   attachPlaybook, checklistItems, clientPlaybooks, deletePlaybook, detachPlaybook, getPlaybook, savePlaybook, toggleChecklistItem,
 } from "@/lib/repo/playbooks";
-import { createTask, createTasksBulk, deleteTask, getTask, setTaskStatus, type TaskStatus } from "@/lib/repo/tasks";
+import { addTaskItems, addTaskLink, createTask, createTasksBulk, deleteTask, deleteTaskItem, deleteTaskLink, getTask, setTaskItem, setTaskStatus, updateTask, type TaskPriority, type TaskStatus } from "@/lib/repo/tasks";
 import { addWork, deleteWork } from "@/lib/repo/worklog";
 import { addTool, deleteFolder, deleteTool, enableService, findToolByName, removeService, saveFolder, updateService } from "@/lib/repo/services";
 import { createClientFolders, googleConnected, readMail, sendMail } from "@/lib/google";
@@ -438,4 +440,87 @@ export async function analyzeMetaAction(fd: FormData) {
     err = e instanceof Error ? e.message : "Не вдалось";
   }
   redirect(`/clients/${id}?tab=meta_ads&mv=analysis${err ? `&err=${encodeURIComponent(err)}` : ""}`);
+}
+
+// ---- Вікно задачі (викликається з клієнта напряму, без форм)
+export async function taskPatch(id: number, input: { title?: string; details?: string; due_date?: string | null; priority?: string; status?: string }) {
+  await requireUser();
+  if (!getTask(id)) return;
+  const patch: Parameters<typeof updateTask>[1] = {};
+  if (input.title !== undefined && input.title.trim()) patch.title = input.title.trim().slice(0, 300);
+  if (input.details !== undefined) patch.details = input.details.slice(0, 20000);
+  if (input.due_date !== undefined) patch.due_date = input.due_date && /^\d{4}-\d{2}-\d{2}$/.test(input.due_date) ? input.due_date : null;
+  if (input.priority && ["high", "normal", "low"].includes(input.priority)) patch.priority = input.priority as TaskPriority;
+  updateTask(id, patch);
+  if (input.status && ["todo", "doing", "done"].includes(input.status)) setTaskStatus(id, input.status as TaskStatus);
+  if (patch.title || patch.due_date !== undefined || input.status) await refreshTaskEvent(id, await baseUrl());
+  revalidatePath("/", "layout");
+}
+
+// Адреса системи для посилань у календарі (за заголовками запиту, як у Google OAuth)
+async function baseUrl(): Promise<string> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  return host ? `${h.get("x-forwarded-proto") ?? "https"}://${host}` : "";
+}
+
+export async function taskCalendarAction(id: number): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  try {
+    await taskToCalendar(id, await baseUrl());
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (e) {
+    logError("calendar", e);
+    return { ok: false, error: e instanceof Error ? e.message : "Не вдалось" };
+  }
+}
+
+export async function taskItemAdd(taskId: number, text: string) {
+  await requireUser();
+  // кілька рядків = кілька підзадач
+  addTaskItems(taskId, text.split("\n"));
+  revalidatePath("/", "layout");
+}
+
+export async function taskItemSet(id: number, input: { done?: boolean; text?: string }) {
+  await requireUser();
+  setTaskItem(id, input);
+  revalidatePath("/", "layout");
+}
+
+export async function taskItemRemove(id: number) {
+  await requireUser();
+  deleteTaskItem(id);
+  revalidatePath("/", "layout");
+}
+
+export async function taskLinkAdd(taskId: number, url: string, title: string) {
+  await requireUser();
+  const u = url.trim();
+  if (!/^https?:\/\//i.test(u)) return;
+  addTaskLink(taskId, u, title);
+  revalidatePath("/", "layout");
+}
+
+export async function taskLinkRemove(id: number) {
+  await requireUser();
+  deleteTaskLink(id);
+  revalidatePath("/", "layout");
+}
+
+export async function taskDelete(id: number) {
+  await requireUser();
+  await removeTaskEvent(getTask(id)?.gcal_event_id ?? null);
+  deleteTask(id);
+  revalidatePath("/", "layout");
+}
+
+export async function taskCloseWithLog(id: number, input: { what: string; why: string; result: string }) {
+  await requireUser();
+  const task = getTask(id);
+  if (!task) return;
+  setTaskStatus(task.id, "done");
+  if (task.client_id) addWork({ client_id: task.client_id, task_id: task.id, done_at: ymd(), what: input.what || task.title, why: input.why, result: input.result });
+  revalidatePath("/", "layout");
 }
