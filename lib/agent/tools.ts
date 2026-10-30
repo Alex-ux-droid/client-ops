@@ -123,7 +123,8 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "list_playbooks", description: "Список плейбуків.", input_schema: obj({}) },
   { name: "get_playbook", description: "Текст плейбука.", input_schema: obj({ playbook_id: int("ID плейбука") }, ["playbook_id"]) },
   { name: "attach_playbook", description: "Підключити плейбук до клієнта.", input_schema: obj({ client_id: int("ID клієнта"), playbook_id: int("ID плейбука") }, ["client_id", "playbook_id"]) },
-  { name: "make_pdf", description: "Зробити PDF (A4) з markdown: # заголовки, абзаци, списки - і 1., чекліст - [ ], **жирне**, --- лінія, таблиці | a | b |. Повертає посилання на файл. У Telegram-розмові файл одразу йде Саші документом. Для «на одну сторінку» — пиши стисло (~350 слів).", input_schema: obj({ title: str("Заголовок документа"), content: str("Вміст у markdown (без заголовка — він окремо)"), file_name: str("Назва файлу, необовʼязково"), client_id: int("Клієнт, якщо документ про нього"), send_to_telegram: { type: "boolean", description: "Надіслати Саші в Telegram (у Telegram-розмові — завжди)" }, caption: str("Підпис до файлу в Telegram") }, ["title", "content"]) },
+  { name: "make_pdf", description: "Зробити PDF з markdown. format document (A4 документ): # заголовки, абзаци, списки - і 1., чекліст - [ ], **жирне**, --- лінія, таблиці | a | b |; «на одну сторінку» — ~350 слів. format slides (презентація, A4 горизонтально, темна фірмова): перший абзац — підзаголовок титульного, кожен «## Назва» — новий слайд (3–6 пунктів на слайд), картки-цифри рядками «+ Підпис: значення» (до 4 в ряд), таблиці, списки, **жирне». Повертає file_id і посилання; у Telegram-розмові з Сашею файл одразу йде йому (send_to_telegram:false — не надсилати, напр. якщо далі шлеш у групу клієнта).", input_schema: obj({ title: str("Заголовок документа"), format: { type: "string", enum: ["document", "slides"] }, content: str("Вміст у markdown (без заголовка — він окремо)"), file_name: str("Назва файлу, необовʼязково"), client_id: int("Клієнт, якщо документ про нього"), send_to_telegram: { type: "boolean", description: "Надіслати Саші в Telegram (у Telegram-розмові — завжди)" }, caption: str("Підпис до файлу в Telegram") }, ["title", "content"]) },
+  { name: "telegram_group_send", description: "Надіслати в Telegram-групу КЛІЄНТА повідомлення і/або файл (file_id з make_pdf) від імені бота. ТІЛЬКИ коли Саша прямо попросив відправити в групу/клієнту в цій розмові — ніколи з власної ініціативи. Текст — для клієнта: ввічливо, без внутрішніх нотаток, націнок і думок Саші. sasha_request — дослівні слова Саші з проханням.", input_schema: obj({ client_id: int("ID клієнта"), chat_id: int("ID групи, якщо в клієнта їх кілька (telegram_chats)"), text: str("Повідомлення або підпис до файлу"), file_id: int("ID файлу з make_pdf"), sasha_request: str("Дослівно, що Саша попросив") }, ["client_id", "sasha_request"]) },
   { name: "telegram_send", description: "Надіслати Саші в Telegram повідомлення (text) або файл (file_id з make_pdf). Для нагадувань, коли він просить «скинь мені в телеграм».", input_schema: obj({ text: str("Текст або підпис до файлу"), file_id: int("ID файлу з make_pdf") }, []) },
   { name: "system_updates", description: "Журнал оновлень системи: що Claude додав або змінив і коли (твої нові можливості). Дивись, коли не впевнений, чи щось уже вміє система.", input_schema: obj({ limit: int("Скільки останніх, за замовчуванням 20") }, []) },
   { name: "meta_ads", description: "Живі цифри Meta Ads клієнта (оновлюються самі кожні 2 год, тільки читання): підсумок за N днів і попередні N днів (витрати, покази, кліки, ліди, ціна ліда, CTR), по днях, кампанії з бюджетами і статусами, топ креативів за 30 днів, тривоги. Змінювати рекламу ти не можеш — тільки радити.", input_schema: obj({ client_id: int("ID клієнта"), days: int("Період у днях, за замовчуванням 7") }, ["client_id"]) },
@@ -372,18 +373,31 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
     case "make_pdf": {
       const title = need(s(input.title), "title обов'язковий");
       const content = need(s(input.content), "content обов'язковий");
-      const { markdownToPdf } = await import("../pdf");
-      const data = await markdownToPdf(title, content);
+      const { markdownToPdf, markdownToSlides } = await import("../pdf");
+      const data = input.format === "slides" ? await markdownToSlides(title, content) : await markdownToPdf(title, content);
       const name = `${(s(input.file_name) || title).replace(/\.pdf$/i, "").slice(0, 80)}.pdf`;
       const f = saveFile({ name, mime: "application/pdf", data, client_id: id(input.client_id) });
       let telegram = false;
-      if (input.send_to_telegram === true || ctx.telegram) {
+      if (input.send_to_telegram === true || (ctx.telegram && input.send_to_telegram !== false)) {
         const { tgOwner, tgSendDocument } = await import("../telegram");
         const owner = tgOwner();
         if (owner) { await tgSendDocument(owner, data, name, "application/pdf", s(input.caption)); telegram = true; }
       }
       act("file", `PDF: ${title}`, `/api/files/${f.id}`);
       return { ok: true, file_id: f.id, url: `/api/files/${f.id}`, pages_hint: "A4", sent_to_telegram: telegram };
+    }
+
+    case "telegram_group_send": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      need(s(input.sasha_request).length > 3, "Надсилати в групу клієнта можна тільки на пряме прохання Саші — вкажи його слова в sasha_request");
+      const chats = chatsForClient(cid).filter((c) => c.active);
+      need(chats.length, "У клієнта нема активної Telegram-групи з ботом");
+      const chat = input.chat_id ? need(chats.find((c) => c.chat_id === Math.trunc(n(input.chat_id))), "Така група не привʼязана до клієнта") : chats.length === 1 ? chats[0] : null;
+      need(chat, `У клієнта кілька груп: ${chats.map((c) => `${c.title} (${c.chat_id})`).join(", ")} — уточни chat_id`);
+      const { sendToGroup } = await import("../telegram");
+      await sendToGroup(chat!.chat_id, s(input.text), input.file_id ? Math.trunc(n(input.file_id)) : null);
+      act("telegram", `У групу «${chat!.title}»${input.file_id ? ": файл" : ""}`, `/clients/${cid}?tab=telegram`);
+      return { ok: true, chat: chat!.title };
     }
 
     case "telegram_send": {

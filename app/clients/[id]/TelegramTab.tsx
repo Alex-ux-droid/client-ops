@@ -103,7 +103,7 @@ export default function TelegramTab({ clientId, q = "", n }: { clientId: number;
               <div key={b.msgs[0].id} className={`tg-burst ${b.me ? "me" : ""}`}>
                 {!b.me && <div className="tg-ava" style={{ background: color(b.who) }}>{initials(b.who)}</div>}
                 <div className="tg-bubbles">
-                  <div className="tg-who" style={b.me ? undefined : { color: color(b.who) }}>{b.me ? "Ти" : b.who}<span>{b.msgs[0].sent_at.slice(11, 16)}</span></div>
+                  <div className="tg-who" style={b.me ? undefined : { color: color(b.who) }}>{b.me ? (b.who.startsWith("Джері") ? "Джері" : "Ти") : b.who}<span>{b.msgs[0].sent_at.slice(11, 16)}</span></div>
                   {b.msgs.map((m) => (
                     <div key={m.id} className={`tg-bubble ${m.kind !== "text" ? `k-${m.kind}` : ""}`}>
                       <Attach m={m} />
