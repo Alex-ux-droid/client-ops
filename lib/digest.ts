@@ -1,9 +1,8 @@
-// Ранкове зведення в Telegram Саші: задачі на сьогодні і прострочені, оплати, реклама, хто потребує уваги.
+// Ранкове зведення в Telegram Саші — тільки важливе: що горить, що сьогодні, гроші, що не так з рекламою.
 // Без ШІ — збирається з бази (безкоштовно). Розклад — instrumentation.ts, час і вимикач — Налаштування → Конектори → Telegram.
 import { money } from "./config";
 import { logError } from "./log";
-import { clientFlags, listClients } from "./repo/clients";
-import { accountTotals, kyivDay, listAccounts } from "./repo/meta";
+import { kyivDay, listAccounts, metaAlerts } from "./repo/meta";
 import { listPayments } from "./repo/payments";
 import { getSetting, setSetting } from "./repo/settings";
 import { listTasks, type TaskRow } from "./repo/tasks";
@@ -13,37 +12,47 @@ const kyivNow = () => new Date().toLocaleString("sv-SE", { timeZone: "Europe/Kyi
 export const digestEnabled = () => getSetting("tg.digest") !== "off";
 export const digestTime = () => getSetting("tg.digest_time") || "09:00";
 
-const line = (t: TaskRow) => `• ${t.title}${t.client_name ? ` — ${t.client_name}` : ""}${t.items_total ? ` (${t.items_done}/${t.items_total})` : ""}${t.priority === "high" ? " 🔥" : ""}`;
-const n = (x: number) => Math.round(x).toLocaleString("uk-UA");
+const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const days = (from: string, to: string) => Math.round((+new Date(to) - +new Date(from)) / 86400_000);
+const who = (t: TaskRow) => (t.client_name ? ` · ${esc(t.client_name)}` : "");
+const prog = (t: TaskRow) => (t.items_total ? ` (${t.items_done}/${t.items_total})` : "");
+const more = (n: number) => (n > 0 ? `\n<i>…і ще ${n}</i>` : "");
 
+// Тільки те, що треба зробити або що горить. Нема важливого — коротке «все спокійно».
 export function buildDigest(): string {
-  const today = kyivDay(0), yesterday = kyivDay(1);
+  const today = kyivDay(0);
   const date = new Date().toLocaleDateString("uk-UA", { timeZone: "Europe/Kyiv", weekday: "long", day: "numeric", month: "long" });
-  const out: string[] = [`Доброго ранку, Саша ☀️ ${date[0].toUpperCase()}${date.slice(1)}`];
+  const blocks: string[] = [];
 
-  const overdue = listTasks("overdue"), todays = listTasks("today");
-  if (overdue.length) out.push(`⏰ Прострочено (${overdue.length}):\n${overdue.slice(0, 8).map(line).join("\n")}${overdue.length > 8 ? `\n…і ще ${overdue.length - 8}` : ""}`);
-  out.push(todays.length ? `📌 Сьогодні (${todays.length}):\n${todays.slice(0, 10).map(line).join("\n")}` : "📌 На сьогодні задач нема — можна взяти щось із тижня.");
-  const week = listTasks("week");
-  if (week.length) out.push(`📅 Далі цього тижня: ${week.length} задач(і)`);
-
-  const pays = listPayments({ open: true });
-  const late = pays.filter((p) => p.due_date < today), due = pays.filter((p) => p.due_date === today);
-  if (late.length || due.length) {
-    out.push(`💸 Оплати:\n${[...late.map((p) => `• ${p.client_name}: ${money(p.amount)} — прострочено з ${p.due_date.slice(8, 10)}.${p.due_date.slice(5, 7)}`), ...due.map((p) => `• ${p.client_name}: ${money(p.amount)} — сьогодні`)].slice(0, 8).join("\n")}`);
+  // Горить: терміново + прострочені (терміново першими, далі найстаріші)
+  const byPrio = (a: TaskRow, b: TaskRow) => (a.priority === "high" ? 0 : 1) - (b.priority === "high" ? 0 : 1) || (a.due_date ?? "").localeCompare(b.due_date ?? "");
+  const overdue = listTasks("overdue").sort(byPrio);
+  const todays = listTasks("today").sort(byPrio);
+  if (overdue.length) {
+    blocks.push(`<b>🔥 Горить</b>\n${overdue.slice(0, 5).map((t) => `• ${esc(t.title)}${who(t)} — прострочено ${days(t.due_date!, today)} дн.${t.priority === "high" ? " ❗" : ""}`).join("\n")}${more(overdue.length - 5)}`);
+  }
+  if (todays.length) {
+    blocks.push(`<b>📌 Сьогодні</b>\n${todays.slice(0, 6).map((t) => `• ${esc(t.title)}${who(t)}${prog(t)}${t.priority === "high" ? " ❗" : ""}`).join("\n")}${more(todays.length - 6)}`);
   }
 
-  // Реклама за вчора по кожному кабінету клієнта
-  const ads = listAccounts().filter((a) => a.client_id).map((a) => ({ a, t: accountTotals(a.account_id, yesterday, yesterday) })).filter((x) => x.t.spend > 0);
-  if (ads.length) {
-    out.push(`📣 Реклама вчора:\n${ads.map(({ a, t }) => `• ${a.client_name}: ${n(t.spend)} ${a.currency}, лідів ${t.leads}${t.leads ? `, по ${(t.spend / t.leads).toFixed(2)}` : ""}`).join("\n")}`);
+  // Гроші: тільки ті, що вже мали прийти, і ті, що сьогодні
+  const pays = listPayments({ open: true }).filter((p) => p.due_date <= today);
+  if (pays.length) {
+    blocks.push(`<b>💸 Гроші</b>\n${pays.slice(0, 5).map((p) => `• ${esc(p.client_name)} — ${money(p.amount)}${p.due_date < today ? `, чекаю ${days(p.due_date, today)} дн.` : ", сьогодні"}`).join("\n")}${more(pays.length - 5)}`);
   }
 
-  // Хто потребує уваги (без «нема задач»/«без руху» для лідів — тільки важливе)
-  const flags = listClients().filter((c) => c.status !== "archived").map((c) => ({ c, f: clientFlags(c).filter((x) => x.level === "bad" || /реклама|ліда|кабінет/.test(x.text)) })).filter((x) => x.f.length);
-  if (flags.length) out.push(`⚠️ Увага:\n${flags.slice(0, 8).map(({ c, f }) => `• ${c.name}: ${f.map((x) => x.text).join(", ")}`).join("\n")}`);
+  // Реклама: тільки проблеми (кабінет, без лідів, ціна ліда різко виросла)
+  const ads: string[] = [];
+  for (const cid of [...new Set(listAccounts().map((a) => a.client_id).filter(Boolean) as number[])]) {
+    const name = listAccounts().find((a) => a.client_id === cid)?.client_name ?? "";
+    const alerts = metaAlerts(cid).map((a) => a.text.replace(/^кабінет: /, "кабінет — "));
+    if (alerts.length) ads.push(`• ${esc(name)}: ${esc(alerts.join(", "))}`);
+  }
+  if (ads.length) blocks.push(`<b>📣 Реклама</b>\n${ads.slice(0, 5).join("\n")}`);
 
-  return out.join("\n\n");
+  const head = `☀️ <b>${date[0].toUpperCase()}${date.slice(1)}</b>`;
+  if (!blocks.length) return `${head}\n\nСьогодні все спокійно: нічого не горить, задач на сьогодні нема 👌`;
+  return `${head}\n\n${blocks.join("\n\n")}`;
 }
 
 export async function sendDigest(): Promise<void> {
@@ -51,7 +60,7 @@ export async function sendDigest(): Promise<void> {
   if (!tgToken() || !owner) throw new Error("Спершу підключи бота і прив'яжи свій Telegram");
   const origin = await appOrigin();
   await tg("sendMessage", {
-    chat_id: owner, text: buildDigest(), disable_web_page_preview: true,
+    chat_id: owner, text: buildDigest(), parse_mode: "HTML", disable_web_page_preview: true,
     ...(origin ? { reply_markup: { inline_keyboard: [[{ text: "Задачі", url: `${origin}/tasks` }, { text: "Реклама", url: `${origin}/ads` }]] } } : {}),
   });
   setSetting("tg.digest_last", kyivDay(0));
