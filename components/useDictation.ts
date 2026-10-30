@@ -26,6 +26,8 @@ export function useDictation(onText: (chunk: string) => void) {
   const [transcribing, setTranscribing] = useState(false);
   const [paid, setPaid] = useState(false); // є ElevenLabs → пишемо аудіо і розпізнаємо на сервері
   const recorder = useRef<MediaRecorder | null>(null);
+  const discard = useRef(false);   // «затисни і говори»: короткий тап — запис викидаємо
+  const aborted = useRef(false);   // відпустили ще до того, як мікрофон увімкнувся
   const cb = useRef(onText);
   cb.current = onText;
 
@@ -92,14 +94,18 @@ export function useDictation(onText: (chunk: string) => void) {
   const startRec = useCallback(async () => {
     window.speechSynthesis?.cancel();
     setError("");
+    discard.current = false;
+    aborted.current = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      if (aborted.current) { stream.getTracks().forEach((t) => t.stop()); return; }
       const type = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"].find((t) => MediaRecorder.isTypeSupported?.(t));
       const mr = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
       const chunks: Blob[] = [];
       mr.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
       mr.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
+        if (discard.current) return;
         const blob = new Blob(chunks, { type: mr.mimeType || type || "audio/webm" });
         if (blob.size < 2000) { setError(ERRORS["no-speech"]); return; }
         setTranscribing(true);
@@ -128,6 +134,7 @@ export function useDictation(onText: (chunk: string) => void) {
     setListening(false);
     const mr = recorder.current;
     if (mr && mr.state !== "inactive") mr.stop();
+    else aborted.current = true;
   }, []);
 
   const toggle = useCallback(() => {
@@ -136,5 +143,14 @@ export function useDictation(onText: (chunk: string) => void) {
     return listening ? stop() : start();
   }, [paid, listening, transcribing, start, stop, startRec, stopRec]);
   const stopAny = useCallback(() => (paid ? stopRec() : stop()), [paid, stop, stopRec]);
-  return { listening, transcribing, supported, error, toggle, stop: stopAny };
+  const startAny = useCallback(() => { if (!transcribing) { if (paid) void startRec(); else start(); } }, [paid, transcribing, start, startRec]);
+  // Скасувати без тексту (короткий тап замість затискання)
+  const cancel = useCallback(() => {
+    discard.current = true;
+    const x = sess.current;
+    if (x) x.done = true;
+    if (paid) stopRec();
+    else { setListening(false); try { x?.r.abort(); } catch {} }
+  }, [paid, stopRec]);
+  return { listening, transcribing, supported, error, toggle, stop: stopAny, start: startAny, cancel, clearError: () => setError("") };
 }
