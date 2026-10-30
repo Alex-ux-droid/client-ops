@@ -293,3 +293,21 @@ export async function tgSendDocument(chatId: number, data: Buffer, filename: str
   const d = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string };
   if (!d.ok) throw new Error(`Telegram: ${d.description ?? r.status}`);
 }
+
+// Надіслати в групу клієнта (тільки на прохання Саші — перевіряє інструмент) і записати в історію чату
+export async function sendToGroup(chatId: number, text: string, fileId: number | null): Promise<void> {
+  const { getFile, readFile } = await import("./repo/files");
+  const now = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Kyiv" });
+  type Sent = { message_id: number };
+  if (fileId) {
+    const f = getFile(fileId);
+    const data = f && readFile(f);
+    if (!f || !data) throw new Error("Файлу нема");
+    await tgSendDocument(chatId, data, f.name, f.mime, text);
+    addMessage({ chat_id: chatId, message_id: -Date.now(), from_id: null, from_name: "Джері (бот)", is_owner: 1, kind: "document", text, file_name: f.name, sent_at: now });
+  } else {
+    if (!text.trim()) throw new Error("Порожнє повідомлення");
+    const r = await tg<Sent>("sendMessage", { chat_id: chatId, text: text.slice(0, 4000) });
+    addMessage({ chat_id: chatId, message_id: r?.message_id ?? -Date.now(), from_id: null, from_name: "Джері (бот)", is_owner: 1, kind: "text", text, file_name: "", sent_at: now });
+  }
+}

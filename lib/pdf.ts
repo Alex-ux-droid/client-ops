@@ -123,3 +123,139 @@ export async function markdownToPdf(title: string, md: string): Promise<Buffer> 
   doc.end();
   return done;
 }
+
+// ---------- Презентація: A4 горизонтально, темна в стилі системи ----------
+// # не треба (заголовок окремо); перший абзац — підзаголовок титульного слайда; кожен «## Назва» — новий слайд.
+// На слайді: абзаци, списки - / 1., **жирне**, таблиці | a | b |, і картки-цифри: рядки «+ Підпис: значення» (до 4 в ряд).
+const S = { bg: "#070a14", panel: "#10162a", text: "#f2f4fa", muted: "#9aa4ba", line: "#24304f" };
+
+function slideBg(doc: Doc) {
+  const { width: w, height: h } = doc.page;
+  doc.rect(0, 0, w, h).fill(S.bg);
+  const g = doc.radialGradient(w * 0.85, -40, 0, w * 0.85, -40, 420);
+  g.stop(0, ACCENT, 0.35).stop(1, S.bg, 0);
+  doc.rect(0, 0, w, h).fill(g);
+}
+
+function richDark(doc: Doc, text: string, x: number, y: number, width: number, size: number, color = S.muted) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g).filter((p) => p !== "");
+  parts.forEach((p, i) => {
+    const bold = p.startsWith("**") && p.endsWith("**");
+    doc.font(bold ? "B" : "R").fontSize(size).fillColor(bold ? S.text : color);
+    const t = bold ? p.slice(2, -2) : p.replace(/`/g, "");
+    const o = { width, lineGap: 3, continued: i < parts.length - 1 };
+    if (i === 0) doc.text(t, x, y, o); else doc.text(t, o);
+  });
+}
+
+export async function markdownToSlides(title: string, md: string, subtitleOverride = ""): Promise<Buffer> {
+  const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 0, info: { Title: title }, bufferPages: true, autoFirstPage: false });
+  doc.registerFont("R", FONT("Onest-Regular.ttf"));
+  doc.registerFont("S", FONT("Onest-SemiBold.ttf"));
+  doc.registerFont("B", FONT("Onest-Bold.ttf"));
+  const chunks: Buffer[] = [];
+  doc.on("data", (c: Buffer) => chunks.push(c));
+  const done = new Promise<Buffer>((res) => doc.on("end", () => res(Buffer.concat(chunks))));
+  const M = 56;
+
+  // розбити на слайди
+  const lines = md.replace(/\r/g, "").split("\n");
+  const intro: string[] = [];
+  const slides: { title: string; body: string[] }[] = [];
+  for (const l of lines) {
+    const h = l.trim().match(/^#{1,2}\s+(.*)$/);
+    if (h) slides.push({ title: h[1].replace(/\*\*/g, ""), body: [] });
+    else if (slides.length) slides.at(-1)!.body.push(l);
+    else intro.push(l);
+  }
+
+  // титульний
+  doc.addPage(); slideBg(doc);
+  const { width: W, height: H } = doc.page;
+  const date = new Date().toLocaleDateString("uk-UA", { timeZone: "Europe/Kyiv", day: "numeric", month: "long", year: "numeric" });
+  doc.font("S").fontSize(11).fillColor(ACCENT).text(date.toUpperCase(), M, H * 0.3, { characterSpacing: 1 });
+  doc.font("B").fontSize(38).fillColor(S.text).text(title, M, H * 0.3 + 26, { width: W - M * 2, lineGap: 4 });
+  doc.rect(M, doc.y + 14, 64, 4).fill(ACCENT);
+  const sub = subtitleOverride || intro.join(" ").trim();
+  if (sub) richDark(doc, sub, M, doc.y + 34, W * 0.62, 15);
+
+  const newSlide = (t: string) => {
+    doc.addPage(); slideBg(doc);
+    doc.font("B").fontSize(24).fillColor(S.text).text(t, M, M - 6, { width: W - M * 2 });
+    doc.rect(M, doc.y + 8, 40, 3).fill(ACCENT);
+    return doc.y + 30;
+  };
+  const bottom = H - M;
+
+  for (const sl of slides) {
+    let y = newSlide(sl.title);
+    const ensure = (need: number) => { if (y + need > bottom) y = newSlide(`${sl.title} (далі)`); };
+    for (let i = 0; i < sl.body.length; i++) {
+      const raw = sl.body[i], l = raw.trim();
+      if (!l) { y += 8; continue; }
+      // картки-цифри
+      if (/^\+\s+[^:]+:/.test(l)) {
+        const kpis: { label: string; value: string }[] = [];
+        while (i < sl.body.length && /^\+\s+[^:]+:/.test(sl.body[i].trim())) {
+          const m = sl.body[i].trim().match(/^\+\s+([^:]+):\s*(.*)$/)!;
+          kpis.push({ label: m[1].trim(), value: m[2].replace(/\*\*/g, "").trim() });
+          i++;
+        }
+        i--;
+        for (let k = 0; k < kpis.length; k += 4) {
+          const row = kpis.slice(k, k + 4);
+          const gap = 14, cw = (W - M * 2 - gap * 3) / 4, ch = 86;
+          ensure(ch + 12);
+          row.forEach((c, j) => {
+            const x = M + j * (cw + gap);
+            doc.roundedRect(x, y, cw, ch, 12).fill(S.panel);
+            doc.roundedRect(x, y, cw, ch, 12).lineWidth(0.8).strokeColor(S.line).stroke();
+            doc.font("B").fontSize(24).fillColor(S.text).text(c.value, x + 16, y + 16, { width: cw - 32, lineBreak: false, ellipsis: true });
+            doc.font("R").fontSize(11).fillColor(S.muted).text(c.label, x + 16, y + 52, { width: cw - 32, lineBreak: false, ellipsis: true });
+          });
+          y += ch + 14;
+        }
+        continue;
+      }
+      // таблиця
+      if (/^\|.*\|$/.test(l)) {
+        const rows: string[][] = [];
+        while (i < sl.body.length && /^\|.*\|$/.test(sl.body[i].trim())) {
+          const cells = sl.body[i].trim().slice(1, -1).split("|").map((c) => c.trim().replace(/\*\*/g, ""));
+          if (!cells.every((c) => /^:?-{2,}:?$/.test(c))) rows.push(cells);
+          i++;
+        }
+        i--;
+        const cols = Math.max(...rows.map((r) => r.length)), cw = (W - M * 2) / cols;
+        rows.forEach((r, ri) => {
+          const rh = Math.max(...r.map((c) => doc.font(ri ? "R" : "S").fontSize(12).heightOfString(c, { width: cw - 20 }))) + 14;
+          ensure(rh);
+          if (ri === 0) doc.rect(M, y, W - M * 2, rh).fill(S.panel);
+          r.forEach((c, ci) => doc.font(ri ? "R" : "S").fontSize(12).fillColor(ri ? S.text : S.muted).text(c, M + ci * cw + 10, y + 7, { width: cw - 20 }));
+          doc.moveTo(M, y + rh).lineTo(W - M, y + rh).lineWidth(0.6).strokeColor(S.line).stroke();
+          y += rh;
+        });
+        y += 12;
+        continue;
+      }
+      const bullet = l.match(/^[-*•]\s+(.*)$/), num = l.match(/^(\d+)[.)]\s+(.*)$/);
+      const text = bullet ? bullet[1] : num ? num[2] : l;
+      const x = bullet || num ? M + 22 : M, width = W - M - x;
+      const size = 17;
+      const hgt = doc.font("R").fontSize(size).heightOfString(text.replace(/\*\*/g, ""), { width, lineGap: 3 });
+      ensure(hgt + 8);
+      if (bullet) doc.circle(M + 6, y + 9.5, 3).fill(ACCENT);
+      if (num) doc.font("B").fontSize(size).fillColor(ACCENT).text(`${num[1]}.`, M, y, { width: 22, lineBreak: false });
+      richDark(doc, text, x, y, width, size, bullet || num ? S.text : S.muted);
+      y += hgt + 10;
+    }
+  }
+
+  const range = doc.bufferedPageRange();
+  for (let p = range.start + 1; p < range.start + range.count; p++) {
+    doc.switchToPage(p);
+    doc.font("R").fontSize(9).fillColor(S.muted).text(`${title}  ·  ${p + 1}/${range.count}`, M, H - 30, { width: W - M * 2, align: "right", lineBreak: false });
+  }
+  doc.end();
+  return done;
+}
