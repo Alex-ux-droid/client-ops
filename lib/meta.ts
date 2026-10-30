@@ -18,10 +18,17 @@ async function get<T>(path: string, params: Record<string, string> = {}, tokenOv
   if (!token) throw new Error("Meta не підключена");
   const url = path.startsWith("http") ? path : `${BASE()}/${VERSION()}/${path}?${new URLSearchParams({ ...params, access_token: token })}`;
   const r = await fetch(url, { signal: AbortSignal.timeout(30000) });
-  const d = (await r.json().catch(() => ({}))) as T & { error?: { message: string; code?: number } };
+  const d = (await r.json().catch(() => ({}))) as T & { error?: { message: string; code?: number; error_subcode?: number } };
   if (!r.ok || d.error) {
     const e = d.error;
-    if (e?.code === 190) throw new Error("Токен Meta недійсний або відкликаний — створи новий");
+    // 190 — токен не працює; підкод каже чому (463 — закінчився строк, 460 — змінили пароль, 467 — сесію скинули)
+    if (e?.code === 190) {
+      const why = e.error_subcode === 463 ? "закінчився строк дії (схоже, вставили короткий токен, а не продовжений)"
+        : e.error_subcode === 460 ? "змінено пароль Facebook"
+        : e.error_subcode === 467 || e.error_subcode === 458 ? "сесію Facebook скинуто або доступ застосунку відкликано"
+        : e.message;
+      throw new Error(`Токен Meta не працює: ${why}. Онови токен у Налаштування → Конектори → Meta Ads`);
+    }
     if (e?.code === 17 || e?.code === 80004 || e?.code === 4) throw new Error("Meta просить зачекати (ліміт запитів) — спробую пізніше");
     if (e?.code === 10 || e?.code === 200) throw new Error(`Нема доступу: ${e.message}`);
     throw new Error(`Meta: ${e?.message ?? r.status}`);
