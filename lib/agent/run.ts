@@ -6,8 +6,17 @@ import { addChat, listChat, type ChatAction } from "../repo/chat";
 import { getClientRow } from "../repo/clients";
 import { getApiKey } from "../secrets";
 import { agentConfig, agentMemory } from "./config";
+import { listChangelog } from "../repo/changelog";
+
 import { reflect } from "./reflect";
 import { runTool, TOOLS } from "./tools";
+
+// Останні оновлення системи — щоб Джері знав свої нові можливості і не тримався за старе з пам'яті
+function updatesBlock(): string {
+  const list = listChangelog(8);
+  if (!list.length) return "";
+  return `Останні оновлення системи (свіжіше за твою пам'ять — якщо пам'ять каже інакше, вір оновленням і виправ пам'ять через memory_rewrite; повний список — system_updates):\n${list.map((e) => `- ${e.created_at.slice(0, 10)} ${e.title}: ${e.body}`).join("\n")}`;
+}
 
 export class NoKeyError extends Error {}
 
@@ -94,6 +103,7 @@ export async function runAgent(clientId: number | null, userText: string, page =
     SYSTEM,
     cfg.instructions.trim() && `Інструкції від Саші (головніші за все інше):\n${cfg.instructions.trim()}`,
     `Твоя пам'ять (що ти вже знаєш про Сашу і роботу):\n${memory.trim() || "поки порожньо"}`,
+    updatesBlock(),
   ].filter(Boolean).join("\n\n");
   const system: Anthropic.Beta.BetaTextBlockParam[] = [
     { type: "text", text: stable, cache_control: { type: "ephemeral" } },
