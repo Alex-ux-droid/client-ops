@@ -287,3 +287,31 @@ export async function calendarDelete(eventId: string): Promise<void> {
   const token = await accessToken();
   await fetch(`${CAL}/${eventId}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` } }).catch(() => {});
 }
+
+// ---------- Великі файли на Диск (бекап бази) ----------
+// Resumable upload: спершу метадані → адреса сесії, потім байти одним PUT (працює і для файлів > 5 МБ)
+export async function uploadBig(parent: string, name: string, data: Buffer, mime: string): Promise<string> {
+  const token = await accessToken();
+  const init = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id", {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json; charset=UTF-8", "x-upload-content-type": mime, "x-upload-content-length": String(data.length) },
+    body: JSON.stringify({ name, parents: [parent] }),
+  });
+  const loc = init.headers.get("location");
+  if (!init.ok || !loc) throw new Error(`Google ${init.status}: ${(await init.text()).slice(0, 200)}`);
+  const put = await fetch(loc, { method: "PUT", headers: { "content-type": mime, "content-length": String(data.length) }, body: new Uint8Array(data), signal: AbortSignal.timeout(300_000) });
+  if (!put.ok) throw new Error(`Google ${put.status}: ${(await put.text()).slice(0, 200)}`);
+  return ((await put.json()) as { id: string }).id;
+}
+
+export async function listFolderFiles(folder: string): Promise<{ id: string; name: string; createdTime: string; size?: string }[]> {
+  const q = encodeURIComponent(`'${folder}' in parents and trashed = false`);
+  const r = await api<{ files: { id: string; name: string; createdTime: string; size?: string }[] }>(
+    `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime desc&pageSize=200&fields=files(id,name,createdTime,size)`);
+  return r.files;
+}
+
+export async function deleteFile(id: string): Promise<void> {
+  const token = await accessToken();
+  await fetch(`https://www.googleapis.com/drive/v3/files/${id}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` } });
+}
