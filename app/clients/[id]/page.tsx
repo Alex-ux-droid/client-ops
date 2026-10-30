@@ -4,7 +4,7 @@ import { saveNextStep } from "@/app/actions";
 import { money } from "@/lib/config";
 import { fmtDate } from "@/lib/dates";
 import { STAGE_LABEL, STATUS_LABEL, STATUS_TAG } from "@/lib/labels";
-import { cpl, listAdStats } from "@/lib/repo/ads";
+import { accountsForClient, kyivDay, totals } from "@/lib/repo/meta";
 import { clientFlags, getClientRow } from "@/lib/repo/clients";
 import { listPayments } from "@/lib/repo/payments";
 import { listServices } from "@/lib/repo/services";
@@ -33,7 +33,10 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const flags = clientFlags(c);
   const payments = listPayments({ clientId: id });
   const paidTotal = payments.filter((p) => p.paid_at).reduce((s, p) => s + p.amount, 0);
-  const lastAd = listAdStats(id).at(-1);
+  // ціна ліда за 7 днів — з Meta (ручні періоди більше не ведемо)
+  const metaAcc = accountsForClient(id);
+  const w7 = metaAcc.length ? totals(id, kyivDay(6), kyivDay(0)) : null;
+  const cplText = w7?.leads ? `${(w7.spend / w7.leads).toLocaleString("uk-UA", { maximumFractionDigits: 2 })} ${metaAcc[0].currency}` : null;
   const subtitle = [c.owner_name, c.niche, c.city].filter(Boolean).join(" · ");
 
   return (
@@ -86,7 +89,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       </nav>
       {tab !== "overview" && <h1 className="desk-only section-title">{tabs.find((t) => t.k === tab)?.label}</h1>}
 
-      {tab === "overview" && <Overview c={c} services={services} paidTotal={paidTotal} isNew={sp.new === "1"} cplLast={lastAd ? cpl(lastAd) : null} />}
+      {tab === "overview" && <Overview c={c} services={services} paidTotal={paidTotal} isNew={sp.new === "1"} cplText={cplText} />}
       {tab === "setup" && <SetupTab c={c} services={services} />}
       {service && <ServiceTab clientId={id} service={service} edit={sp.edit === "1"} saved={sp.saved === "1"} />}
       {tab === "tasks" && <TasksTab id={id} />}

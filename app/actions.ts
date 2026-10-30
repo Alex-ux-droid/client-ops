@@ -3,7 +3,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { ymd } from "@/lib/dates";
-import { addAdStat, AD_FIELDS, deleteAdStat, type AdInput } from "@/lib/repo/ads";
 import {
   CLIENT_FIELDS, CLIENT_STATUSES, createClient, LEAD_STAGES, setStage, setStatus, updateClient,
   type ClientInput, type ClientStatus, type LeadStage,
@@ -363,23 +362,6 @@ export async function makeMonthInvoices(fd: FormData) {
   done();
 }
 
-// ---- Реклама
-export async function saveAdStat(fd: FormData) {
-  await requireUser();
-  const client_id = num(fd, "client_id");
-  if (!client_id || !str(fd, "period_start") || !str(fd, "period_end")) return;
-  const input = Object.fromEntries(AD_FIELDS.map((f) => [f, ["platform", "period_start", "period_end", "note"].includes(f) ? str(fd, f) : amount(fd, f)]));
-  addAdStat({ ...input, platform: input.platform || "facebook", client_id } as AdInput);
-  done();
-}
-
-export async function removeAdStat(fd: FormData) {
-  await requireUser();
-  const id = num(fd, "id");
-  if (id) deleteAdStat(id);
-  done();
-}
-
 // ---- Плейбуки
 export async function savePlaybookAction(fd: FormData) {
   await requireUser();
@@ -431,4 +413,13 @@ export async function playbookToTasks(fd: FormData) {
   const open = checklistItems(pb.body_md).filter((_, i) => !cp.checked.includes(i));
   createTasksBulk(open.map((t) => `${t} · ${pb.title}`), client_id, str(fd, "due_date") || null);
   done();
+}
+
+// ---- Meta Ads: «Оновити зараз» з панелі «Реклама»
+export async function syncMetaNowAction() {
+  await requireUser();
+  const { syncAll } = await import("@/lib/meta");
+  const r = await syncAll();
+  revalidatePath("/ads");
+  redirect(`/ads?synced=${r.failed ? `err&n=${r.failed}` : "ok"}`);
 }
