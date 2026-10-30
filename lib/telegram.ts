@@ -3,6 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { runAgent } from "./agent/run";
 import { logError } from "./log";
+import { autoOn } from "./agent/caps";
 import { getSetting, setSetting } from "./repo/settings";
 import { ensureSubfolder, folderExists, folderIdFromUrl, folderUrl, googleConnected, GoogleReconnectError, uploadFile } from "./google";
 import { getClient } from "./repo/clients";
@@ -153,7 +154,7 @@ async function clientTelegramFolder(clientId: number): Promise<string | null> {
 const EXT: Record<string, string> = { photo: "jpg", video: "mp4" };
 
 export async function saveTgFileToDrive(id: number): Promise<void> {
-  if (!googleConnected()) return;
+  if (!googleConnected() || !autoOn("tg_files")) return;
   const f = getTgFile(id);
   if (!f || !f.tg_file_id || f.drive_id || !f.client_id || f.file_size > TG_FILE_LIMIT) return;
   const folder = await clientTelegramFolder(f.client_id);
@@ -278,4 +279,17 @@ export async function avatarsOnce(): Promise<void> {
   if (getSetting("tg.avatar_sent") || !tgToken() || !tgOwner()) return;
   setSetting("tg.avatar_sent", "pending");
   await sendAvatars().catch((e) => logError("tg-avatar", e));
+}
+
+// Документ файлом (PDF тощо)
+export async function tgSendDocument(chatId: number, data: Buffer, filename: string, mime: string, caption = ""): Promise<void> {
+  const token = tgToken();
+  if (!token) throw new Error("Telegram-бот не підключений");
+  const fd = new FormData();
+  fd.append("chat_id", String(chatId));
+  if (caption) fd.append("caption", caption.slice(0, 1000));
+  fd.append("document", new Blob([new Uint8Array(data)], { type: mime }), filename);
+  const r = await fetch(`${API()}/bot${token}/sendDocument`, { method: "POST", body: fd, signal: AbortSignal.timeout(60000) });
+  const d = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string };
+  if (!d.ok) throw new Error(`Telegram: ${d.description ?? r.status}`);
 }

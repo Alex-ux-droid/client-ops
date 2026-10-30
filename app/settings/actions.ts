@@ -227,3 +227,11 @@ export async function backupNowAction() {
   try { await backupToDrive(); } catch (e) { err = e instanceof Error ? e.message : "Не вдалось"; }
   back(err ? `Бекап не вийшов: ${err}` : "Бекап бази лежить на Google Диску.", !err, "connectors&c=google");
 }
+
+// ---- Можливості: тумблери Джері і автоматики
+export async function saveCapsAction(fd: FormData) {
+  await requireUser();
+  const { saveCaps } = await import("@/lib/agent/caps");
+  saveCaps(new Set([...fd.keys()]));
+  back("Збережено.", true, "caps");
+}

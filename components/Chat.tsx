@@ -128,7 +128,9 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
             <div className="bubble-text">{m.content}</div>
             {m.actions?.length > 0 && (
               <div className="meta" style={{ marginTop: 8 }}>
-                {m.actions.map((a, j) => a.href
+                {m.actions.map((a, j) => a.href?.startsWith("/api/")
+                  ? <a key={j} href={a.href} target="_blank" rel="noreferrer" className="tag ok">📄 {a.text}</a>
+                  : a.href
                   ? <Link key={j} href={a.href} className="tag ok">✓ {a.text}</Link>
                   : <span key={j} className="tag ok">✓ {a.text}</span>)}
               </div>
