@@ -13,6 +13,9 @@ import { listChats } from "@/lib/repo/telegram";
 import { listClients } from "@/lib/repo/clients";
 import { getSetting } from "@/lib/repo/settings";
 import { listVoices, VOICE_MODELS, voiceConfig, type Voice } from "@/lib/voice";
+import { backupNowAction, saveDigestAction, sendAvatarsAction, sendDigestNowAction } from "./actions";
+import { backupFolderUrl, backupInfo } from "@/lib/backup";
+import { digestEnabled, digestTime } from "@/lib/digest";
 import { disconnectGoogleAction, saveAgentAction, saveMemoryAction, saveGeneralAction, saveGoogleClientAction, saveKeyAction, testKeyAction } from "./actions";
 import { headers } from "next/headers";
 import { googleStatus } from "@/lib/google";
@@ -328,7 +331,22 @@ async function TelegramTab() {
                 ? <div className="mono" style={{ color: "var(--warn)" }}>Остання помилка доставки: {hook.last_error_message}</div>
                 : <div className="mono" style={{ color: "var(--dim)" }}>Зв'язок з Telegram: ок{hook.pending_update_count ? `, у черзі ${hook.pending_update_count}` : ""}.</div>)}
               {owner ? (
-                <div className="mono">Твій Telegram прив'язаний: <b>{getSetting("tg.owner_name") || owner}</b>. Пиши або надиктовуй боту в особисті — відповідатиме Джері.</div>
+                <>
+                  <div className="mono">Твій Telegram прив'язаний: <b>{getSetting("tg.owner_name") || owner}</b>. Пиши або надиктовуй боту в особисті — відповідатиме Джері.</div>
+                  <div className="card stack" style={{ background: "var(--bg-input)" }}>
+                    <b>Ранкове зведення</b>
+                    <div className="mono" style={{ color: "var(--dim)" }}>Щодня в Telegram: прострочені і сьогоднішні задачі, оплати, реклама за вчора, хто потребує уваги. Без ШІ — безкоштовно.</div>
+                    <form action={saveDigestAction} className="inline" style={{ flexWrap: "wrap" }}>
+                      <label className="inline" style={{ gap: "0.375rem" }}><input type="checkbox" name="on" defaultChecked={digestEnabled()} style={{ width: "auto" }} /> надсилати</label>
+                      <input type="time" name="time" defaultValue={digestTime()} style={{ width: "auto" }} aria-label="Час" />
+                      <button className="ghost small">Зберегти</button>
+                    </form>
+                    <div className="inline" style={{ flexWrap: "wrap" }}>
+                      <form action={sendDigestNowAction}><SubmitButton className="ghost small" pendingText="Надсилаю…">Надіслати зараз</SubmitButton></form>
+                      <form action={sendAvatarsAction}><SubmitButton className="ghost small" pendingText="Надсилаю…">Надіслати аватарки для бота</SubmitButton></form>
+                    </div>
+                  </div>
+                </>
               ) : me ? (
                 <div className="stack">
                   <div className="mono">Тепер покажи боту, що ти — це ти (щоб чужі не могли ним керувати):</div>
@@ -453,6 +471,7 @@ async function GoogleTab() {
               <a href="/api/google/connect" className="btn">Перепідключити</a>
               <form action={disconnectGoogleAction}><button className="ghost">Відключити</button></form>
             </div>
+            <BackupBlock />
           </>
         ) : g.configured ? (
           <>
@@ -597,6 +616,26 @@ function System() {
       <div className="card">
         <div className="chart-title"><span>Останні помилки</span><b>{s.errors.length}</b></div>
         {s.errors.length ? s.errors.slice(0, 10).map((e, i) => <div key={i} className="mono" style={{ padding: "6px 0", borderTop: i ? "1px solid var(--line)" : undefined }}>{new Date(e.at).toLocaleString("uk-UA")} · {e.where} · {e.message}</div>) : <div className="mono" style={{ color: "var(--dim)" }}>Помилок нема.</div>}
+      </div>
+    </div>
+  );
+}
+
+// Бекап бази на Google Диск — щодня о 04:00 сам, тут — стан і «зробити зараз»
+function BackupBlock() {
+  const b = backupInfo();
+  const url = backupFolderUrl();
+  return (
+    <div className="card stack" style={{ background: "var(--bg-input)" }}>
+      <b>Бекап бази на Диск</b>
+      <div className="mono" style={{ color: "var(--dim)" }}>Щодня о 04:00 копія всієї бази летить у «Client Ops — клієнти» → «_Бекапи бази» (30 останніх). Ключі (.env) туди не потрапляють.</div>
+      {b.last
+        ? <div className="mono">Останній: {new Date(b.last).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}{b.size ? ` · ${(Number(b.size) / 1024 / 1024).toFixed(1)} МБ` : ""}</div>
+        : <div className="mono">Ще не було.</div>}
+      {b.error && <div className="mono" style={{ color: "var(--bad)" }}>Помилка: {b.error}</div>}
+      <div className="inline" style={{ flexWrap: "wrap" }}>
+        <form action={backupNowAction}><SubmitButton className="ghost small" pendingText="Роблю бекап…">Зробити бекап зараз</SubmitButton></form>
+        {url && <a href={url} target="_blank" rel="noreferrer" className="btn ghost small">Папка з бекапами ↗</a>}
       </div>
     </div>
   );

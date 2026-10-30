@@ -41,6 +41,27 @@ export async function tg<T = unknown>(method: string, body: Record<string, unkno
   return d.result as T;
 }
 
+// Фото файлом (multipart) — для логотипу/аватарки
+export async function tgSendPhoto(chatId: number, photo: Buffer, filename: string, caption = ""): Promise<void> {
+  const token = tgToken();
+  if (!token) throw new Error("Telegram-бот не підключений");
+  const fd = new FormData();
+  fd.append("chat_id", String(chatId));
+  if (caption) fd.append("caption", caption);
+  fd.append("photo", new Blob([new Uint8Array(photo)], { type: "image/png" }), filename);
+  const r = await fetch(`${API()}/bot${token}/sendPhoto`, { method: "POST", body: fd, signal: AbortSignal.timeout(30000) });
+  const d = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string };
+  if (!d.ok) throw new Error(`Telegram: ${d.description ?? r.status}`);
+}
+
+// Адреса системи — з вебхука бота (він стоїть на <адреса>/api/telegram/webhook)
+export async function appOrigin(): Promise<string> {
+  try {
+    const h = await tg<WebhookInfo>("getWebhookInfo");
+    return h.url ? new URL(h.url).origin : "";
+  } catch { return ""; }
+}
+
 export type BotInfo = { id: number; username: string; first_name: string; can_read_all_group_messages?: boolean };
 export type WebhookInfo = { url: string; pending_update_count: number; last_error_message?: string; last_error_date?: number };
 
@@ -236,4 +257,25 @@ async function handlePrivate(m: TgMsg, fromOwner: boolean): Promise<void> {
     logError("telegram-private", e);
     await tg("sendMessage", { chat_id: m.chat.id, text: `Щось не вийшло: ${e instanceof Error ? e.message : "помилка"}` }).catch(() => {});
   }
+}
+
+// Аватарки для бота (логотип системи і Джері) — Саша ставить через @BotFather → /setuserpic.
+// Bot API сам собі аватар поставити не дає.
+export async function sendAvatars(): Promise<void> {
+  const owner = tgOwner();
+  if (!tgToken() || !owner) throw new Error("Спершу підключи бота і прив'яжи свій Telegram");
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const icon = (f: string) => readFileSync(join(process.cwd(), "public", "icons", f));
+  await tgSendPhoto(owner, icon("jerry-avatar.png"), "jerry.png", "Варіант 1 — я, Джері 🤖");
+  await tgSendPhoto(owner, icon("icon-512.png"), "client-ops.png", "Варіант 2 — логотип системи 🪐");
+  await tg("sendMessage", { chat_id: owner, text: "Щоб поставити аватарку: відкрий @BotFather → /setuserpic → обери мене → надішли одне з фото вище (просто перешли його туди)." });
+  setSetting("tg.avatar_sent", new Date().toISOString());
+}
+
+// Один раз після оновлення — щоб Саша отримав аватарки без кнопок
+export async function avatarsOnce(): Promise<void> {
+  if (getSetting("tg.avatar_sent") || !tgToken() || !tgOwner()) return;
+  setSetting("tg.avatar_sent", "pending");
+  await sendAvatars().catch((e) => logError("tg-avatar", e));
 }

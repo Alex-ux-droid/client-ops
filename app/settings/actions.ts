@@ -9,7 +9,9 @@ import { disconnectGoogle, saveGoogleClient } from "@/lib/google";
 import { CURRENCIES } from "@/lib/config";
 import { setSetting } from "@/lib/repo/settings";
 import { listVoices, saveVoiceChoice, saveVoiceKey } from "@/lib/voice";
-import { connectBot, disconnectBot, syncChatFiles } from "@/lib/telegram";
+import { connectBot, disconnectBot, sendAvatars, syncChatFiles } from "@/lib/telegram";
+import { sendDigest } from "@/lib/digest";
+import { backupToDrive } from "@/lib/backup";
 import { linkChat } from "@/lib/repo/telegram";
 import { connectMeta, disconnectMeta, linkAndSync, syncAll } from "@/lib/meta";
 import { createAgentToken, getApiKey, revokeAgentToken, saveApiKey } from "@/lib/secrets";
@@ -193,4 +195,35 @@ export async function syncMetaAction() {
   await requireUser();
   const r = await syncAll();
   back(r.failed ? `Оновлено ${r.ok}, з помилкою ${r.failed} — деталі біля кабінетів.` : `Оновлено кабінетів: ${r.ok}.`, !r.failed, "connectors&c=meta");
+}
+
+// ---- Ранкове зведення в Telegram
+export async function saveDigestAction(fd: FormData) {
+  await requireUser();
+  const time = String(fd.get("time") ?? "");
+  setSetting("tg.digest", fd.get("on") ? "on" : "off");
+  if (/^\d{2}:\d{2}$/.test(time)) setSetting("tg.digest_time", time);
+  back("Зведення збережено.", true, "connectors&c=telegram");
+}
+
+export async function sendDigestNowAction() {
+  await requireUser();
+  let err = "";
+  try { await sendDigest(); } catch (e) { err = e instanceof Error ? e.message : "Не вдалось"; }
+  back(err || "Надіслав зведення в Telegram.", !err, "connectors&c=telegram");
+}
+
+export async function sendAvatarsAction() {
+  await requireUser();
+  let err = "";
+  try { await sendAvatars(); } catch (e) { err = e instanceof Error ? e.message : "Не вдалось"; }
+  back(err || "Надіслав аватарки в Telegram.", !err, "connectors&c=telegram");
+}
+
+// ---- Бекап бази на Google Диск
+export async function backupNowAction() {
+  await requireUser();
+  let err = "";
+  try { await backupToDrive(); } catch (e) { err = e instanceof Error ? e.message : "Не вдалось"; }
+  back(err ? `Бекап не вийшов: ${err}` : "Бекап бази лежить на Google Диску.", !err, "connectors&c=google");
 }
