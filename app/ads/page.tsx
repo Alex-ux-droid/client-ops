@@ -3,7 +3,7 @@ import { syncMetaNowAction } from "@/app/actions";
 import AskAssistant from "@/components/AskAssistant";
 import { BarChart } from "@/components/Charts";
 import { fmtDate } from "@/lib/dates";
-import { lastSync, metaToken, tokenAgeDays } from "@/lib/meta";
+import { lastSync, metaBlockedUntil, metaToken, tokenAgeDays } from "@/lib/meta";
 import { accountBudget, accountSeries, accountTotals, ACCOUNT_STATUS, kyivDay, listAccounts, metaAlerts, type Totals } from "@/lib/repo/meta";
 
 export const dynamic = "force-dynamic";
@@ -96,6 +96,11 @@ export default async function AdsPage({ searchParams }: { searchParams: Promise<
 
       {sp.synced === "ok" && <div className="callout ads-note" style={{ borderColor: "var(--ok)" }}>Оновлено — цифри свіжі.</div>}
       {sp.synced === "err" && <div className="callout ads-note" style={{ borderColor: "var(--bad)" }}>Не оновились кабінети: {sp.n}. Причина — біля кабінету нижче.</div>}
+      {connected && metaBlockedUntil() && (
+        <div className="callout ads-note" style={{ borderColor: "var(--bad)" }}>
+          <b>Meta заблокувала доступ застосунку до API.</b> Цифри зараз не оновлюються (показуємо останні збережені), система пробує раз на 6 годин. Перевір: developers.facebook.com → твій застосунок — чи нема плашок «Restricted» / «Required actions»; Graph API Explorer → той самий токен → запит <code>me/adaccounts</code>. Після виправлення натисни «Оновити зараз».
+        </div>
+      )}
       {!connected && <div className="callout ads-note">Meta не підключена. <Link href="/settings?tab=connectors&c=meta">Налаштування → Конектори → Meta Ads</Link></div>}
       {connected && (age ?? 0) >= 50 && (
         <div className="callout ads-note" style={{ borderColor: "var(--warn)" }}>

@@ -32,6 +32,8 @@ async function get<T>(path: string, params: Record<string, string> = {}, tokenOv
     }
     if (e?.code === 17 || e?.code === 80004 || e?.code === 4) throw new Error("Meta просить зачекати (ліміт запитів) — спробую пізніше");
     if (/API access blocked/i.test(e?.message ?? "")) {
+      // пауза: не довбати Meta кожні 2 год, поки доступ заблокований (кнопка «Оновити зараз» пробує все одно)
+      setSetting("meta.blocked_until", new Date(Date.now() + 6 * 3600_000).toISOString());
       throw new Error("Meta заблокувала доступ застосунку до API (не токен — сам застосунок). Відкрий developers.facebook.com → свій застосунок: чи нема плашок «Restricted» / «Required actions» / перевірки; і в Graph API Explorer з тим самим токеном спробуй запит me/adaccounts. Якщо там теж блок — треба вирішити в Meta (або новий застосунок і новий токен).");
     }
     if (e?.code === 10 || e?.code === 200) throw new Error(`Нема доступу: ${e.message} (код ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ""})`);
@@ -81,6 +83,7 @@ export async function refreshAccounts(token?: string): Promise<number> {
     upsertAccount({ account_id: a.id, name: a.name ?? a.id, currency: a.currency ?? "", account_status: a.account_status ?? null, disable_reason: a.disable_reason ?? null, business_name: a.business_name ?? "" });
   }
   autoLinkFromServices();
+  setSetting("meta.blocked_until", "");
   return list.length;
 }
 
@@ -268,8 +271,12 @@ export async function syncAccount(accountId: string): Promise<void> {
 }
 
 // Усі прив'язані до клієнтів кабінети. Помилка одного не зупиняє інші.
-export async function syncAll(): Promise<{ ok: number; failed: number }> {
+export const metaBlockedUntil = () => { const t = getSetting("meta.blocked_until"); return t && +new Date(t) > Date.now() ? t : null; };
+
+export async function syncAll(opts: { manual?: boolean } = {}): Promise<{ ok: number; failed: number }> {
   if (!metaToken()) return { ok: 0, failed: 0 };
+  if (!opts.manual && metaBlockedUntil()) return { ok: 0, failed: 0 };
+  if (opts.manual) setSetting("meta.blocked_until", "");
   await refreshAccounts().catch((e) => logError("meta-accounts", e));
   let ok = 0, failed = 0;
   for (const a of listAccounts().filter((x) => x.client_id)) {

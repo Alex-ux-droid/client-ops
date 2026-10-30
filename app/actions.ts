@@ -421,7 +421,7 @@ export async function playbookToTasks(fd: FormData) {
 export async function syncMetaNowAction() {
   await requireUser();
   const { syncAll } = await import("@/lib/meta");
-  const r = await syncAll();
+  const r = await syncAll({ manual: true });
   revalidatePath("/ads");
   redirect(`/ads?synced=${r.failed ? `err&n=${r.failed}` : "ok"}`);
 }
