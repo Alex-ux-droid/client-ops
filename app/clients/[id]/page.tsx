@@ -20,7 +20,7 @@ import ServiceTab from "./ServiceTab";
 import { HistoryTab, MaterialsTab, MoneyTab, PlaybooksTab, TasksTab } from "./tabs";
 
 
-export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; new?: string; m?: string; err?: string; sent?: string; edit?: string; saved?: string }> }) {
+export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; new?: string; m?: string; err?: string; sent?: string; edit?: string; saved?: string; q?: string; n?: string }> }) {
   const id = Number((await params).id);
   const c = getClientRow(id);
   if (!c) notFound();
@@ -93,7 +93,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       {tab === "history" && <HistoryTab id={id} />}
       {tab === "money" && <MoneyTab id={id} fee={c.fee_monthly} payDay={c.pay_day} paidTotal={paidTotal} />}
       {tab === "files" && <FilesTab clientId={id} driveUrl={c.drive_url} google={google} err={sp.err} />}
-      {tab === "telegram" && <TelegramTab clientId={id} />}
+      {tab === "telegram" && <TelegramTab clientId={id} q={sp.q} n={sp.n} />}
       {tab === "mail" && <MailTab clientId={id} email={c.email} open={sp.m} err={sp.err} sent={sp.sent === "1"} />}
       {tab === "materials" && <MaterialsTab id={id} />}
       {tab === "playbooks" && <PlaybooksTab id={id} />}
