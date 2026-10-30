@@ -12,7 +12,7 @@ import { addMaterial, deleteMaterial, getMaterial, listMaterials, MATERIAL_KINDS
 import { addPayment, deletePayment, listPayments, markPaid, moneySummary } from "../repo/payments";
 import { attachPlaybook, checklistItems, clientPlaybooks, detachPlaybook, getPlaybook, listPlaybooks, savePlaybook, setChecklistItem } from "../repo/playbooks";
 import { searchAll } from "../repo/search";
-import { createTask, deleteTask, getTask, listTasks, setTaskStatus, updateTask, type TaskView } from "../repo/tasks";
+import { addTaskItems, addTaskLink, createTask, deleteTask, deleteTaskItem, getTask, listTasks, setTaskItem, setTaskStatus, taskItems, taskLinks, updateTask, type TaskPriority, type TaskView } from "../repo/tasks";
 import { addWork, deleteWork, listWork } from "../repo/worklog";
 import { createClientFolders, googleConnected, listMail, mailQuery, readMail } from "../google";
 import { FOLDER_KINDS, isServiceType as isSvc } from "../services";
@@ -87,8 +87,11 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "create_client", description: "Створити клієнта або ліда.", input_schema: obj(CLIENT_PROPS, ["name"]) },
   { name: "update_client", description: "Змінити поля клієнта. Передавай тільки те, що змінюється. Текстові поля замінюються повністю — якщо доповнюєш, передай старий текст + нове.", input_schema: obj({ client_id: int("ID клієнта"), ...CLIENT_PROPS }, ["client_id"]) },
   { name: "list_tasks", description: "Задачі. view: overdue, today, week (наступні дні тижня), later, all (всі відкриті), done (останні закриті).", input_schema: obj({ view: { type: "string", enum: ["overdue", "today", "week", "later", "all", "done"] }, client_id: int("Фільтр по клієнту, необов'язково") }, ["view"]) },
-  { name: "create_task", description: "Створити задачу.", input_schema: obj({ title: str("Що зробити"), client_id: int("ID клієнта, якщо стосується клієнта"), due_date: str("Дедлайн YYYY-MM-DD"), details: str("Деталі") }, ["title"]) },
-  { name: "update_task", description: "Змінити задачу: назву, деталі, дедлайн, статус todo/doing.", input_schema: obj({ task_id: int("ID задачі"), title: str("Назва"), details: str("Деталі"), due_date: str("YYYY-MM-DD"), status: { type: "string", enum: ["todo", "doing"] } }, ["task_id"]) },
+  { name: "create_task", description: "Створити задачу. Назва — коротко (до 80 символів). Кроки — в subtasks (галочки), «як зробити» / інструкція — в details (markdown: 1. списки, **жирне**, посилання), посилання на Диск/документи/чати — в links. Не пиши план абзацом у details.", input_schema: obj({ title: str("Що зробити, коротко"), client_id: int("ID клієнта, якщо стосується клієнта"), due_date: str("Дедлайн YYYY-MM-DD"), details: str("Інструкція / деталі, markdown"), priority: { type: "string", enum: ["high", "normal", "low"] }, subtasks: { type: "array", items: { type: "string" }, description: "Підзадачі-кроки (галочки)" }, links: { type: "array", items: obj({ url: str("https://…"), title: str("Назва") }, ["url"]), description: "Посилання і файли" } }, ["title"]) },
+  { name: "update_task", description: "Змінити задачу: назву, інструкцію (details замінює повністю), дедлайн, пріоритет, статус; додати підзадачі і посилання.", input_schema: obj({ task_id: int("ID задачі"), title: str("Назва"), details: str("Інструкція, markdown — замінює стару"), due_date: str("YYYY-MM-DD"), priority: { type: "string", enum: ["high", "normal", "low"] }, status: { type: "string", enum: ["todo", "doing"] }, add_subtasks: { type: "array", items: { type: "string" } }, add_links: { type: "array", items: obj({ url: str("https://…"), title: str("Назва") }, ["url"]) } }, ["task_id"]) },
+  { name: "get_task", description: "Задача повністю: інструкція, підзадачі з id і відмітками, посилання.", input_schema: obj({ task_id: int("ID задачі") }, ["task_id"]) },
+  { name: "task_to_calendar", description: "Поставити задачу в Google Календар Саші: подія на день дедлайну з нагадуванням напередодні (якщо вже є — оновити). Потрібен дедлайн.", input_schema: obj({ task_id: int("ID задачі") }, ["task_id"]) },
+  { name: "task_subtasks", description: "Відмітити / зняти відмітку / перейменувати / видалити підзадачі (id з get_task).", input_schema: obj({ task_id: int("ID задачі"), check: { type: "array", items: { type: "integer" } }, uncheck: { type: "array", items: { type: "integer" } }, remove: { type: "array", items: { type: "integer" } }, rename: { type: "array", items: obj({ id: int("ID підзадачі"), text: str("Новий текст") }, ["id", "text"]) } }, ["task_id"]) },
   { name: "complete_task", description: "Закрити задачу і записати в історію клієнта, що зробили, навіщо і результат.", input_schema: obj({ task_id: int("ID задачі"), what: str("Що зробили"), why: str("Навіщо"), result: str("Результат") }, ["task_id"]) },
   { name: "log_work", description: "Записати в історію клієнта виконану роботу (без задачі).", input_schema: obj({ client_id: int("ID клієнта"), what: str("Що зробили"), why: str("Навіщо"), result: str("Результат"), done_at: str("Дата YYYY-MM-DD, за замовчуванням сьогодні") }, ["client_id", "what"]) },
   { name: "add_idea", description: "Записати ідею (загальну або для клієнта).", input_schema: obj({ text: str("Ідея"), client_id: int("ID клієнта, необов'язково") }, ["text"]) },
@@ -199,14 +202,18 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
 
     case "list_tasks": {
       const view = (["overdue", "today", "week", "later", "all", "done"].includes(s(input.view)) ? s(input.view) : "all") as TaskView;
-      return listTasks(view, id(input.client_id) ?? undefined).map((t) => ({ id: t.id, title: t.title, client: t.client_name, client_id: t.client_id, due_date: t.due_date, status: t.status, details: t.details }));
+      return listTasks(view, id(input.client_id) ?? undefined).map((t) => ({ id: t.id, title: t.title, client: t.client_name, client_id: t.client_id, due_date: t.due_date, status: t.status, priority: t.priority,
+        subtasks: t.items_total ? `${t.items_done}/${t.items_total}` : undefined, details: t.details.slice(0, 300) }));
     }
 
     case "create_task": {
       const title = need(s(input.title), "title обов'язковий");
       const cid = id(input.client_id);
       const due = date(input.due_date);
-      const tid = createTask({ title, client_id: cid, due_date: due, details: s(input.details) });
+      const prio = (["high", "normal", "low"].includes(s(input.priority)) ? s(input.priority) : "normal") as TaskPriority;
+      const tid = createTask({ title, client_id: cid, due_date: due, details: s(input.details), priority: prio });
+      if (Array.isArray(input.subtasks)) addTaskItems(tid, (input.subtasks as unknown[]).map(String));
+      for (const l of (Array.isArray(input.links) ? input.links : []) as { url?: string; title?: string }[]) if (/^https?:\/\//.test(l.url ?? "")) addTaskLink(tid, l.url!, l.title ?? "");
       act("task", `Задача: ${title}${due ? ` · ${due}` : ""}${cid ? ` · ${clientName(cid)}` : ""}`, cid ? `/clients/${cid}?tab=tasks` : "/tasks?view=all");
       return { ok: true, task_id: tid };
     }
@@ -218,9 +225,41 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       if (input.title !== undefined) patch.title = s(input.title);
       if (input.details !== undefined) patch.details = s(input.details);
       if (input.due_date !== undefined) patch.due_date = date(input.due_date);
+      if (["high", "normal", "low"].includes(s(input.priority))) patch.priority = s(input.priority) as TaskPriority;
       updateTask(tid, patch);
+      if (Array.isArray(input.add_subtasks)) addTaskItems(tid, (input.add_subtasks as unknown[]).map(String));
+      for (const l of (Array.isArray(input.add_links) ? input.add_links : []) as { url?: string; title?: string }[]) if (/^https?:\/\//.test(l.url ?? "")) addTaskLink(tid, l.url!, l.title ?? "");
       if (input.status === "todo" || input.status === "doing") setTaskStatus(tid, input.status);
       act("task", `Змінено задачу: ${patch.title ?? t.title}`, t.client_id ? `/clients/${t.client_id}?tab=tasks` : "/tasks?view=all");
+      return { ok: true };
+    }
+
+    case "get_task": {
+      const tid = need(id(input.task_id), "task_id обов'язковий");
+      const t = need(getTask(tid), `Задачі ${tid} нема`);
+      return { id: t.id, title: t.title, client: t.client_name, client_id: t.client_id, status: t.status, priority: t.priority, due_date: t.due_date, details: t.details,
+        subtasks: taskItems(tid).map((i) => ({ id: i.id, text: i.text, done: !!i.done })), links: taskLinks(tid).map((l) => ({ title: l.title, url: l.url })) };
+    }
+
+    case "task_to_calendar": {
+      const tid = need(id(input.task_id), "task_id обов'язковий");
+      const t = need(getTask(tid), `Задачі ${tid} нема`);
+      const { taskToCalendar } = await import("../taskCalendar");
+      await taskToCalendar(tid);
+      act("task", `В календар: ${t.title} · ${t.due_date}`, t.client_id ? `/clients/${t.client_id}?tab=tasks&task=${tid}` : `/tasks?view=all&task=${tid}`);
+      return { ok: true };
+    }
+
+    case "task_subtasks": {
+      const tid = need(id(input.task_id), "task_id обов'язковий");
+      const t = need(getTask(tid), `Задачі ${tid} нема`);
+      const own = new Set(taskItems(tid).map((i) => i.id));
+      const ids = (k: string) => ((Array.isArray(input[k]) ? input[k] : []) as unknown[]).map(Number).filter((x) => own.has(x));
+      ids("check").forEach((x) => setTaskItem(x, { done: true }));
+      ids("uncheck").forEach((x) => setTaskItem(x, { done: false }));
+      ids("remove").forEach((x) => deleteTaskItem(x));
+      for (const r of (Array.isArray(input.rename) ? input.rename : []) as { id?: number; text?: string }[]) if (own.has(Number(r.id))) setTaskItem(Number(r.id), { text: r.text ?? "" });
+      act("task", `Підзадачі: ${t.title}`, t.client_id ? `/clients/${t.client_id}?tab=tasks&task=${tid}` : `/tasks?view=all&task=${tid}`);
       return { ok: true };
     }
 
