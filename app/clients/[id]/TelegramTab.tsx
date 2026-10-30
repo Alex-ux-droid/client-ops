@@ -1,7 +1,34 @@
 import Link from "next/link";
 import AskAssistant from "@/components/AskAssistant";
 import { chatsForClient, clientMessagesNewest, type TgMessage } from "@/lib/repo/telegram";
+import { fileUrl } from "@/lib/google";
 import TelegramImport from "./TelegramImport";
+
+const TG_FILE_LIMIT = 20 * 1024 * 1024;
+const mb = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} МБ` : `${Math.max(1, Math.round(b / 1024))} КБ`);
+
+// Фото — картинкою, документ/відео — посиланням; більше 20 МБ бот не скачує
+function Attach({ m }: { m: TgMessage }) {
+  if (!m.tg_file_id) return KIND[m.kind] ? <div className="tg-kind">{KIND[m.kind]}{m.file_name ? ` · ${m.file_name}` : ""}</div> : null;
+  const size = m.file_size ?? 0;
+  if (size > TG_FILE_LIMIT) return <div className="tg-kind">{KIND[m.kind]}{m.file_name ? ` · ${m.file_name}` : ""} · {mb(size)} — завеликий, тільки в Telegram</div>;
+  const src = `/api/tg/file/${m.id}`;
+  if (m.kind === "photo") {
+    return (
+      <a href={src} target="_blank" rel="noreferrer" className="tg-photo">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt="Фото з Telegram" loading="lazy" />
+      </a>
+    );
+  }
+  return (
+    <div className="tg-attach">
+      <a href={src} target="_blank" rel="noreferrer">{KIND[m.kind]}{m.file_name ? ` · ${m.file_name}` : ""}</a>
+      {size > 0 && <span>{mb(size)}</span>}
+      {m.drive_id && <a href={fileUrl(m.drive_id)} target="_blank" rel="noreferrer">на Диску</a>}
+    </div>
+  );
+}
 
 const KIND: Record<string, string> = { photo: "📷 Фото", document: "📎 Файл", video: "🎬 Відео", voice: "🎙 Голосове", other: "" };
 const PAGE = 150;
@@ -79,7 +106,7 @@ export default function TelegramTab({ clientId, q = "", n }: { clientId: number;
                   <div className="tg-who" style={b.me ? undefined : { color: color(b.who) }}>{b.me ? "Ти" : b.who}<span>{b.msgs[0].sent_at.slice(11, 16)}</span></div>
                   {b.msgs.map((m) => (
                     <div key={m.id} className={`tg-bubble ${m.kind !== "text" ? `k-${m.kind}` : ""}`}>
-                      {KIND[m.kind] && <div className="tg-kind">{KIND[m.kind]}{m.file_name ? ` · ${m.file_name}` : ""}</div>}
+                      <Attach m={m} />
                       {m.text && <div className="tg-text"><Linkify text={m.text} /></div>}
                       {b.msgs.length > 1 && <div className="tg-time">{m.sent_at.slice(11, 16)}</div>}
                     </div>

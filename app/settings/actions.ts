@@ -2,13 +2,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { agentConfig, saveAgentConfig, setAgentMemory } from "@/lib/agent/config";
 import { requireUser } from "@/lib/auth";
 import { disconnectGoogle, saveGoogleClient } from "@/lib/google";
 import { CURRENCIES } from "@/lib/config";
 import { setSetting } from "@/lib/repo/settings";
 import { listVoices, saveVoiceChoice, saveVoiceKey } from "@/lib/voice";
-import { connectBot, disconnectBot } from "@/lib/telegram";
+import { connectBot, disconnectBot, syncChatFiles } from "@/lib/telegram";
 import { linkChat } from "@/lib/repo/telegram";
 import { connectMeta, disconnectMeta, linkAndSync, syncAll } from "@/lib/meta";
 import { createAgentToken, getApiKey, revokeAgentToken, saveApiKey } from "@/lib/secrets";
@@ -155,6 +156,8 @@ export async function linkTelegramChatAction(fd: FormData) {
   const chatId = Number(fd.get("chat_id"));
   const clientId = Number(fd.get("client_id")) || null;
   if (chatId) linkChat(chatId, clientId);
+  // фото/файли, що прийшли до прив'язки — у папку клієнта на Диску (у фоні)
+  if (chatId && clientId) after(() => syncChatFiles(chatId));
   back(clientId ? "Групу прив'язано до клієнта — нові повідомлення підуть у його картку." : "Прив'язку знято.", true, "connectors&c=telegram");
 }
 
