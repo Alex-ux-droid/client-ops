@@ -69,6 +69,10 @@ function Updates() {
           <h1>Журнал системи</h1>
           <div className="hub-sub">Оновлення: що додали і змінили. Джері бачить останні й спирається на них.</div>
         </div>
+        <div className="inline" style={{ flexWrap: "wrap" }}>
+          <a href="/api/changelog/pdf?days=1" target="_blank" rel="noreferrer" className="btn ghost small">PDF за сьогодні</a>
+          <a href="/api/changelog/pdf?days=7" target="_blank" rel="noreferrer" className="btn ghost small">PDF за тиждень</a>
+        </div>
       </div>
       <div className="tabs">
         <Link href="/journal">Нові</Link>

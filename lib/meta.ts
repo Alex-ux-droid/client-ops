@@ -31,7 +31,10 @@ async function get<T>(path: string, params: Record<string, string> = {}, tokenOv
       throw new Error(`Токен Meta не працює: ${why}. Онови токен у Налаштування → Конектори → Meta Ads`);
     }
     if (e?.code === 17 || e?.code === 80004 || e?.code === 4) throw new Error("Meta просить зачекати (ліміт запитів) — спробую пізніше");
-    if (e?.code === 10 || e?.code === 200) throw new Error(`Нема доступу: ${e.message}`);
+    if (/API access blocked/i.test(e?.message ?? "")) {
+      throw new Error("Meta заблокувала доступ застосунку до API (не токен — сам застосунок). Відкрий developers.facebook.com → свій застосунок: чи нема плашок «Restricted» / «Required actions» / перевірки; і в Graph API Explorer з тим самим токеном спробуй запит me/adaccounts. Якщо там теж блок — треба вирішити в Meta (або новий застосунок і новий токен).");
+    }
+    if (e?.code === 10 || e?.code === 200) throw new Error(`Нема доступу: ${e.message} (код ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ""})`);
     throw new Error(`Meta: ${e?.message ?? r.status}`);
   }
   return d;
