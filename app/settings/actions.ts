@@ -193,7 +193,7 @@ export async function linkMetaAccountAction(fd: FormData) {
 
 export async function syncMetaAction() {
   await requireUser();
-  const r = await syncAll();
+  const r = await syncAll({ manual: true });
   back(r.failed ? `Оновлено ${r.ok}, з помилкою ${r.failed} — деталі біля кабінетів.` : `Оновлено кабінетів: ${r.ok}.`, !r.failed, "connectors&c=meta");
 }
 
