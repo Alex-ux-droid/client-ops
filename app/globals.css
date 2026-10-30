@@ -703,7 +703,7 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
 .tg-burst { display: flex; gap: 0.625rem; align-items: flex-start; max-width: min(44rem, 100%); }
 .tg-burst.me { margin-left: auto; flex-direction: row-reverse; }
 .tg-ava { flex: none; width: 2.25rem; height: 2.25rem; border-radius: 50%; display: grid; place-items: center; font-size: 0.8125rem; font-weight: 700; color: #0a0f1e; }
-.tg-bubbles { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.tg-bubbles { display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem; min-width: 0; }
 .tg-burst.me .tg-bubbles { align-items: flex-end; }
 .tg-who { font-size: 0.8125rem; font-weight: 600; display: flex; gap: 0.5rem; align-items: baseline; padding: 0 0.25rem; }
 .tg-burst.me .tg-who { color: var(--link); }
@@ -713,6 +713,13 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
 .tg-burst.me .tg-bubble { background: rgba(61, 107, 255, 0.16); border-color: rgba(61, 107, 255, 0.32); border-radius: 16px 4px 16px 16px; }
 .tg-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; font-size: 0.9375rem; color: var(--text); }
 .tg-kind { font-size: 0.8125rem; color: var(--muted); margin-bottom: 0.125rem; }
+.tg-bubble.k-photo { padding: 0.25rem; }
+.tg-bubble.k-photo .tg-text, .tg-bubble.k-photo .tg-time { padding: 0.25rem 0.5rem 0.125rem; }
+.tg-photo { display: block; }
+.tg-photo img { display: block; max-width: min(100%, 22rem); max-height: 24rem; border-radius: 12px; object-fit: cover; background: var(--bg-raise); min-width: 8rem; min-height: 6rem; }
+.tg-attach { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.625rem; font-size: 0.875rem; margin-bottom: 0.125rem; }
+.tg-attach a { color: var(--accent-hover); }
+.tg-attach span { color: var(--muted); font-size: 0.8125rem; }
 .tg-bubble.k-voice .tg-text { font-style: italic; color: var(--muted); }
 .tg-time { font-size: 0.75rem; color: var(--dim); text-align: right; margin-top: 0.125rem; }
 

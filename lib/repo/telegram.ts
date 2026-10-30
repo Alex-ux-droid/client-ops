@@ -1,7 +1,8 @@
 import { db } from "../db";
 
 export type TgChat = { chat_id: number; title: string; type: string; client_id: number | null; client_name: string | null; active: number; created_at: string; last_message_at: string | null; messages: number };
-export type TgMessage = { id: number; chat_id: number; message_id: number; from_id: number | null; from_name: string; is_owner: number; kind: string; text: string; file_name: string; sent_at: string };
+export type TgMessage = { id: number; chat_id: number; message_id: number; from_id: number | null; from_name: string; is_owner: number; kind: string; text: string; file_name: string; sent_at: string;
+  tg_file_id?: string; file_size?: number; mime?: string; drive_id?: string };
 
 export function upsertChat(chatId: number, title: string, type: string, active = true): void {
   db().prepare(`INSERT INTO tg_chats (chat_id, title, type, active) VALUES (?, ?, ?, ?)
@@ -27,8 +28,9 @@ export function linkChat(chatId: number, clientId: number | null): void {
 }
 
 export function addMessage(m: Omit<TgMessage, "id">): number {
-  const r = db().prepare(`INSERT OR IGNORE INTO tg_messages (chat_id, message_id, from_id, from_name, is_owner, kind, text, file_name, sent_at)
-    VALUES (@chat_id, @message_id, @from_id, @from_name, @is_owner, @kind, @text, @file_name, @sent_at)`).run(m);
+  const r = db().prepare(`INSERT OR IGNORE INTO tg_messages (chat_id, message_id, from_id, from_name, is_owner, kind, text, file_name, sent_at, tg_file_id, file_size, mime)
+    VALUES (@chat_id, @message_id, @from_id, @from_name, @is_owner, @kind, @text, @file_name, @sent_at, @tg_file_id, @file_size, @mime)`)
+    .run({ tg_file_id: "", file_size: 0, mime: "", ...m });
   db().prepare("UPDATE tg_chats SET last_message_at = ? WHERE chat_id = ?").run(m.sent_at, m.chat_id);
   return Number(r.lastInsertRowid);
 }
@@ -71,4 +73,23 @@ export function clientMessagesNewest(clientId: number, opts: { limit: number; q?
     WHERE ${where} ORDER BY m.sent_at DESC, m.id DESC LIMIT ?`).all(...args, opts.limit) as (TgMessage & { chat_title: string })[];
   const total = (db().prepare(`SELECT COUNT(*) n FROM tg_messages m JOIN tg_chats t ON t.chat_id = m.chat_id WHERE ${where}`).get(...args) as { n: number }).n;
   return { rows, total };
+}
+
+// Фото/файли
+export type TgFile = { id: number; chat_id: number; kind: string; file_name: string; sent_at: string; from_name: string; tg_file_id: string; file_size: number; mime: string; drive_id: string; client_id: number | null };
+
+export function getTgFile(id: number): TgFile | undefined {
+  return db().prepare(`SELECT m.id, m.chat_id, m.kind, m.file_name, m.sent_at, m.from_name, m.tg_file_id, m.file_size, m.mime, m.drive_id, t.client_id
+    FROM tg_messages m JOIN tg_chats t ON t.chat_id = m.chat_id WHERE m.id = ?`).get(id) as TgFile | undefined;
+}
+
+// Файли чату, які ще не лягли на Диск (для догрузки після прив'язки до клієнта)
+export function pendingTgFiles(chatId: number, limit = 200): TgFile[] {
+  return db().prepare(`SELECT m.id, m.chat_id, m.kind, m.file_name, m.sent_at, m.from_name, m.tg_file_id, m.file_size, m.mime, m.drive_id, t.client_id
+    FROM tg_messages m JOIN tg_chats t ON t.chat_id = m.chat_id WHERE m.chat_id = ? AND m.tg_file_id != '' AND m.drive_id = ''
+    ORDER BY m.sent_at DESC LIMIT ?`).all(chatId, limit) as TgFile[];
+}
+
+export function setDriveId(id: number, driveId: string): void {
+  db().prepare("UPDATE tg_messages SET drive_id = ? WHERE id = ?").run(driveId, id);
 }

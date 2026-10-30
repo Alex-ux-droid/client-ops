@@ -514,6 +514,8 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const cid = id(input.client_id);
       if (cid) need(getClientRow(cid), "Клієнта нема");
       linkChat(chatId, cid);
+      // фото/файли групи — на Диск клієнта (динамічний імпорт: telegram.ts сам тягне помічника)
+      if (cid) void import("../telegram").then((t) => t.syncChatFiles(chatId));
       act("telegram", cid ? `Група «${chat.title}» → ${clientName(cid)}` : `Група «${chat.title}» відвʼязана`, cid ? `/clients/${cid}?tab=telegram` : "/settings?tab=connectors&c=telegram");
       return { ok: true };
     }

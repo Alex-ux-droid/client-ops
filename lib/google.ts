@@ -116,7 +116,7 @@ async function createFolder(name: string, parent?: string): Promise<string> {
   return f.id;
 }
 
-async function folderExists(id: string): Promise<boolean> {
+export async function folderExists(id: string): Promise<boolean> {
   try {
     const f = await api<{ trashed: boolean }>(`https://www.googleapis.com/drive/v3/files/${id}?fields=trashed`);
     return !f.trashed;
@@ -124,6 +124,41 @@ async function folderExists(id: string): Promise<boolean> {
     if (e instanceof GoogleReconnectError) throw e;
     return false;
   }
+}
+
+export const folderIdFromUrl = (url: string) => url.match(/\/folders\/([\w-]+)/)?.[1] ?? null;
+export const fileUrl = (id: string) => `https://drive.google.com/file/d/${id}/view`;
+
+// Підпапка з назвою name у parent: знаходить існуючу або створює
+export async function ensureSubfolder(parent: string, name: string): Promise<string> {
+  const q = `'${parent}' in parents and name = '${name.replace(/'/g, "\\'")}' and mimeType = '${FOLDER_MIME}' and trashed = false`;
+  const r = await api<{ files: { id: string }[] }>(`https://www.googleapis.com/drive/v3/files?fields=files(id)&q=${encodeURIComponent(q)}`);
+  return r.files[0]?.id ?? createFolder(name, parent);
+}
+
+// Завантажити файл у папку (multipart: метадані + вміст), повертає id
+export async function uploadFile(parent: string, name: string, data: Blob, mime: string): Promise<string> {
+  const boundary = `co${Date.now().toString(36)}`;
+  const body = new Blob([
+    `--${boundary}\r\ncontent-type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, parents: [parent] })}\r\n`,
+    `--${boundary}\r\ncontent-type: ${mime || "application/octet-stream"}\r\n\r\n`,
+    data,
+    `\r\n--${boundary}--`,
+  ]);
+  const f = await api<{ id: string }>("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
+    method: "POST",
+    headers: { "content-type": `multipart/related; boundary=${boundary}` },
+    body,
+  });
+  return f.id;
+}
+
+// Вміст файлу з Диску (тільки ті, що створила система — scope drive.file)
+export async function downloadFile(id: string): Promise<Response> {
+  const token = await accessToken();
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`, { headers: { authorization: `Bearer ${token}` } });
+  if (!r.ok) throw new Error(`Google ${r.status}`);
+  return r;
 }
 
 // Головна папка «Client Ops» на Диску (створюється один раз)

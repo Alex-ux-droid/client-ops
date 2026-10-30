@@ -109,4 +109,5 @@ export const FOLDER_KINDS = [
   { kind: "portfolio", title: "Портфоліо" },
   { kind: "docs", title: "Документи" },
   { kind: "website", title: "Сайт" },
+  { kind: "telegram", title: "Telegram" },
 ] as const;
