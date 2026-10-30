@@ -79,17 +79,38 @@ export default function MetaLive({ clientId }: { clientId: number }) {
         <>
           <div className="mono">Креативи з найбільшими витратами за 30 днів</div>
           <div className="meta-ads">
-            {ads.map((a) => (
-              <div key={a.ad_id} className="card meta-ad">
-                {a.thumbnail_url ? <img src={a.thumbnail_url} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <div className="meta-ad-ph" />}
-                <div className="stack" style={{ gap: "0.25rem", minWidth: 0 }}>
-                  <b className="meta-ad-name">{a.name || "Оголошення"}</b>
-                  <div className="mono">{m(a.spend_30d)} · лідів {a.leads_30d} · ціна {m(a.leads_30d ? a.spend_30d / a.leads_30d : null)}</div>
-                  <div className="mono" style={{ color: "var(--dim)" }}>CTR {a.impressions_30d ? ((a.clicks_30d / a.impressions_30d) * 100).toFixed(2) : "—"}%{a.status ? ` · ${STATUS[a.status] ?? a.status.toLowerCase()}` : ""}</div>
-                  {a.body && <div className="meta-ad-body">{a.body}</div>}
+            {ads.map((a) => {
+              const img = a.image_url || a.thumbnail_url;
+              const cards = JSON.parse(a.images_json || "[]") as string[];
+              return (
+                <div key={a.ad_id} className="card meta-cr">
+                  <a href={img || undefined} target="_blank" rel="noreferrer" className="meta-cr-img">
+                    {img ? <img src={img} alt={a.name} loading="lazy" referrerPolicy="no-referrer" /> : <div className="meta-ad-ph" />}
+                    {a.kind === "video" && <span className="meta-cr-badge">▶ відео</span>}
+                    {cards.length > 1 && <span className="meta-cr-badge">карусель · {cards.length}</span>}
+                  </a>
+                  {cards.length > 1 && (
+                    <div className="meta-cr-cards">
+                      {cards.map((u, i) => <a key={i} href={u} target="_blank" rel="noreferrer"><img src={u} alt="" loading="lazy" referrerPolicy="no-referrer" /></a>)}
+                    </div>
+                  )}
+                  <div className="meta-cr-info">
+                    <b className="meta-ad-name">{a.name || "Оголошення"}</b>
+                    <div className="meta-cr-nums">
+                      <span><b>{m(a.spend_30d)}</b>витрати</span>
+                      <span><b>{a.leads_30d}</b>лідів</span>
+                      <span><b>{m(a.leads_30d ? a.spend_30d / a.leads_30d : null)}</b>ціна ліда</span>
+                      <span><b>{a.impressions_30d ? ((a.clicks_30d / a.impressions_30d) * 100).toFixed(2) : "—"}%</b>CTR</span>
+                    </div>
+                    {a.body && <div className="meta-ad-body">{a.body}</div>}
+                    <div className="meta-cr-foot">
+                      {a.status && <span className={`tag ${a.status === "ACTIVE" ? "ok" : ""}`}>{STATUS[a.status] ?? a.status.toLowerCase()}</span>}
+                      {a.preview_url && <a href={a.preview_url} target="_blank" rel="noreferrer">Як виглядає у Facebook ↗</a>}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
