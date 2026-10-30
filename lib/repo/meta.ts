@@ -5,7 +5,8 @@ export type MetaAccount = {
   client_id: number | null; client_name?: string | null; last_sync_at: string | null; last_error: string;
 };
 export type MetaCampaign = { campaign_id: string; account_id: string; name: string; status: string; objective: string; daily_budget: number | null; lifetime_budget: number | null };
-export type MetaAd = { ad_id: string; account_id: string; campaign_id: string; name: string; status: string; thumbnail_url: string; body: string; spend_30d: number; impressions_30d: number; clicks_30d: number; leads_30d: number };
+export type MetaAd = { ad_id: string; account_id: string; campaign_id: string; name: string; status: string; thumbnail_url: string; body: string;
+  image_url: string; kind: string; video_id: string; images_json: string; preview_url: string; spend_30d: number; impressions_30d: number; clicks_30d: number; leads_30d: number };
 export type Totals = { spend: number; impressions: number; clicks: number; leads: number };
 
 export const ACCOUNT_STATUS: Record<number, string> = {
@@ -55,8 +56,8 @@ export function saveSync(accountId: string, data: {
       VALUES (@account_id, @campaign_id, @date, @spend, @impressions, @clicks, @leads)`);
     for (const x of data.daily) d.run({ ...x, account_id: accountId });
     db().prepare("DELETE FROM meta_ads WHERE account_id = ?").run(accountId);
-    const a = db().prepare(`INSERT OR REPLACE INTO meta_ads (ad_id, account_id, campaign_id, name, status, thumbnail_url, body, spend_30d, impressions_30d, clicks_30d, leads_30d)
-      VALUES (@ad_id, @account_id, @campaign_id, @name, @status, @thumbnail_url, @body, @spend_30d, @impressions_30d, @clicks_30d, @leads_30d)`);
+    const a = db().prepare(`INSERT OR REPLACE INTO meta_ads (ad_id, account_id, campaign_id, name, status, thumbnail_url, body, image_url, kind, video_id, images_json, preview_url, spend_30d, impressions_30d, clicks_30d, leads_30d)
+      VALUES (@ad_id, @account_id, @campaign_id, @name, @status, @thumbnail_url, @body, @image_url, @kind, @video_id, @images_json, @preview_url, @spend_30d, @impressions_30d, @clicks_30d, @leads_30d)`);
     for (const x of data.ads) a.run({ ...x, account_id: accountId });
   });
   tx();
