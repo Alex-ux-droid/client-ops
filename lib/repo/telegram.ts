@@ -61,3 +61,14 @@ export function importMessages(chatId: number, msgs: Omit<TgMessage, "id" | "cha
   })();
   return added;
 }
+
+// Для перегляду: найновіші першими, з пошуком і «показати старіші»
+export function clientMessagesNewest(clientId: number, opts: { limit: number; q?: string }): { rows: (TgMessage & { chat_title: string })[]; total: number } {
+  const q = opts.q?.trim();
+  const where = `t.client_id = ?${q ? " AND (ulower(m.text) LIKE ulower(?) OR ulower(m.from_name) LIKE ulower(?))" : ""}`;
+  const args: unknown[] = [clientId, ...(q ? [`%${q}%`, `%${q}%`] : [])];
+  const rows = db().prepare(`SELECT m.*, t.title AS chat_title FROM tg_messages m JOIN tg_chats t ON t.chat_id = m.chat_id
+    WHERE ${where} ORDER BY m.sent_at DESC, m.id DESC LIMIT ?`).all(...args, opts.limit) as (TgMessage & { chat_title: string })[];
+  const total = (db().prepare(`SELECT COUNT(*) n FROM tg_messages m JOIN tg_chats t ON t.chat_id = m.chat_id WHERE ${where}`).get(...args) as { n: number }).n;
+  return { rows, total };
+}
