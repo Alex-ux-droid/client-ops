@@ -15,7 +15,7 @@ const STATUS = [
 ] as const;
 
 // Вкладка однієї послуги: налаштування, інструмент, поля, папка; для реклами — цифри по періодах
-export default function ServiceTab({ clientId, service, edit, saved }: { clientId: number; service: ClientService; edit: boolean; saved: boolean }) {
+export default function ServiceTab({ clientId, service, edit, saved, mv, err }: { clientId: number; service: ClientService; edit: boolean; saved: boolean; mv?: string; err?: string }) {
   const type = service.type as ServiceType;
   const def = serviceDef(type);
   const tools = def.tool ? listTools(def.tool.category) : [];
@@ -31,6 +31,8 @@ export default function ServiceTab({ clientId, service, edit, saved }: { clientI
   // Meta з привʼязаним кабінетом: спершу живі цифри, анкета — по кнопці «Редагувати»
   const live = type === "meta_ads" && accountsForClient(clientId).length > 0;
   const editing = edit || (!filled && !live);
+  // на підвкладках Meta (структура, креативи…) анкету не показуємо — тільки на «Огляді»
+  const showForm = !live || !mv || mv === "overview";
 
   return (
     <div className="stack" style={{ gap: "1.5rem" }}>
@@ -47,8 +49,10 @@ export default function ServiceTab({ clientId, service, edit, saved }: { clientI
         )}
       </div>
 
-      {live && <MetaLive clientId={clientId} />}
+      {live && <MetaLive clientId={clientId} view={mv} err={err} />}
 
+      {showForm && (
+        <>
       {/* key: після збереження форма перемальовується зі свіжими значеннями */}
       {editing ? (
         <form key={JSON.stringify([service.status, service.started_at, service.tool_id, service.details, service.notes])} action={saveServiceAction} className="card stack">
@@ -113,6 +117,8 @@ export default function ServiceTab({ clientId, service, edit, saved }: { clientI
           <div><button className="ghost small">Так, прибрати «{def.label}»</button></div>
         </form>
       </details>
+        </>
+      )}
     </div>
   );
 }

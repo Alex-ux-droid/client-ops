@@ -423,3 +423,19 @@ export async function syncMetaNowAction() {
   revalidatePath("/ads");
   redirect(`/ads?synced=${r.failed ? `err&n=${r.failed}` : "ok"}`);
 }
+
+// ---- Meta Ads: розбір від Джері (цифри + картинки креативів)
+export async function analyzeMetaAction(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "client_id");
+  if (!id) return;
+  let err = "";
+  try {
+    const { analyzeMeta } = await import("@/lib/metaAnalysis");
+    await analyzeMeta(id);
+  } catch (e) {
+    logError("meta-analysis", e);
+    err = e instanceof Error ? e.message : "Не вдалось";
+  }
+  redirect(`/clients/${id}?tab=meta_ads&mv=analysis${err ? `&err=${encodeURIComponent(err)}` : ""}`);
+}
