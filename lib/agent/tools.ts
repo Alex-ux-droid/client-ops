@@ -2,7 +2,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { ymd } from "../dates";
 import { addAgentMemory, setAgentMemory } from "./config";
-import { addAdStat, cpl, deleteAdStat, listAdStats } from "../repo/ads";
 import type { ChatAction } from "../repo/chat";
 import {
   CLIENT_FIELDS, CLIENT_STATUSES, clientFlags, createClient, deleteClient, getClientRow, LEAD_STAGES, listClients, updateClient,
@@ -93,7 +92,6 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "add_idea", description: "Записати ідею (загальну або для клієнта).", input_schema: obj({ text: str("Ідея"), client_id: int("ID клієнта, необов'язково") }, ["text"]) },
   { name: "add_material", description: "Зберегти матеріал клієнта: переписку, звіт, бриф.", input_schema: obj({ client_id: int("ID клієнта"), kind: { type: "string", enum: [...MATERIAL_KINDS] }, title: str("Назва"), content: str("Повний текст") }, ["client_id", "content"]) },
   { name: "get_material", description: "Прочитати повний текст матеріалу.", input_schema: obj({ material_id: int("ID матеріалу") }, ["material_id"]) },
-  { name: "add_ad_stats", description: "Додати цифри з рекламного кабінету за період.", input_schema: obj({ client_id: int("ID клієнта"), period_start: str("YYYY-MM-DD"), period_end: str("YYYY-MM-DD"), spend: num("Витрачено"), impressions: int("Покази"), clicks: int("Кліки"), leads: int("Ліди"), sales: int("Продажі"), revenue: num("Виручка клієнта"), platform: str("facebook, google, tiktok, other"), note: str("Коментар") }, ["client_id", "period_start", "period_end"]) },
   { name: "add_payment", description: "Додати оплату від клієнта: отриману (paid=true) або очікувану.", input_schema: obj({ client_id: int("ID клієнта"), amount: num("Сума"), date: str("YYYY-MM-DD: дата оплати або очікувана дата"), paid: { type: "boolean" }, note: str("Коментар") }, ["client_id", "amount", "paid"]) },
   { name: "money_summary", description: "Гроші за поточний місяць: отримано, очікується, прострочено, щомісячний дохід, і список неоплачених.", input_schema: obj({}) },
   { name: "set_service", description: `Увімкнути послугу клієнту (відкриває вкладку в картці) і/або заповнити її. Типи: ${SERVICE_DOC}. Поля в details передавай тільки ті, що відомі.`, input_schema: obj({ client_id: int("ID клієнта"), type: { type: "string", enum: [...SERVICE_TYPES] }, status: { type: "string", enum: ["active", "paused", "done"] }, started_at: str("З якої дати, YYYY-MM-DD"), tool: str("Назва інструменту: яка CRM / телефонія / на чому сайт"), details: { type: "object", description: "Поля послуги: ключ → текст", additionalProperties: { type: "string" } }, notes: str("Нотатки") }, ["client_id", "type"]) },
@@ -107,7 +105,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "set_payment", description: "Відмітити оплату як отриману / не отриману, або видалити оплату.", input_schema: obj({ payment_id: int("ID оплати (з get_client або money_summary)"), action: { type: "string", enum: ["paid", "unpaid", "delete"] } }, ["payment_id", "action"]) },
   { name: "list_ideas", description: "Ідеї (з id): нові, використані, відкинуті.", input_schema: obj({ client_id: int("Фільтр по клієнту"), status: { type: "string", enum: ["new", "used", "dropped"] } }) },
   { name: "set_idea", description: "Позначити ідею використаною/відкинутою/новою або видалити.", input_schema: obj({ idea_id: int("ID ідеї"), action: { type: "string", enum: ["new", "used", "dropped", "delete"] } }, ["idea_id", "action"]) },
-  { name: "delete_record", description: "Видалити запис: work (історія робіт), material (матеріал), ad_stat (період реклами).", input_schema: obj({ kind: { type: "string", enum: ["work", "material", "ad_stat"] }, id: int("ID запису") }, ["kind", "id"]) },
+  { name: "delete_record", description: "Видалити запис: work (історія робіт), material (матеріал).", input_schema: obj({ kind: { type: "string", enum: ["work", "material"] }, id: int("ID запису") }, ["kind", "id"]) },
   { name: "checklist", description: "Поставити або зняти галочку в плейбуці клієнта (client_playbook_id та index — з get_client).", input_schema: obj({ client_playbook_id: int("ID плейбука клієнта"), index: int("Номер пункту з 0"), done: { type: "boolean" } }, ["client_playbook_id", "index", "done"]) },
   { name: "detach_playbook", description: "Відключити плейбук від клієнта.", input_schema: obj({ client_playbook_id: int("ID плейбука клієнта") }, ["client_playbook_id"]) },
   { name: "save_playbook", description: "Створити новий плейбук або оновити існуючий (передай playbook_id). body_md: заголовки '#' і пункти '- [ ] текст'.", input_schema: obj({ playbook_id: int("ID, якщо оновлюємо"), title: str("Назва"), body_md: str("Markdown з чеклістом"), tags: str("Теги через кому") }, ["title", "body_md"]) },
@@ -156,14 +154,12 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
     case "get_client": {
       const cid = need(id(input.client_id), "client_id обов'язковий");
       const c = need(getClientRow(cid), `Клієнта ${cid} нема`);
-      const ads = listAdStats(cid).slice(-6);
       return {
         ...c,
         flags: clientFlags(c).map((f) => f.text),
         open_tasks: listTasks("all", cid).map((t) => ({ id: t.id, title: t.title, due_date: t.due_date, status: t.status })),
         recent_work: listWork(cid, 15).map((w) => ({ id: w.id, date: w.done_at, what: w.what, why: w.why, result: w.result })),
         materials: listMaterials(cid).map((m) => ({ id: m.id, kind: m.kind, title: m.title, created_at: m.created_at })),
-        ads: ads.map((a) => ({ ...a, cpl: cpl(a) })),
         payments: listPayments({ clientId: cid }).slice(0, 12).map((p) => ({ id: p.id, amount: p.amount, due_date: p.due_date, paid_at: p.paid_at, note: p.note })),
         services: listServices(cid).map((sv) => ({ type: sv.type, status: sv.status, started_at: sv.started_at, tool: sv.tool_name, details: sv.details, notes: sv.notes })),
         playbooks: clientPlaybooks(cid).map((p) => ({ client_playbook_id: p.id, title: p.title, items: checklistItems(p.body_md).map((t, i) => ({ index: i, text: t, done: p.checked.includes(i) })) })),
@@ -262,20 +258,6 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
 
     case "get_material":
       return need(getMaterial(need(id(input.material_id), "material_id обов'язковий")), "Матеріалу нема");
-
-    case "add_ad_stats": {
-      const cid = need(id(input.client_id), "client_id обов'язковий");
-      const ps = need(date(input.period_start), "period_start YYYY-MM-DD");
-      const pe = need(date(input.period_end), "period_end YYYY-MM-DD");
-      addAdStat({
-        client_id: cid, platform: s(input.platform) || "facebook", period_start: ps, period_end: pe,
-        spend: n(input.spend), impressions: Math.trunc(n(input.impressions)), clicks: Math.trunc(n(input.clicks)),
-        leads: Math.trunc(n(input.leads)), sales: Math.trunc(n(input.sales)), revenue: n(input.revenue), note: s(input.note),
-      });
-      const svc = SERVICE_TYPES.find((t) => (SERVICES[t] as ServiceDef).adPlatform === (s(input.platform) || "facebook"));
-      act("ads", `Реклама ${clientName(cid)}: ${ps}–${pe}`, `/clients/${cid}?tab=${svc ?? "overview"}`);
-      return { ok: true };
-    }
 
     case "add_payment": {
       const cid = need(id(input.client_id), "client_id обов'язковий");
@@ -396,8 +378,8 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
     case "delete_record": {
       const rid = need(id(input.id), "id");
       const k = s(input.kind);
-      if (k === "work") deleteWork(rid); else if (k === "material") deleteMaterial(rid); else if (k === "ad_stat") deleteAdStat(rid);
-      else throw new Error("kind: work | material | ad_stat");
+      if (k === "work") deleteWork(rid); else if (k === "material") deleteMaterial(rid);
+      else throw new Error("kind: work | material");
       act("delete", `Видалено запис (${k === "work" ? "історія" : k === "material" ? "матеріал" : "реклама"})`);
       return { ok: true };
     }

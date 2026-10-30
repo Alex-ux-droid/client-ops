@@ -16,7 +16,7 @@ import { SERVICES, type ServiceType } from "@/lib/services";
 const STATUS_TXT = { active: "ведемо", paused: "пауза", done: "завершено" } as const;
 
 // Огляд клієнта: за хвилину зрозуміти, де ми, куди йдемо, що в роботі і що вже зроблено
-export default function Overview({ c, services, paidTotal, isNew, cplLast }: { c: ClientRow; services: ClientService[]; paidTotal: number; isNew: boolean; cplLast: number | null }) {
+export default function Overview({ c, services, paidTotal, isNew, cplText }: { c: ClientRow; services: ClientService[]; paidTotal: number; isNew: boolean; cplText: string | null }) {
   const id = c.id;
   const tasks = listTasks("all", id).slice(0, 5);
   const work = listWork(id, 5);
@@ -66,7 +66,7 @@ export default function Overview({ c, services, paidTotal, isNew, cplLast }: { c
             <div><b>{c.fee_monthly ? money(c.fee_monthly) : "—"}</b><span>платить / міс</span></div>
             <div><b style={{ color: c.debt ? "var(--bad)" : undefined }}>{money(c.debt)}</b><span>борг</span></div>
             <div><b>{money(paidTotal)}</b><span>отримано всього</span></div>
-            <div><b>{cplLast !== null ? money(cplLast) : "—"}</b><span>ціна ліда</span></div>
+            <div><b>{cplText ?? "—"}</b><span>ціна ліда, 7 дн.</span></div>
           </div>
           {c.budget && <div className="mono">Бюджет / умови: {c.budget}</div>}
         </section>

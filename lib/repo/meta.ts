@@ -128,3 +128,20 @@ export function autoLinkFromServices(): number {
   }
   return n;
 }
+
+// ---- Загальна панель «Реклама»: цифри по кабінетах
+export function accountTotals(accountId: string, since: string, until: string): Totals {
+  return db().prepare(`SELECT COALESCE(SUM(spend),0) spend, COALESCE(SUM(impressions),0) impressions, COALESCE(SUM(clicks),0) clicks, COALESCE(SUM(leads),0) leads
+    FROM meta_daily WHERE account_id = ? AND date BETWEEN ? AND ?`).get(accountId, since, until) as Totals;
+}
+
+export function accountSeries(accountId: string, since: string): { date: string; spend: number; leads: number }[] {
+  return db().prepare(`SELECT date, SUM(spend) spend, SUM(leads) leads FROM meta_daily WHERE account_id = ? AND date >= ?
+    GROUP BY date ORDER BY date`).all(accountId, since) as { date: string; spend: number; leads: number }[];
+}
+
+// Активні кампанії і сума їх денних бюджетів
+export function accountBudget(accountId: string): { active: number; daily: number } {
+  return db().prepare(`SELECT COUNT(*) active, COALESCE(SUM(daily_budget),0) daily FROM meta_campaigns
+    WHERE account_id = ? AND status = 'ACTIVE'`).get(accountId) as { active: number; daily: number };
+}

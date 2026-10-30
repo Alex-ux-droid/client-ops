@@ -5,9 +5,8 @@ import { money } from "@/lib/config";
 import { fmtDate } from "@/lib/dates";
 import { listFolders, listTools, type ClientService } from "@/lib/repo/services";
 import { serviceDef, type ServiceType } from "@/lib/services";
-import { AdsStats } from "./tabs";
-import MetaLive from "./MetaLive";
 import { accountsForClient } from "@/lib/repo/meta";
+import MetaLive from "./MetaLive";
 
 const STATUS = [
   { v: "active", label: "Ведемо зараз" },
@@ -29,7 +28,9 @@ export default function ServiceTab({ clientId, service, edit, saved }: { clientI
   ].filter(Boolean) as { href: string; label: string }[];
   // Порожня послуга — одразу форма; заповнена — гарний перегляд, форма по кнопці «Редагувати»
   const filled = !!(service.tool_id || service.started_at || service.notes || Object.values(service.details).some(Boolean));
-  const editing = edit || !filled;
+  // Meta з привʼязаним кабінетом: спершу живі цифри, анкета — по кнопці «Редагувати»
+  const live = type === "meta_ads" && accountsForClient(clientId).length > 0;
+  const editing = edit || (!filled && !live);
 
   return (
     <div className="stack" style={{ gap: "1.5rem" }}>
@@ -45,6 +46,8 @@ export default function ServiceTab({ clientId, service, edit, saved }: { clientI
           </div>
         )}
       </div>
+
+      {live && <MetaLive clientId={clientId} />}
 
       {/* key: після збереження форма перемальовується зі свіжими значеннями */}
       {editing ? (
@@ -100,13 +103,6 @@ export default function ServiceTab({ clientId, service, edit, saved }: { clientI
         <ServiceView service={service} type={type} clientId={clientId} saved={saved} />
       )}
 
-      {type === "meta_ads" && <MetaLive clientId={clientId} />}
-      {def.adPlatform && (
-        <div>
-          <h2 style={{ marginBottom: "0.75rem" }}>{type === "meta_ads" && accountsForClient(clientId).length ? "Періоди, внесені вручну" : "Цифри з кабінету"}</h2>
-          <AdsStats id={clientId} platform={def.adPlatform} />
-        </div>
-      )}
 
       <details className="danger-zone">
         <summary>Прибрати послугу</summary>
