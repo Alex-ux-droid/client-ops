@@ -1,7 +1,7 @@
 // Meta Ads — тільки читання (Marketing API, без бібліотек). Токен системного користувача з Business Manager (ads_read).
 // Цифри тягнемо самі за розкладом (вебхуків на витрати в Meta нема).
 import { logError } from "./log";
-import { autoLinkFromServices, kyivDay, saveSync, setSyncResult, upsertAccount, listAccounts, type MetaAd, type MetaCampaign } from "./repo/meta";
+import { autoLinkFromServices, getAnalysis, kyivDay, totals, saveSync, setSyncResult, upsertAccount, listAccounts, type Breakdown, type MetaAd, type MetaAdset, type MetaCampaign } from "./repo/meta";
 import { getSetting, setSetting } from "./repo/settings";
 import { enableService, getService } from "./repo/services";
 import { linkAccount } from "./repo/meta";
@@ -192,13 +192,49 @@ export async function syncAccount(accountId: string): Promise<void> {
     type C = { id: string; name: string; effective_status: string; objective?: string; daily_budget?: string; lifetime_budget?: string };
     const camps = await all<C>(`${accountId}/campaigns`, { fields: "id,name,effective_status,objective,daily_budget,lifetime_budget", limit: "200" });
 
-    type I = { campaign_id?: string; ad_id?: string; date_start: string; spend?: string; impressions?: string; clicks?: string; actions?: Action[] };
+    type I = { campaign_id?: string; adset_id?: string; ad_id?: string; date_start: string; spend?: string; impressions?: string; clicks?: string; reach?: string; actions?: Action[] } & Record<string, string | Action[] | undefined>;
     const daily = await all<I>(`${accountId}/insights`, {
       level: "campaign", fields: "campaign_id,spend,impressions,clicks,actions", time_range: range, time_increment: "1", limit: "500",
     });
     const adStats = await all<I>(`${accountId}/insights`, {
-      level: "ad", fields: "ad_id,campaign_id,spend,impressions,clicks,actions", time_range: range, limit: "500",
+      level: "ad", fields: "ad_id,adset_id,campaign_id,spend,impressions,clicks,reach,actions", time_range: range, limit: "500",
     });
+
+    // Групи оголошень (аудиторії) з цифрами за 30 днів — не критично: збій не зупиняє синхронізацію
+    let adsets: Omit<MetaAdset, "account_id">[] | undefined;
+    try {
+      type S = { id: string; name: string; campaign_id: string; effective_status: string; daily_budget?: string; lifetime_budget?: string; optimization_goal?: string };
+      const list = await all<S>(`${accountId}/adsets`, { fields: "id,name,campaign_id,effective_status,daily_budget,lifetime_budget,optimization_goal", limit: "200" });
+      const st = await all<I>(`${accountId}/insights`, { level: "adset", fields: "adset_id,spend,impressions,clicks,reach,actions", time_range: range, limit: "500" });
+      const by = new Map(st.map((x) => [x.adset_id, x]));
+      adsets = list.map((a) => {
+        const x = by.get(a.id);
+        return {
+          adset_id: a.id, campaign_id: a.campaign_id, name: a.name, status: a.effective_status, daily_budget: budget(a.daily_budget), lifetime_budget: budget(a.lifetime_budget),
+          optimization_goal: a.optimization_goal ?? "", spend_30d: num(x?.spend), impressions_30d: num(x?.impressions), clicks_30d: num(x?.clicks), leads_30d: leadsOf(x?.actions), reach_30d: num(x?.reach),
+        };
+      });
+    } catch (e) {
+      logError(`meta-adsets ${accountId}`, e);
+    }
+
+    // Загальні цифри за 30 днів (охоплення не можна скласти з днів) і розрізи: де показується, кому, звідки, з чого
+    const breakdowns: Breakdown[] = [];
+    const cuts: { kind: string; by: string; key: (x: I) => string }[] = [
+      { kind: "total", by: "", key: () => "30d" },
+      { kind: "placement", by: "publisher_platform,platform_position", key: (x) => `${x.publisher_platform ?? ""} · ${x.platform_position ?? ""}` },
+      { kind: "age_gender", by: "age,gender", key: (x) => `${x.age ?? ""} · ${x.gender ?? ""}` },
+      { kind: "region", by: "region", key: (x) => String(x.region ?? "") },
+      { kind: "device", by: "impression_device", key: (x) => String(x.impression_device ?? "") },
+    ];
+    for (const c of cuts) {
+      try {
+        const rows = await all<I>(`${accountId}/insights`, { level: "account", fields: "spend,impressions,clicks,reach,actions", time_range: range, limit: "500", ...(c.by ? { breakdowns: c.by } : {}) });
+        for (const x of rows) breakdowns.push({ kind: c.kind, key: c.key(x), spend: num(x.spend), impressions: num(x.impressions), clicks: num(x.clicks), leads: leadsOf(x.actions), reach: num(x.reach) });
+      } catch (e) {
+        logError(`meta-breakdown ${c.kind} ${accountId}`, e);
+      }
+    }
 
     // Креативи тільки для оголошень з витратами. Через ребро /ads з фільтром по id
     // (параметр ?ids= у v26 прибрали). Якщо не вийде — цифри все одно зберігаємо, просто без картинок.
@@ -212,12 +248,12 @@ export async function syncAccount(accountId: string): Promise<void> {
     const ads: Omit<MetaAd, "account_id">[] = spent.map((x) => {
       const a = creatives[x.ad_id ?? ""] ?? EMPTY_CREATIVE;
       return {
-        ad_id: x.ad_id ?? "", ...a, campaign_id: x.campaign_id || a.campaign_id,
+        ad_id: x.ad_id ?? "", ...a, campaign_id: x.campaign_id || a.campaign_id, adset_id: x.adset_id ?? "", reach_30d: num(x.reach),
         spend_30d: num(x.spend), impressions_30d: num(x.impressions), clicks_30d: num(x.clicks), leads_30d: leadsOf(x.actions),
       };
     });
     saveSync(accountId, {
-      since, campaigns, ads,
+      since, campaigns, ads, adsets, breakdowns,
       daily: daily.map((x) => ({ campaign_id: x.campaign_id ?? "", date: x.date_start, spend: num(x.spend), impressions: num(x.impressions), clicks: num(x.clicks), leads: leadsOf(x.actions) })),
     });
     setSyncResult(accountId, "");
@@ -236,7 +272,30 @@ export async function syncAll(): Promise<{ ok: number; failed: number }> {
     try { await syncAccount(a.account_id); ok++; } catch (e) { failed++; logError(`meta-sync ${a.name}`, e); }
   }
   setSetting("meta.last_sync", new Date().toISOString());
+  void weeklyAnalysis();
   return { ok, failed };
+}
+
+// Розбір від Джері сам раз на тиждень на клієнта (тільки де є витрати і ключ Anthropic) — у фоні, по черзі
+const WEEK = 7 * 86400_000;
+async function weeklyAnalysis(): Promise<void> {
+  const g = globalThis as unknown as { __metaAnalyzing?: boolean };
+  if (g.__metaAnalyzing) return;
+  g.__metaAnalyzing = true;
+  try {
+    const { analyzeMeta } = await import("./metaAnalysis");
+    const { getApiKey } = await import("./secrets");
+    if (!getApiKey()) return;
+    const clients = [...new Set(listAccounts().map((a) => a.client_id).filter(Boolean) as number[])];
+    for (const cid of clients) {
+      const last = getAnalysis(cid);
+      if (last && Date.now() - +new Date(last.created_at.replace(" ", "T") + "Z") < WEEK) continue;
+      if (!totals(cid, kyivDay(29), kyivDay(0)).spend) continue;
+      try { await analyzeMeta(cid); } catch (e) { logError(`meta-analysis ${cid}`, e); }
+    }
+  } finally {
+    g.__metaAnalyzing = false;
+  }
 }
 
 export const lastSync = () => getSetting("meta.last_sync");

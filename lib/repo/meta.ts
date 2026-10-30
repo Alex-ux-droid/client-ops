@@ -6,7 +6,10 @@ export type MetaAccount = {
 };
 export type MetaCampaign = { campaign_id: string; account_id: string; name: string; status: string; objective: string; daily_budget: number | null; lifetime_budget: number | null };
 export type MetaAd = { ad_id: string; account_id: string; campaign_id: string; name: string; status: string; thumbnail_url: string; body: string;
-  image_url: string; kind: string; video_id: string; images_json: string; preview_url: string; spend_30d: number; impressions_30d: number; clicks_30d: number; leads_30d: number };
+  image_url: string; kind: string; video_id: string; images_json: string; preview_url: string; adset_id: string; reach_30d: number; spend_30d: number; impressions_30d: number; clicks_30d: number; leads_30d: number };
+export type MetaAdset = { adset_id: string; account_id: string; campaign_id: string; name: string; status: string; daily_budget: number | null; lifetime_budget: number | null;
+  optimization_goal: string; spend_30d: number; impressions_30d: number; clicks_30d: number; leads_30d: number; reach_30d: number };
+export type Breakdown = { kind: string; key: string; spend: number; impressions: number; clicks: number; leads: number; reach: number };
 export type Totals = { spend: number; impressions: number; clicks: number; leads: number };
 
 export const ACCOUNT_STATUS: Record<number, string> = {
@@ -44,6 +47,8 @@ export function saveSync(accountId: string, data: {
   daily: { campaign_id: string; date: string; spend: number; impressions: number; clicks: number; leads: number }[];
   ads: Omit<MetaAd, "account_id">[];
   since: string;
+  adsets?: Omit<MetaAdset, "account_id">[];
+  breakdowns?: Breakdown[];
 }): void {
   const tx = db().transaction(() => {
     const c = db().prepare(`INSERT INTO meta_campaigns (campaign_id, account_id, name, status, objective, daily_budget, lifetime_budget, updated_at)
@@ -56,9 +61,23 @@ export function saveSync(accountId: string, data: {
       VALUES (@account_id, @campaign_id, @date, @spend, @impressions, @clicks, @leads)`);
     for (const x of data.daily) d.run({ ...x, account_id: accountId });
     db().prepare("DELETE FROM meta_ads WHERE account_id = ?").run(accountId);
-    const a = db().prepare(`INSERT OR REPLACE INTO meta_ads (ad_id, account_id, campaign_id, name, status, thumbnail_url, body, image_url, kind, video_id, images_json, preview_url, spend_30d, impressions_30d, clicks_30d, leads_30d)
-      VALUES (@ad_id, @account_id, @campaign_id, @name, @status, @thumbnail_url, @body, @image_url, @kind, @video_id, @images_json, @preview_url, @spend_30d, @impressions_30d, @clicks_30d, @leads_30d)`);
+    const a = db().prepare(`INSERT OR REPLACE INTO meta_ads (ad_id, account_id, campaign_id, name, status, thumbnail_url, body, image_url, kind, video_id, images_json, preview_url, adset_id, reach_30d, spend_30d, impressions_30d, clicks_30d, leads_30d)
+      VALUES (@ad_id, @account_id, @campaign_id, @name, @status, @thumbnail_url, @body, @image_url, @kind, @video_id, @images_json, @preview_url, @adset_id, @reach_30d, @spend_30d, @impressions_30d, @clicks_30d, @leads_30d)`);
     for (const x of data.ads) a.run({ ...x, account_id: accountId });
+    if (data.adsets) {
+      db().prepare("DELETE FROM meta_adsets WHERE account_id = ?").run(accountId);
+      const s = db().prepare(`INSERT OR REPLACE INTO meta_adsets (adset_id, account_id, campaign_id, name, status, daily_budget, lifetime_budget, optimization_goal, spend_30d, impressions_30d, clicks_30d, leads_30d, reach_30d)
+        VALUES (@adset_id, @account_id, @campaign_id, @name, @status, @daily_budget, @lifetime_budget, @optimization_goal, @spend_30d, @impressions_30d, @clicks_30d, @leads_30d, @reach_30d)`);
+      for (const x of data.adsets) s.run({ ...x, account_id: accountId });
+    }
+    if (data.breakdowns) {
+      // розріз, який цього разу не прийшов (помилка Meta), лишаємо старим
+      const kinds = [...new Set(data.breakdowns.map((b) => b.kind))];
+      for (const k of kinds) db().prepare("DELETE FROM meta_breakdowns WHERE account_id = ? AND kind = ?").run(accountId, k);
+      const b = db().prepare(`INSERT OR REPLACE INTO meta_breakdowns (account_id, kind, key, spend, impressions, clicks, leads, reach)
+        VALUES (@account_id, @kind, @key, @spend, @impressions, @clicks, @leads, @reach)`);
+      for (const x of data.breakdowns) b.run({ ...x, account_id: accountId });
+    }
   });
   tx();
 }
@@ -145,4 +164,35 @@ export function accountSeries(accountId: string, since: string): { date: string;
 export function accountBudget(accountId: string): { active: number; daily: number } {
   return db().prepare(`SELECT COUNT(*) active, COALESCE(SUM(daily_budget),0) daily FROM meta_campaigns
     WHERE account_id = ? AND status = 'ACTIVE'`).get(accountId) as { active: number; daily: number };
+}
+
+// ---- Глибокий розбір: групи оголошень, розрізи, усі оголошення, аналіз Джері
+export function adsetsForClient(clientId: number): MetaAdset[] {
+  const acc = ids(clientId);
+  if (!acc.length) return [];
+  return db().prepare(`SELECT * FROM meta_adsets WHERE account_id IN (${inList(acc.length)}) ORDER BY spend_30d DESC`).all(...acc) as MetaAdset[];
+}
+
+export function adsForClient(clientId: number): MetaAd[] {
+  const acc = ids(clientId);
+  if (!acc.length) return [];
+  return db().prepare(`SELECT * FROM meta_ads WHERE account_id IN (${inList(acc.length)}) ORDER BY spend_30d DESC`).all(...acc) as MetaAd[];
+}
+
+// Розріз по всіх кабінетах клієнта (однакові ключі складаються)
+export function breakdowns(clientId: number, kind: string): Breakdown[] {
+  const acc = ids(clientId);
+  if (!acc.length) return [];
+  return db().prepare(`SELECT kind, key, SUM(spend) spend, SUM(impressions) impressions, SUM(clicks) clicks, SUM(leads) leads, SUM(reach) reach
+    FROM meta_breakdowns WHERE account_id IN (${inList(acc.length)}) AND kind = ? GROUP BY key ORDER BY spend DESC`).all(...acc, kind) as Breakdown[];
+}
+
+export type MetaAnalysis = { summary?: string; pros?: string[]; cons?: string[]; tips?: string[]; audience?: string; creatives?: Record<string, string> };
+export function getAnalysis(clientId: number): { data: MetaAnalysis; created_at: string } | null {
+  const r = db().prepare("SELECT data_json, created_at FROM meta_analysis WHERE client_id = ?").get(clientId) as { data_json: string; created_at: string } | undefined;
+  return r ? { data: JSON.parse(r.data_json) as MetaAnalysis, created_at: r.created_at } : null;
+}
+export function saveAnalysis(clientId: number, data: MetaAnalysis): void {
+  db().prepare(`INSERT INTO meta_analysis (client_id, data_json, created_at) VALUES (?, ?, datetime('now'))
+    ON CONFLICT(client_id) DO UPDATE SET data_json = excluded.data_json, created_at = excluded.created_at`).run(clientId, JSON.stringify(data));
 }
