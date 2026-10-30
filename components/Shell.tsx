@@ -10,6 +10,7 @@ import QuickAdd from "./QuickAdd";
 import type { AssistantSeed } from "./assistant";
 import Bot from "./Bot";
 import Drafts from "./Drafts";
+import { useHoldToTalk } from "./useHoldToTalk";
 import Icon from "./Icon";
 import { SECTIONS, type Counts } from "./nav";
 
@@ -28,6 +29,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
   const [add, setAdd] = useState(false);
   const [dock, setDock] = useState(false);
   const [seed, setSeed] = useState<AssistantSeed | null>(null);
+  const ptt = useHoldToTalk(() => setDock(true));
   const [botState, setBotState] = useState<"idle" | "listening" | "thinking" | "speaking">("idle");
   const [mobile, setMobile] = useState(false);
 
@@ -114,18 +116,19 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
 
       <nav className="tabbar">
         {MOBILE.slice(0, 2).map((h) => <TabLink key={h} item={all.find((i) => i.href === h)!} on={on(h)} counts={counts} />)}
-        <button className="fab bot-fab" onClick={() => setDock(true)} aria-label="Джері"><Bot size={44} /></button>
+        <button className="fab bot-fab ptt" {...ptt.bind} aria-label="Джері: натисни — чат, затисни — говори"><Bot size={44} state={ptt.state} /></button>
         <TabLink item={all.find((i) => i.href === "/clients")!} on={on("/clients")} counts={counts} />
         <Link href="/menu" className={`tab ${path === "/menu" ? "on" : ""}`}><span className="ico"><Icon name="menu" size={22} /></span>Меню</Link>
       </nav>
 
       {/* Помічник завжди на виду: робот у кутку (на телефоні — кнопка по центру знизу) */}
       {!dock && (
-        <button className="bot-float-btn" onClick={() => setDock(true)} aria-label="Джері" title="Джері (Ctrl+J)">
-          <Bot size={76} />
-          <span className="bot-label">Джері — натисни і скажи, що треба</span>
+        <button className="bot-float-btn ptt" {...ptt.bind} aria-label="Джері: натисни — чат, затисни — говори" title="Джері: натисни — чат, затисни — говори (Ctrl+J)">
+          <Bot size={76} state={ptt.state} />
+          <span className="bot-label">Натисни — чат · затисни — говори</span>
         </button>
       )}
+      {ptt.label && !dock && <div className={`ptt-toast ${ptt.state}`} role="status">{ptt.state === "listening" && <span className="ptt-dot" />}{ptt.label}</div>}
       {dock && (
         <div className="overlay dock-overlay" onClick={() => setDock(false)}>
           <aside className="dock" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Джері">

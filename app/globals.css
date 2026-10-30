@@ -756,3 +756,17 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
 .kb-list .row-title { font-size: 1.0625rem; }
 .kb-article { max-width: 52rem; }
 .kb-article .md p { font-size: 1rem; line-height: 1.65; }
+.tg-import-wrap summary { list-style: none; cursor: pointer; margin-bottom: 0.75rem; }
+.tg-import h2 { font-size: 1.125rem; }
+/* «Затисни і говори» на роботі */
+.ptt { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: none; }
+.ptt-toast {
+  position: fixed; z-index: 46; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 1.25rem);
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.625rem 1rem; border-radius: 999px; font-size: 0.9375rem; font-weight: 500;
+  background: var(--bg-raise); border: 1px solid var(--line-strong); box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.5); white-space: nowrap;
+}
+.ptt-toast.listening { border-color: var(--bad); }
+.ptt-dot { width: 0.625rem; height: 0.625rem; border-radius: 50%; background: var(--bad); animation: pulse 1.2s infinite; }
+@media (min-width: 900px) { .ptt-toast { left: auto; right: 7.5rem; transform: none; bottom: 2.5rem; } }
+.bot-float-btn, .bot-float-btn:hover, .bot-float-btn:active, .bot-float-btn:focus { background: none !important; box-shadow: none; }
+.bot-float-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 50%; }

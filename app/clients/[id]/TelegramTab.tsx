@@ -1,6 +1,7 @@
 import { fmtDate } from "@/lib/dates";
 import { chatsForClient, clientMessages } from "@/lib/repo/telegram";
 import AskAssistant from "@/components/AskAssistant";
+import TelegramImport from "./TelegramImport";
 
 const KIND: Record<string, string> = { photo: "📷 фото", document: "📎 файл", video: "🎬 відео", voice: "🎙 голосове", other: "" };
 
@@ -21,6 +22,10 @@ export default function TelegramTab({ clientId }: { clientId: number }) {
         </div>
       </div>
       {msgs.length === 0 && <div className="empty card">Поки тиша. Повідомлення з групи з'являться тут, щойно хтось напише.</div>}
+      <details className="tg-import-wrap">
+        <summary className="h-link">Додати стару історію з Telegram Desktop</summary>
+        <TelegramImport clientId={clientId} />
+      </details>
       <div className="tg-log">
         {msgs.map((m) => {
           const d = fmtDate(m.sent_at);

@@ -49,3 +49,15 @@ export function clientMessages(clientId: number, opts: { limit?: number; since?:
     ) ORDER BY sent_at, id`).all(...[clientId, ...(opts.since ? [opts.since] : []), opts.limit ?? 200]);
   return rows as (TgMessage & { chat_title: string })[];
 }
+
+// Імпорт історії з Telegram Desktop: тільки нові повідомлення (за id у чаті), повертає скільки додано
+export function importMessages(chatId: number, msgs: Omit<TgMessage, "id" | "chat_id">[]): number {
+  const ins = db().prepare(`INSERT OR IGNORE INTO tg_messages (chat_id, message_id, from_id, from_name, is_owner, kind, text, file_name, sent_at)
+    VALUES (@chat_id, @message_id, @from_id, @from_name, @is_owner, @kind, @text, @file_name, @sent_at)`);
+  let added = 0;
+  db().transaction(() => {
+    for (const m of msgs) added += ins.run({ ...m, chat_id: chatId }).changes;
+    db().prepare("UPDATE tg_chats SET last_message_at = (SELECT MAX(sent_at) FROM tg_messages WHERE chat_id = ?) WHERE chat_id = ?").run(chatId, chatId);
+  })();
+  return added;
+}

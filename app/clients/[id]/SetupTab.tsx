@@ -5,6 +5,7 @@ import type { ClientService } from "@/lib/repo/services";
 import { chatsForClient } from "@/lib/repo/telegram";
 import { SERVICE_TYPES, SERVICES, type ServiceType } from "@/lib/services";
 import { googleConnected } from "@/lib/google";
+import TelegramImport from "./TelegramImport";
 
 const GROUPS = ["Реклама", "Сайт і продажі", "Команда"] as const;
 const STATUS_TXT = { active: "ведемо", paused: "пауза", done: "завершено" } as const;
@@ -69,6 +70,8 @@ export default function SetupTab({ c, services }: { c: ClientRow; services: Clie
           </div>
         </div>
       </section>
+
+      <TelegramImport clientId={id} />
     </div>
   );
 }
