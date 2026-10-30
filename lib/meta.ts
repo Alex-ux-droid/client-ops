@@ -1,6 +1,7 @@
 // Meta Ads — тільки читання (Marketing API, без бібліотек). Токен системного користувача з Business Manager (ads_read).
 // Цифри тягнемо самі за розкладом (вебхуків на витрати в Meta нема).
 import { logError } from "./log";
+import { autoOn } from "./agent/caps";
 import { autoLinkFromServices, getAnalysis, kyivDay, totals, saveSync, setSyncResult, upsertAccount, listAccounts, type Breakdown, type MetaAd, type MetaAdset, type MetaCampaign } from "./repo/meta";
 import { getSetting, setSetting } from "./repo/settings";
 import { enableService, getService } from "./repo/services";
@@ -280,7 +281,7 @@ export async function syncAll(): Promise<{ ok: number; failed: number }> {
 const WEEK = 7 * 86400_000;
 async function weeklyAnalysis(): Promise<void> {
   const g = globalThis as unknown as { __metaAnalyzing?: boolean };
-  if (g.__metaAnalyzing) return;
+  if (g.__metaAnalyzing || !autoOn("meta_analysis")) return;
   g.__metaAnalyzing = true;
   try {
     const { analyzeMeta } = await import("./metaAnalysis");

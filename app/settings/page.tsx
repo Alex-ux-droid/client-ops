@@ -13,6 +13,8 @@ import { listChats } from "@/lib/repo/telegram";
 import { listClients } from "@/lib/repo/clients";
 import { getSetting } from "@/lib/repo/settings";
 import { listVoices, VOICE_MODELS, voiceConfig, type Voice } from "@/lib/voice";
+import { AUTO, CAPS, autoOn, capOn } from "@/lib/agent/caps";
+import { saveCapsAction } from "./actions";
 import { backupNowAction, saveDigestAction, sendAvatarsAction, sendDigestNowAction } from "./actions";
 import { backupFolderUrl, backupInfo } from "@/lib/backup";
 import { digestEnabled, digestTime } from "@/lib/digest";
@@ -30,6 +32,7 @@ import { systemInfo } from "@/lib/system";
 const TABS = [
   { k: "general", label: "Загальне" },
   { k: "agent", label: "Джері" },
+  { k: "caps", label: "Можливості" },
   { k: "connectors", label: "Конектори" },
   { k: "catalog", label: "Довідники" },
   { k: "access", label: "Доступи" },
@@ -71,6 +74,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {tab === "general" && <General />}
       {tab === "agent" && <div className="stack" style={{ gap: "1rem" }}><Agent /><AgentMemory /></div>}
       {tab === "connectors" && (conn === "google" ? <GoogleTab /> : conn === "voice" ? <VoiceTab /> : conn === "telegram" ? <TelegramTab /> : conn === "meta" ? <MetaTab /> : <Connectors />)}
+      {tab === "caps" && <Caps />}
       {tab === "catalog" && <Catalog />}
       {tab === "access" && <Access />}
       {tab === "system" && <System />}
@@ -638,5 +642,32 @@ function BackupBlock() {
         {url && <a href={url} target="_blank" rel="noreferrer" className="btn ghost small">Папка з бекапами ↗</a>}
       </div>
     </div>
+  );
+}
+
+// Тумблери: що Джері може і що система робить сама
+function Caps() {
+  const Row = ({ name, on, label, desc }: { name: string; on: boolean; label: string; desc: string }) => (
+    <label className="cap-row">
+      <input type="checkbox" name={name} defaultChecked={on} className="cap-toggle" />
+      <span><b>{label}</b><small>{desc}</small></span>
+    </label>
+  );
+  return (
+    <form action={saveCapsAction} className="stack" style={{ gap: "1rem" }}>
+      <div className="grid2">
+        <div className="card stack">
+          <h2>Що Джері може</h2>
+          <div className="mono" style={{ color: "var(--dim)" }}>Читати і дивитись (клієнтів, задачі, рекламу, переписку) Джері може завжди. Тут — що він може робити.</div>
+          {CAPS.map((c) => <Row key={c.key} name={`cap.${c.key}`} on={capOn(c.key)} label={c.label} desc={c.desc} />)}
+        </div>
+        <div className="card stack">
+          <h2>Що система робить сама</h2>
+          <div className="mono" style={{ color: "var(--dim)" }}>Фонові задачі. Вимкнув — просто перестане робити, нічого не зламається.</div>
+          {AUTO.map((a) => <Row key={a.key} name={`auto.${a.key}`} on={autoOn(a.key)} label={a.label} desc={a.desc} />)}
+        </div>
+      </div>
+      <div><SubmitButton>Зберегти</SubmitButton></div>
+    </form>
   );
 }

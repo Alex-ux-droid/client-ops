@@ -2,6 +2,7 @@
 // Працює у фоні (відповідь Саші не чекає), окремим коротким запитом.
 import Anthropic from "@anthropic-ai/sdk";
 import { logError } from "../log";
+import { autoOn } from "./caps";
 import { getApiKey } from "../secrets";
 import { agentConfig, agentMemory, MEMORY_MAX, setAgentMemory } from "./config";
 
@@ -30,7 +31,7 @@ const g = globalThis as unknown as { __reflecting?: boolean };
 
 export async function reflect(exchange: { user: string; reply: string; actions: string[] }): Promise<void> {
   const key = getApiKey();
-  if (!key || g.__reflecting) return;
+  if (!key || g.__reflecting || !autoOn("reflect")) return;
   // Короткі «ок», «дякую» — нема чого вчити
   if (exchange.user.trim().length < 12 && !exchange.actions.length) return;
   g.__reflecting = true;

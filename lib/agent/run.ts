@@ -10,12 +10,19 @@ import { listChangelog } from "../repo/changelog";
 
 import { reflect } from "./reflect";
 import { runTool, TOOLS } from "./tools";
+import { CAPS, capOn, toolAllowed } from "./caps";
 
 // Останні оновлення системи — щоб Джері знав свої нові можливості і не тримався за старе з пам'яті
 function updatesBlock(): string {
   const list = listChangelog(8);
   if (!list.length) return "";
   return `Останні оновлення системи (свіжіше за твою пам'ять — якщо пам'ять каже інакше, вір оновленням і виправ пам'ять через memory_rewrite; повний список — system_updates):\n${list.map((e) => `- ${e.created_at.slice(0, 10)} ${e.title}: ${e.body}`).join("\n")}`;
+}
+
+// Що Саша вимкнув у Налаштування → «Можливості» — щоб Джері не обіцяв і підказав, де увімкнути
+function capsBlock(): string {
+  const off = CAPS.filter((c) => !capOn(c.key));
+  return off.length ? `Саша вимкнув тобі (Налаштування → «Можливості»): ${off.map((c) => `${c.label} (${c.desc})`).join("; ")}. Якщо просить таке — скажи, що це вимкнено, і де увімкнути. Все інше тобі можна.` : "";
 }
 
 export class NoKeyError extends Error {}
@@ -105,13 +112,14 @@ export async function runAgent(clientId: number | null, userText: string, page =
     cfg.instructions.trim() && `Інструкції від Саші (головніші за все інше):\n${cfg.instructions.trim()}`,
     `Твоя пам'ять (що ти вже знаєш про Сашу і роботу):\n${memory.trim() || "поки порожньо"}`,
     updatesBlock(),
+    capsBlock(),
   ].filter(Boolean).join("\n\n");
   const system: Anthropic.Beta.BetaTextBlockParam[] = [
     { type: "text", text: stable, cache_control: { type: "ephemeral" } },
     { type: "text", text: contextBlock(clientId, page, screen) },
   ];
 
-  const ctx = { actions: [] as ChatAction[] };
+  const ctx = { actions: [] as ChatAction[], telegram: page.startsWith("Telegram") };
   let reply = "";
 
   for (let step = 0; step < MAX_STEPS; step++) {
@@ -119,7 +127,7 @@ export async function runAgent(clientId: number | null, userText: string, page =
       model: cfg.model,
       max_tokens: 16000,
       system,
-      tools: TOOLS,
+      tools: TOOLS.filter((t) => toolAllowed(t.name)),
       messages,
       output_config: { effort: cfg.effort },
       // Якщо модель відмовить з міркувань безпеки — API сам спробує іншу (де це підтримується)

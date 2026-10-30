@@ -20,6 +20,8 @@ import { addDevEntry } from "../repo/devlog";
 import { finishLab } from "../lab";
 import { getKb, listKb, saveKb } from "../repo/kb";
 import { chatsForClient, clientMessages, linkChat, listChats } from "../repo/telegram";
+import { getFile, readFile, saveFile } from "../repo/files";
+import { capOfTool, toolAllowed } from "./caps";
 import { accountsForClient, ACCOUNT_STATUS, listAccounts, adsetsForClient, breakdowns, campaignsWithStats, dailySeries, getAnalysis, kyivDay, metaAlerts, topAds, totals } from "../repo/meta";
 import { label as cutLabel } from "../metaInsights";
 import { listChangelog } from "../repo/changelog";
@@ -28,7 +30,7 @@ import { addTool, enableService, findToolByName, listServices, listTools, remove
 import { isServiceType, SERVICE_TYPES, SERVICES, type ServiceDef } from "../services";
 
 type Input = Record<string, unknown>;
-type Ctx = { actions: ChatAction[] };
+type Ctx = { actions: ChatAction[]; telegram?: boolean };
 
 const s = (v: unknown) => (typeof v === "string" ? v.trim() : v == null ? "" : String(v));
 const n = (v: unknown) => {
@@ -121,6 +123,8 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "list_playbooks", description: "Список плейбуків.", input_schema: obj({}) },
   { name: "get_playbook", description: "Текст плейбука.", input_schema: obj({ playbook_id: int("ID плейбука") }, ["playbook_id"]) },
   { name: "attach_playbook", description: "Підключити плейбук до клієнта.", input_schema: obj({ client_id: int("ID клієнта"), playbook_id: int("ID плейбука") }, ["client_id", "playbook_id"]) },
+  { name: "make_pdf", description: "Зробити PDF (A4) з markdown: # заголовки, абзаци, списки - і 1., чекліст - [ ], **жирне**, --- лінія, таблиці | a | b |. Повертає посилання на файл. У Telegram-розмові файл одразу йде Саші документом. Для «на одну сторінку» — пиши стисло (~350 слів).", input_schema: obj({ title: str("Заголовок документа"), content: str("Вміст у markdown (без заголовка — він окремо)"), file_name: str("Назва файлу, необовʼязково"), client_id: int("Клієнт, якщо документ про нього"), send_to_telegram: { type: "boolean", description: "Надіслати Саші в Telegram (у Telegram-розмові — завжди)" }, caption: str("Підпис до файлу в Telegram") }, ["title", "content"]) },
+  { name: "telegram_send", description: "Надіслати Саші в Telegram повідомлення (text) або файл (file_id з make_pdf). Для нагадувань, коли він просить «скинь мені в телеграм».", input_schema: obj({ text: str("Текст або підпис до файлу"), file_id: int("ID файлу з make_pdf") }, []) },
   { name: "system_updates", description: "Журнал оновлень системи: що Claude додав або змінив і коли (твої нові можливості). Дивись, коли не впевнений, чи щось уже вміє система.", input_schema: obj({ limit: int("Скільки останніх, за замовчуванням 20") }, []) },
   { name: "meta_ads", description: "Живі цифри Meta Ads клієнта (оновлюються самі кожні 2 год, тільки читання): підсумок за N днів і попередні N днів (витрати, покази, кліки, ліди, ціна ліда, CTR), по днях, кампанії з бюджетами і статусами, топ креативів за 30 днів, тривоги. Змінювати рекламу ти не можеш — тільки радити.", input_schema: obj({ client_id: int("ID клієнта"), days: int("Період у днях, за замовчуванням 7") }, ["client_id"]) },
   { name: "meta_accounts", description: "Усі рекламні кабінети Meta, які бачить система: id, назва, валюта, статус (активний/закритий/борг), до якого клієнта привʼязаний.", input_schema: obj({}) },
@@ -146,6 +150,7 @@ const clientName = (cid: number | null) => (cid ? getClientRow(cid)?.name ?? `#$
 
 export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unknown> {
   const act = (kind: string, text: string, href?: string) => ctx.actions.push({ kind, text, href });
+  if (!toolAllowed(name)) return { error: `Це вимкнено в Налаштування → «Можливості» (${capOfTool(name)?.label}). Скажи Саші, де увімкнути.` };
   switch (name) {
     case "search":
       return searchAll(s(input.query), 8);
@@ -362,6 +367,38 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       for (const f of subs) saveFolder(cid, f.kind, f.title, f.url);
       act("files", `Папки на Диску: ${c.name}`, `/clients/${cid}?tab=files`);
       return { ok: true, url: mainUrl };
+    }
+
+    case "make_pdf": {
+      const title = need(s(input.title), "title обов'язковий");
+      const content = need(s(input.content), "content обов'язковий");
+      const { markdownToPdf } = await import("../pdf");
+      const data = await markdownToPdf(title, content);
+      const name = `${(s(input.file_name) || title).replace(/\.pdf$/i, "").slice(0, 80)}.pdf`;
+      const f = saveFile({ name, mime: "application/pdf", data, client_id: id(input.client_id) });
+      let telegram = false;
+      if (input.send_to_telegram === true || ctx.telegram) {
+        const { tgOwner, tgSendDocument } = await import("../telegram");
+        const owner = tgOwner();
+        if (owner) { await tgSendDocument(owner, data, name, "application/pdf", s(input.caption)); telegram = true; }
+      }
+      act("file", `PDF: ${title}`, `/api/files/${f.id}`);
+      return { ok: true, file_id: f.id, url: `/api/files/${f.id}`, pages_hint: "A4", sent_to_telegram: telegram };
+    }
+
+    case "telegram_send": {
+      const { tg, tgOwner, tgSendDocument } = await import("../telegram");
+      const owner = need(tgOwner(), "Telegram Саші не привʼязаний (Налаштування → Конектори → Telegram)");
+      if (input.file_id) {
+        const f = need(getFile(Math.trunc(n(input.file_id))), "Файлу нема");
+        const data = need(readFile(f), "Файл зник з диска");
+        await tgSendDocument(owner, data, f.name, f.mime, s(input.text));
+      } else {
+        const text = need(s(input.text), "text або file_id обовʼязковий");
+        for (let i = 0; i < text.length; i += 4000) await tg("sendMessage", { chat_id: owner, text: text.slice(i, i + 4000) });
+      }
+      act("telegram", "Надіслано в Telegram");
+      return { ok: true };
     }
 
     case "journal_add": {

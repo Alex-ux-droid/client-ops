@@ -7,6 +7,7 @@ import { gzipSync } from "node:zlib";
 import { db } from "./db";
 import { deleteFile, ensureSubfolder, folderExists, folderUrl, googleConnected, listFolderFiles, rootFolder, uploadBig } from "./google";
 import { logError } from "./log";
+import { autoOn } from "./agent/caps";
 import { getSetting, setSetting } from "./repo/settings";
 
 const KEEP = 30;
@@ -47,7 +48,7 @@ export const backupFolderUrl = () => { const f = getSetting("backup.folder"); re
 
 // Щохвилини: о 04:00 за Києвом раз на добу
 export async function backupTick(): Promise<void> {
-  if (!googleConnected()) return;
+  if (!googleConnected() || !autoOn("backup")) return;
   const now = kyivNow();
   if (now.slice(11, 16) < "04:00") return;
   const last = getSetting("backup.last");
