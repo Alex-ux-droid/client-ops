@@ -16,6 +16,7 @@ export const SECTIONS: { title: string; items: { href: string; label: string; ic
   {
     title: "Знання",
     items: [
+      { href: "/kb", label: "База знань", ico: "file" },
       { href: "/playbooks", label: "Плейбуки", ico: "book" },
       { href: "/ideas", label: "Ідеї", ico: "bulb", count: "ideas" },
       { href: "/journal", label: "Журнал системи", ico: "wrench", count: "journal" },
