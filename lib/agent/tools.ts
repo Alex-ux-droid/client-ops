@@ -138,7 +138,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "startup_get", description: "Стартап повністю: суть, стадія, фундамент (canvas), етапи плану з задачами, гіпотези, рішення, питання, нотатки, ТЗ.", input_schema: obj({ startup_id: int("ID стартапу") }, ["startup_id"]) },
   { name: "idea_capture", description: "Записати сиру ідею в скриньку стартапів дослівно (коли Саша накидає ідею «на потім»).", input_schema: obj({ text: str("Ідея як сказав Саша") }, ["text"]) },
   { name: "startup_create", description: "Створити стартап-проєкт (не сиру ідею). Потім заповни фундамент через startup_update.", input_schema: obj({ name: str("Робоча назва"), one_liner: str("Одним реченням: що і для кого"), stage: { type: "string", enum: ["idea", "research", "foundation", "build", "launch", "grow"] } }, ["name"]) },
-  { name: "startup_update", description: "Оновити стартап: назву, суть, стадію (raw→idea→research→foundation→build→launch→grow, paused, closed), головну метрику, наступний крок, репозиторій, адресу продакшену, блоки фундаменту (canvas: problem, audience, solution, why_us, money, channels, competitors, metrics, risks — передавай тільки ті, що міняєш), ТЗ для Claude Code (spec_md, markdown — замінює повністю).", input_schema: obj({ startup_id: int("ID стартапу"), name: str("Назва"), one_liner: str("Суть одним реченням"), stage: { type: "string", enum: ["raw", "idea", "research", "foundation", "build", "launch", "grow", "paused", "closed"] }, north_star: str("Головна метрика"), next_step: str("Наступний крок"), repo: str("GitHub owner/name"), prod_url: str("Адреса продакшену"), canvas: { type: "object", description: "Блоки фундаменту: ключ → текст (markdown)", additionalProperties: { type: "string" } }, spec_md: str("ТЗ для Claude Code, markdown") }, ["startup_id"]) },
+  { name: "startup_update", description: "Оновити стартап: назву, суть, стадію (raw→idea→research→foundation→build→launch→grow, paused, closed), головну метрику, наступний крок, репозиторій, адресу продакшену, блоки чотирьох опор (canvas — передавай тільки ті, що міняєш; markdown): ІДЕЯ problem, audience, solution, value, why_us, competitors, metrics, risks; МАРКЕТИНГ mk_position, mk_offer, mk_avatar, channels, mk_message, mk_proof, mk_launch, mk_funnel, mk_brand; ТЕХНІЧНА tx_scope, tx_core, tx_stack, tx_data, tx_integrations, tx_server, tx_updates, tx_security, tx_support; ФІНАНСИ money, fin_tiers, fin_costs, fin_summary. Калькулятор фінансів — finance (числа, у валюті системи): model sub|once, price, setup, unit_cost, fixed, marketing, new_clients, growth (%/міс), churn (%/міс), invest, goal. ТЗ для Claude Code — spec_md (markdown, замінює повністю).", input_schema: obj({ startup_id: int("ID стартапу"), name: str("Назва"), one_liner: str("Суть одним реченням"), stage: { type: "string", enum: ["raw", "idea", "research", "foundation", "build", "launch", "grow", "paused", "closed"] }, north_star: str("Головна метрика"), next_step: str("Наступний крок"), repo: str("GitHub owner/name"), prod_url: str("Адреса продакшену"), canvas: { type: "object", description: "Блоки опор: ключ → текст (markdown)", additionalProperties: { type: "string" } }, finance: { type: "object", description: "Калькулятор: model (sub|once), price, setup, unit_cost, fixed, marketing, new_clients, growth, churn, invest, goal — тільки те, що міняєш", additionalProperties: { type: ["string", "number"] } }, spec_md: str("ТЗ для Claude Code, markdown") }, ["startup_id"]) },
   { name: "startup_item", description: "Елементи стартапу: milestone (етап плану; status now|next|later|done), experiment (гіпотеза: title — що думаємо, body — як перевіряємо, criterion — успіх якщо, result; status planned|running|confirmed|refuted), decision (title — що вирішили, body — чому, alternatives), question (відкрите питання/ризик; status open|closed), note (нотатка в body), link (url + title). action add | update | delete. Задачі на етап — create_task зі startup_id і milestone_id.", input_schema: obj({ action: { type: "string", enum: ["add", "update", "delete"] }, startup_id: int("ID стартапу (для add)"), item_id: int("ID елемента (для update/delete)"), kind: { type: "string", enum: ["milestone", "experiment", "decision", "question", "note", "link"] }, title: str("Заголовок"), body: str("Текст"), status: str("Статус"), criterion: str("Для гіпотези: успіх, якщо…"), result: str("Для гіпотези: що вийшло"), alternatives: str("Для рішення: альтернативи"), url: str("Для посилання") }, ["action"]) },
   { name: "client_access", description: "Доступи клієнта: які акаунти є (CRM, Meta, хостинг, домен…), логін, чий акаунт, де 2FA, назва/посилання запису в Bitwarden, коли перевіряли. Паролів тут нема — вони тільки в Bitwarden у Саші. Відповідай «де лежить доступ», пароль ніколи не проси і не приймай.", input_schema: obj({ client_id: int("ID клієнта") }, ["client_id"]) },
   { name: "access_save", description: "Додати або змінити запис доступу клієнта (access_id — щоб змінити). ТІЛЬКИ де шукати: сервіс, логін/email, назва запису в Bitwarden («Клієнт — Сервіс»), посилання на запис, чий акаунт, де 2FA. Якщо Саша надіслав пароль — НЕ записуй його нікуди, порадь зберегти в Bitwarden і видалити повідомлення.", input_schema: obj({ client_id: int("ID клієнта"), access_id: int("ID запису, якщо змінюємо"), service: str("Сервіс"), login: str("Логін або email (не пароль)"), url: str("Адреса входу"), vault_name: str("Назва запису в Bitwarden"), vault_url: str("Посилання на запис у веб-сейфі"), owner: { type: "string", enum: Object.keys(ACCESS_OWNERS) }, twofa: str("Де 2FA"), note: str("Нотатка") }, ["client_id", "service"]) },
@@ -605,11 +605,13 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
     case "startups_list": {
       const { listStartups, CANVAS } = await import("../repo/startups");
       return listStartups().map((x) => ({ id: x.id, name: x.name, stage: x.stage, one_liner: x.one_liner || undefined, raw: x.stage === "raw" ? x.raw_text.slice(0, 300) : undefined,
-        foundation: `${CANVAS.filter((c) => x.canvas[c.k]?.trim()).length}/${CANVAS.length}`, tasks_open: x.open_tasks, next_step: x.next_step || undefined }));
+        filled: `${CANVAS.filter((c) => x.canvas[c.k]?.trim()).length}/${CANVAS.length}`, tasks_open: x.open_tasks, next_step: x.next_step || undefined }));
     }
 
     case "startup_get": {
       const r = await import("../repo/startups");
+      const fin = await import("../startupFinance");
+      const { money } = await import("../config");
       const { startupTasks } = await import("../repo/tasks");
       const sid = need(id(input.startup_id), "startup_id обовʼязковий");
       const x = need(r.getStartup(sid), "Стартапу нема");
@@ -617,8 +619,10 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const pick = (k: string) => items.filter((i) => i.kind === k).map((i) => ({ id: i.id, title: i.title, body: i.body.slice(0, 800) || undefined, status: i.status || undefined, ...i.data, at: i.created_at.slice(0, 10) }));
       return {
         id: x.id, name: x.name, stage: x.stage, one_liner: x.one_liner, north_star: x.north_star, next_step: x.next_step, repo: x.repo || undefined, prod_url: x.prod_url || undefined,
-        first_idea: x.raw_text || undefined, canvas: x.canvas,
-        missing_foundation: r.CANVAS.filter((c) => !x.canvas[c.k]?.trim()).map((c) => c.k),
+        first_idea: x.raw_text || undefined,
+        pillars: Object.fromEntries(r.PILLARS.map((p) => [p.k, Object.fromEntries(p.blocks.map((b) => [b.k, x.canvas[b.k as keyof typeof x.canvas] || null]))])),
+        missing: r.CANVAS.filter((c) => !x.canvas[c.k]?.trim()).map((c) => `${c.pillar}.${c.k}`),
+        finance: x.finance, finance_result: fin.hasFinance(x.finance) ? fin.financeSummary(x.finance, money) : "калькулятор порожній",
         milestones: pick("milestone"), tasks: startupTasks(sid).map((t) => ({ id: t.id, title: t.title, status: t.status, milestone_id: t.milestone_id, due: t.due_date })),
         experiments: pick("experiment"), decisions: pick("decision"), questions: pick("question"), notes: pick("note").slice(0, 15), links: pick("link"),
         spec_md: x.spec_md ? x.spec_md.slice(0, 6000) : undefined,
@@ -653,9 +657,10 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
         for (const [k, val] of Object.entries(input.canvas as Record<string, unknown>)) if (r.CANVAS.some((b) => b.k === k)) c[k] = String(val ?? "");
         patch.canvas = c;
       }
+      if (input.finance && typeof input.finance === "object") patch.finance = input.finance as Record<string, unknown>;
       r.updateStartup(sid, patch);
-      act("startup", `${x.name}: ${[patch.canvas && "фундамент", patch.spec_md !== undefined && "ТЗ", patch.stage && `стадія → ${r.STAGES.find((st) => st.k === patch.stage)?.label}`, patch.next_step !== undefined && "наступний крок"].filter(Boolean).join(", ") || "оновлено"}`,
-        `/startups/${sid}${patch.spec_md !== undefined ? "?v=spec" : patch.canvas ? "?v=canvas" : ""}`);
+      act("startup", `${x.name}: ${[patch.canvas && "опори", patch.finance && "фінанси", patch.spec_md !== undefined && "ТЗ", patch.stage && `стадія → ${r.STAGES.find((st) => st.k === patch.stage)?.label}`, patch.next_step !== undefined && "наступний крок"].filter(Boolean).join(", ") || "оновлено"}`,
+        `/startups/${sid}${patch.spec_md !== undefined ? "?v=tech" : patch.finance ? "?v=finance" : patch.canvas ? `?v=${r.CANVAS.find((b) => b.k === Object.keys(patch.canvas!)[0])?.pillar ?? "idea"}` : ""}`);
       return { ok: true };
     }
 

@@ -1331,3 +1331,52 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
 .acc-edit > summary::-webkit-details-marker { display: none; }
 .acc-edit[open] { padding-top: 0.25rem; }
 @media (max-width: 480px) { .acc-list { grid-template-columns: 1fr; } }
+
+/* Стартап: чотири опори */
+.su-pillars { display: grid; gap: 0.625rem; }
+.su-pillars .su-ring-card { padding: 0.75rem 0.875rem; }
+.su-ok { color: var(--ok) !important; }
+.su-fin-mini { display: flex; flex-direction: column; gap: 0.125rem; color: inherit; }
+.su-fin-mini span { font-size: 0.8125rem; color: var(--muted); }
+.su-fin-mini b { font-size: 1.375rem; }
+.su-fin-mini b.pos { color: var(--ok); } .su-fin-mini b.neg { color: var(--bad); }
+.su-pillar-head { display: flex; gap: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.su-pillar-head p { flex: 1 1 22rem; }
+.su-spec-wrap > summary { cursor: pointer; }
+.su-spec-wrap[open] .su-spec { margin-top: 1rem; }
+
+/* Калькулятор фінансів */
+.fin { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem; }
+.fin-inputs { display: flex; flex-direction: column; gap: 1rem; }
+.fin-model { display: inline-flex; background: var(--bg-input); border: 1px solid var(--line-strong); border-radius: 999px; padding: 0.25rem; align-self: flex-start; }
+.fin-model button { background: none; border: 0; border-radius: 999px; padding: 0.5rem 1rem; color: var(--muted); font-weight: 500; box-shadow: none; }
+.fin-model button.on { background: var(--accent); color: #fff; }
+.fin-grid { display: grid; gap: 0.875rem 1rem; grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr)); }
+.fin-field { display: flex; flex-direction: column; gap: 0.3rem; }
+.fin-field > span { font-weight: 600; font-size: 0.9375rem; }
+.fin-field small { color: var(--dim); font-size: 0.8125rem; line-height: 1.35; }
+.fin-input { position: relative; }
+.fin-input input { width: 100%; padding-right: 2.5rem; font-size: 1.0625rem; font-variant-numeric: tabular-nums; }
+.fin-input em { position: absolute; right: 0.875rem; top: 50%; transform: translateY(-50%); font-style: normal; color: var(--dim); pointer-events: none; }
+.fin-kpis { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); }
+@media (max-width: 600px) { .fin-grid { grid-template-columns: 1fr 1fr; } .fin-kpi b { font-size: 1.25rem; } .fin-field small { display: none; } }
+.fin-kpi { display: flex; flex-direction: column; gap: 0.25rem; }
+.fin-kpi span { color: var(--muted); font-size: 0.875rem; }
+.fin-kpi b { font-size: 1.5rem; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.fin-kpi small { color: var(--dim); font-size: 0.8125rem; line-height: 1.35; }
+.fin-kpi.ok b { color: var(--ok); } .fin-kpi.bad b { color: var(--bad); } .fin-kpi.warn b { color: var(--warn); }
+.fin-legend { display: inline-flex; gap: 0.75rem; align-items: center; font-size: 0.8125rem; color: var(--muted); flex-wrap: wrap; }
+.fin-legend i { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 3px; margin-right: 0.25rem; vertical-align: -1px; }
+.fin-legend i.pos { background: rgba(52, 211, 153, 0.75); } .fin-legend i.neg { background: rgba(248, 113, 113, 0.75); }
+.fin-legend i.cum { background: var(--accent); height: 3px; border-radius: 2px; }
+.fin-chart .fin-bar.pos { fill: rgba(52, 211, 153, 0.6); } .fin-chart .fin-bar.neg { fill: rgba(248, 113, 113, 0.6); }
+.fin-chart .fin-zero { stroke: var(--line-strong); stroke-width: 1.5; }
+.fin-chart .fin-cum { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
+.fin-chart .fin-dot { fill: var(--accent); }
+.fin-table-wrap { overflow-x: auto; margin-top: 0.75rem; }
+.fin-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fin-table th, .fin-table td { padding: 0.4rem 0.625rem; text-align: right; border-bottom: 1px solid var(--line); }
+.fin-table th { color: var(--dim); font-weight: 500; }
+.fin-table th:first-child, .fin-table td:first-child { text-align: left; }
+.fin-table td.pos { color: var(--ok); } .fin-table td.neg { color: var(--bad); }
+.su-pillars .su-ring { width: 3.5rem; height: 3.5rem; }

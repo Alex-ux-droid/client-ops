@@ -92,7 +92,7 @@ export default async function StartupsPage({ searchParams }: { searchParams: Pro
                   </div>
                   <div className="su-card-meta">
                     <span className={`tag ${dim ? "" : "accent"}`}>{stage.label}</span>
-                    <span>фундамент {filled}/{CANVAS.length}</span>
+                    <span>готовність {filled}/{CANVAS.length}</span>
                     {(s.open_tasks + s.done_tasks) > 0 && <span>задачі {s.done_tasks}/{s.open_tasks + s.done_tasks}</span>}
                     <span className="grow" />
                     <span>{ago(s.last_activity)}</span>

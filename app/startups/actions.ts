@@ -93,15 +93,26 @@ export async function saveCanvasAction(fd: FormData) {
   await requireUser();
   const id = int(fd, "id")!;
   const key = str(fd, "key") as CanvasKey;
-  if (CANVAS.some((c) => c.k === key)) updateStartup(id, { canvas: { [key]: str(fd, "value") } });
-  back(id, "canvas", `#c-${key}`);
+  const block = CANVAS.find((c) => c.k === key);
+  if (block) updateStartup(id, { canvas: { [key]: str(fd, "value") } });
+  back(id, block?.pillar ?? "idea", `#c-${key}`);
 }
 
 export async function saveSpecAction(fd: FormData) {
   await requireUser();
   const id = int(fd, "id")!;
   updateStartup(id, { spec_md: String(fd.get("spec_md") ?? "") });
-  back(id, "spec");
+  back(id, "tech", "#spec");
+}
+
+// Калькулятор фінансів: усі поля одним махом
+export async function saveFinanceAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  const fin: Record<string, string> = {};
+  for (const [k, v] of fd.entries()) if (k.startsWith("f_")) fin[k.slice(2)] = String(v);
+  updateStartup(id, { finance: fin });
+  back(id, "finance", "#calc");
 }
 
 export async function addItemAction(fd: FormData) {
