@@ -1,20 +1,31 @@
 "use client";
 import { useMemo, useState } from "react";
-import { calcFinance, FIN_FIELDS, type Finance } from "@/lib/startupFinance";
+import { calcFinance, effectiveFinance, FIN_FIELDS, SCENARIOS, tiersPrice, type Finance, type FinLinks, type FinNumKey, type Tier } from "@/lib/startupFinance";
 import { saveFinanceAction } from "../actions";
 
 // Живий калькулятор окупності: міняєш цифру — одразу бачиш рік, окупність, скільки треба клієнтів. «Зберегти» — у базу.
-export default function FinanceCalc({ id, initial, cur }: { id: number; initial: Finance; cur: string }) {
-  const [f, setF] = useState<Finance>(initial);
+// Звʼязки: нові клієнти і реклама — з воронки маркетингу, постійні витрати — з інфраструктури технічної опори.
+export default function FinanceCalc({ id, initial, cur, links }: { id: number; initial: Finance; cur: string; links: FinLinks }) {
+  const [raw, setF] = useState<Finance>(initial);
   const [dirty, setDirty] = useState(false);
+  const f = useMemo(() => effectiveFinance(raw, links), [raw, links]);
   const r = useMemo(() => calcFinance(f), [f]);
+  const scen = useMemo(() => SCENARIOS.map((x) => ({ ...x, r: calcFinance(x.apply(f)) })), [f]);
+  const tp = tiersPrice(raw.tiers);
+  const linked = (k: FinNumKey): string | null =>
+    k === "price" && tp != null ? "з тарифів" :
+    raw.link_mkt && ((k === "new_clients" && links.mktClients != null) || (k === "marketing" && links.mktBudget != null)) ? "з маркетингу" :
+    null;
+  const plusTech = raw.link_tech && links.techFixed != null ? links.techFixed : 0;
+  const setTiers = (t: Tier[]) => { setF((x) => ({ ...x, tiers: t })); setDirty(true); };
+  const toggle = (k: "link_mkt" | "link_tech") => { setF((x) => ({ ...x, [k]: !x[k] })); setDirty(true); };
   const fmt = (n: number) => {
     const v = Math.round(n);
     const s = Math.abs(v).toLocaleString("uk-UA");
     const m = v < 0 ? "−" : "";
     return cur === "$" || cur === "€" ? `${m}${cur}${s}` : `${m}${s} ${cur}`;
   };
-  const set = (k: keyof Finance, v: string | number) => { setF((x) => ({ ...x, [k]: typeof v === "string" && k !== "model" ? Math.max(0, Number(v.replace(",", ".")) || 0) : v })); setDirty(true); };
+  const set = (k: FinNumKey | "model", v: string) => { setF((x) => ({ ...x, [k]: k === "model" ? v : Math.max(0, Number(v.replace(",", ".")) || 0) })); setDirty(true); };
   const sub = f.model === "sub";
   const unit = sub ? "клієнтів" : "продажів/міс";
   const ready = f.price > 0;
@@ -22,20 +33,34 @@ export default function FinanceCalc({ id, initial, cur }: { id: number; initial:
   return (
     <form action={saveFinanceAction} className="fin" id="calc">
       <input type="hidden" name="id" value={id} />
-      <input type="hidden" name="f_model" value={f.model} />
-      {FIN_FIELDS.map((x) => <input key={x.k} type="hidden" name={`f_${x.k}`} value={f[x.k]} />)}
+      <input type="hidden" name="f_model" value={raw.model} />
+      {FIN_FIELDS.map((x) => <input key={x.k} type="hidden" name={`f_${x.k}`} value={raw[x.k]} />)}
+      <input type="hidden" name="f_tiers" value={JSON.stringify(raw.tiers)} />
+      <input type="hidden" name="f_link_mkt" value={raw.link_mkt ? "1" : "0"} />
+      <input type="hidden" name="f_link_tech" value={raw.link_tech ? "1" : "0"} />
 
       <div className="card fin-inputs">
         <div className="fin-model">
           <button type="button" className={sub ? "on" : ""} onClick={() => set("model", "sub")}>Підписка щомісяця</button>
           <button type="button" className={!sub ? "on" : ""} onClick={() => set("model", "once")}>Разовий продаж</button>
         </div>
+        <div className="fin-links">
+          <label className={`fin-link ${raw.link_mkt ? "on" : ""}`}>
+            <input type="checkbox" checked={raw.link_mkt} onChange={() => toggle("link_mkt")} />
+            <span><b>Клієнти і реклама — з маркетингу</b><small>{links.mktClients != null ? `воронка: ${Math.round(links.mktClients * 10) / 10} клієнтів/міс за ${fmt(links.mktBudget ?? 0)}` : "у маркетингу ще нема цілі воронки"}</small></span>
+          </label>
+          <label className={`fin-link ${raw.link_tech ? "on" : ""}`}>
+            <input type="checkbox" checked={raw.link_tech} onChange={() => toggle("link_tech")} />
+            <span><b>Інфраструктура — з технічної</b><small>{links.techFixed != null ? `${fmt(links.techFixed)}/міс додається до інших постійних (люди, сервіси)` : "в інфраструктурі ще нема цін"}</small></span>
+          </label>
+        </div>
+        <Tiers tiers={raw.tiers} set={setTiers} cur={cur} model={raw.model} />
         <div className="fin-grid">
           {FIN_FIELDS.filter((x) => !x.only || x.only === f.model).map((x) => (
-            <label key={x.k} className="fin-field">
-              <span>{x.label}</span>
+            <label key={x.k} className={`fin-field ${linked(x.k) ? "linked" : ""}`}>
+              <span>{x.k === "fixed" && plusTech ? "Інші постійні / міс" : x.label}{linked(x.k) && <i className="fin-from">{linked(x.k)}</i>}{x.k === "fixed" && plusTech > 0 && <i className="fin-from">+ {fmt(plusTech)} з технічної</i>}</span>
               <div className="fin-input">
-                <input inputMode="decimal" value={f[x.k] || ""} placeholder="0" onChange={(e) => set(x.k, e.target.value)} aria-label={x.label} />
+                <input inputMode="decimal" value={linked(x.k) ? Math.round(f[x.k] * 10) / 10 : raw[x.k] || ""} placeholder="0" readOnly={!!linked(x.k)} onChange={(e) => set(x.k, e.target.value)} aria-label={x.label} />
                 <em>{x.pct ? "%" : x.count ? "шт" : cur}</em>
               </div>
               <small>{x.hint}</small>
@@ -58,6 +83,19 @@ export default function FinanceCalc({ id, initial, cur }: { id: number; initial:
             {sub && <Kpi label="Клієнтів на кінець року" value={String(Math.round(r.year.clients))} sub={`продано за рік ${Math.round(r.year.sales)}`} />}
             {r.cac != null && <Kpi label="Ціна клієнта (CAC)" value={fmt(r.cac)} sub="реклама ÷ нові клієнти" />}
             {r.ltv != null && <Kpi label="Клієнт за весь час (LTV)" value={fmt(r.ltv)} tone={r.cac && r.ltv / r.cac < 3 ? "warn" : "ok"} sub={r.cac ? `LTV/CAC = ${(r.ltv / r.cac).toFixed(1)} (норма від 3)` : `при відтоку ${f.churn}%`} />}
+          </div>
+
+          <div className="fin-scen">
+            {scen.map((x) => (
+              <div key={x.k} className={`card fin-scen-col s-${x.k}`}>
+                <b>{x.label}</b><small>{x.hint}</small>
+                <dl>
+                  <dt>Прибуток за рік</dt><dd className={x.r.year.profit >= 0 ? "pos" : "neg"}>{fmt(x.r.year.profit)}</dd>
+                  <dt>Окупність</dt><dd>{x.r.payback == null ? "> 3 р." : x.r.payback === 0 ? "—" : `${x.r.payback}-й міс`}</dd>
+                  <dt>{sub ? "Клієнтів через рік" : "Продажів за рік"}</dt><dd>{Math.round(sub ? x.r.year.clients : x.r.year.sales)}</dd>
+                </dl>
+              </div>
+            ))}
           </div>
 
           <div className="card stack">
@@ -86,6 +124,27 @@ export default function FinanceCalc({ id, initial, cur }: { id: number; initial:
         </>
       ) : <div className="empty card">Впиши хоча б ціну — і калькулятор покаже рік, окупність і скільки треба продавати. Або попроси Джері порахувати.</div>}
     </form>
+  );
+}
+
+// Тарифи: кілька пакетів з часткою продажів → середня ціна
+function Tiers({ tiers, set, cur, model }: { tiers: Tier[]; set: (t: Tier[]) => void; cur: string; model: string }) {
+  const upd = (i: number, k: keyof Tier, v: string) => set(tiers.map((t, j) => (j === i ? { ...t, [k]: k === "name" ? v : Math.max(0, Number(v.replace(",", ".")) || 0) } : t)));
+  const total = tiers.reduce((a, t) => a + t.share, 0);
+  return (
+    <details className="fin-tiers" open={tiers.length > 0}>
+      <summary><b>Тарифи</b> <span>{tiers.length ? `${tiers.length} · середня ціна рахується за часткою продажів` : "кілька пакетів замість однієї ціни"}</span></summary>
+      {tiers.map((t, i) => (
+        <div key={i} className="fin-tier">
+          <input value={t.name} onChange={(e) => upd(i, "name", e.target.value)} placeholder="Назва: Старт" aria-label="Назва тарифу" />
+          <div className="fin-input"><input inputMode="decimal" value={t.price || ""} onChange={(e) => upd(i, "price", e.target.value)} placeholder="Ціна" aria-label="Ціна тарифу" /><em>{cur}{model === "sub" ? "/міс" : ""}</em></div>
+          <div className="fin-input"><input inputMode="decimal" value={t.share || ""} onChange={(e) => upd(i, "share", e.target.value)} placeholder="Частка" aria-label="Частка продажів" /><em>%</em></div>
+          <button type="button" className="ghost small" onClick={() => set(tiers.filter((_, j) => j !== i))} aria-label="Прибрати тариф">✕</button>
+        </div>
+      ))}
+      {tiers.length > 0 && total !== 100 && <small className="fin-warn">Частки разом {total}% — краще, щоб було 100%.</small>}
+      {tiers.length < 6 && <button type="button" className="ghost small" onClick={() => set([...tiers, { name: ["Старт", "Бізнес", "Про"][tiers.length] ?? "", price: 0, share: 0 }])}>+ Тариф</button>}
+    </details>
   );
 }
 
