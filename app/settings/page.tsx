@@ -15,6 +15,8 @@ import { getSetting } from "@/lib/repo/settings";
 import { listVoices, VOICE_MODELS, voiceConfig, type Voice } from "@/lib/voice";
 import { AUTO, CAPS, autoOn, capOn } from "@/lib/agent/caps";
 import { saveCapsAction } from "./actions";
+import { connectGithubAction, disconnectGithubAction } from "./actions";
+import { githubLogin, githubToken } from "@/lib/github";
 import { backupNowAction, saveDigestAction, sendAvatarsAction, sendDigestNowAction } from "./actions";
 import { backupFolderUrl, backupInfo } from "@/lib/backup";
 import { digestEnabled, digestTime } from "@/lib/digest";
@@ -74,7 +76,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {sp.msg && <div className="card" style={{ marginBottom: 16, borderColor: sp.ok ? "var(--ok)" : "var(--bad)" }}>{sp.msg}</div>}
       {tab === "general" && <General />}
       {tab === "agent" && <div className="stack" style={{ gap: "1rem" }}><Agent /><AgentMemory /></div>}
-      {tab === "connectors" && (conn === "google" ? <GoogleTab /> : conn === "voice" ? <VoiceTab /> : conn === "telegram" ? <TelegramTab /> : conn === "meta" ? <MetaTab /> : <Connectors />)}
+      {tab === "connectors" && (conn === "google" ? <GoogleTab /> : conn === "voice" ? <VoiceTab /> : conn === "telegram" ? <TelegramTab /> : conn === "meta" ? <MetaTab /> : conn === "github" ? <GithubTab /> : <Connectors />)}
       {tab === "caps" && <Caps />}
       {tab === "catalog" && <Catalog />}
       {tab === "access" && <Access />}
@@ -187,6 +189,12 @@ function Connectors() {
       agent: "Джері: бачить витрати, ліди, ціну ліда, кампанії і креативи; помічає, коли щось іде не так.",
       status: metaToken() ? "ok" : "off",
       label: metaToken() ? "Підключено" : "Не налаштовано",
+    },
+    {
+      id: "github", name: "GitHub", ico: "⌥", desc: "Твої репозиторії, і приватні — тільки читання.",
+      agent: "Джері: дивиться файли і код, шукає по коду, читає задачі, PR і коміти.",
+      status: githubToken() ? "ok" : "off",
+      label: githubToken() ? `Підключено${githubLogin() ? ` · ${githubLogin()}` : ""}` : "Не налаштовано",
     },
   ];
   return (
@@ -670,5 +678,40 @@ function Caps() {
       </div>
       <div><SubmitButton>Зберегти</SubmitButton></div>
     </form>
+  );
+}
+
+// GitHub: токен тільки на читання (fine-grained), щоб Джері бачив і приватні репозиторії
+function GithubTab() {
+  const token = githubToken();
+  return (
+    <div className="stack" style={{ gap: "1rem" }}>
+      <Link href="/settings?tab=connectors" className="h-link">← Конектори</Link>
+      <div className="card stack" style={{ maxWidth: "46rem" }}>
+        <h2>GitHub — тільки читання</h2>
+        {!token ? (
+          <>
+            <ol className="steps">
+              <li>Відкрий <b>github.com/settings/personal-access-tokens/new</b> (Settings → Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token).</li>
+              <li>Назва: «Client Ops — Джері». Expiration: <b>1 рік</b> (або скільки хочеш — система скаже, коли перестане працювати).</li>
+              <li>Repository access: <b>All repositories</b> (або тільки потрібні).</li>
+              <li>Permissions → Repository permissions: <b>Contents — Read-only</b>, <b>Issues — Read-only</b>, <b>Pull requests — Read-only</b> (Metadata стане Read-only сама). Більше нічого не вмикай.</li>
+              <li>Generate token → скопіюй (видно тільки раз) → встав сюди.</li>
+            </ol>
+            <form action={connectGithubAction} className="inline">
+              <input name="token" type="password" placeholder="github_pat_…" autoComplete="off" aria-label="Токен GitHub" />
+              <button>Підключити</button>
+            </form>
+            <div className="mono" style={{ color: "var(--dim)" }}>Токен перевіряється і лежить тільки в .env на сервері. Джері нічого не змінює в репозиторіях — лише читає.</div>
+          </>
+        ) : (
+          <>
+            <div className="inline" style={{ flexWrap: "wrap" }}><span className="tag ok">Підключено</span>{githubLogin() && <b>{githubLogin()}</b>}</div>
+            <div className="mono">Скажи Джері: «глянь мій репозиторій …», «що змінилось у … за тиждень», «знайди в коді, де …».</div>
+            <form action={disconnectGithubAction}><button className="ghost small">Відключити</button></form>
+          </>
+        )}
+      </div>
+    </div>
   );
 }

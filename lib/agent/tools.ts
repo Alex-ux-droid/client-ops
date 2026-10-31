@@ -126,6 +126,11 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "make_pdf", description: "Зробити PDF з markdown. format document (A4 документ): # заголовки, абзаци, списки - і 1., чекліст - [ ], **жирне**, --- лінія, таблиці | a | b |; «на одну сторінку» — ~350 слів. format slides (презентація, A4 горизонтально, темна фірмова): перший абзац — підзаголовок титульного, кожен «## Назва» — новий слайд (3–6 пунктів на слайд), картки-цифри рядками «+ Підпис: значення» (до 4 в ряд), таблиці, списки, **жирне». Повертає file_id і посилання; у Telegram-розмові з Сашею файл одразу йде йому (send_to_telegram:false — не надсилати, напр. якщо далі шлеш у групу клієнта).", input_schema: obj({ title: str("Заголовок документа"), format: { type: "string", enum: ["document", "slides"] }, content: str("Вміст у markdown (без заголовка — він окремо)"), file_name: str("Назва файлу, необовʼязково"), client_id: int("Клієнт, якщо документ про нього"), send_to_telegram: { type: "boolean", description: "Надіслати Саші в Telegram (у Telegram-розмові — завжди)" }, caption: str("Підпис до файлу в Telegram") }, ["title", "content"]) },
   { name: "telegram_group_send", description: "Надіслати в Telegram-групу КЛІЄНТА повідомлення і/або файл (file_id з make_pdf) від імені бота. ТІЛЬКИ коли Саша прямо попросив відправити в групу/клієнту в цій розмові — ніколи з власної ініціативи. Текст — для клієнта: ввічливо, без внутрішніх нотаток, націнок і думок Саші. sasha_request — дослівні слова Саші з проханням.", input_schema: obj({ client_id: int("ID клієнта"), chat_id: int("ID групи, якщо в клієнта їх кілька (telegram_chats)"), text: str("Повідомлення або підпис до файлу"), file_id: int("ID файлу з make_pdf"), sasha_request: str("Дослівно, що Саша попросив") }, ["client_id", "sasha_request"]) },
   { name: "telegram_send", description: "Надіслати Саші в Telegram повідомлення (text) або файл (file_id з make_pdf). Для нагадувань, коли він просить «скинь мені в телеграм».", input_schema: obj({ text: str("Текст або підпис до файлу"), file_id: int("ID файлу з make_pdf") }, []) },
+  { name: "github_repos", description: "GitHub Саші (і приватні репозиторії): список репозиторіїв, новіші зверху. q — фільтр за назвою/описом.", input_schema: obj({ q: str("Фільтр, необовʼязково") }, []) },
+  { name: "github_browse", description: "GitHub: відкрити папку (список файлів) або файл (текст) у репозиторії. Почни з path порожнього — корінь; README.md, package.json, CLAUDE.md дають швидку картину.", input_schema: obj({ repo: str("owner/name"), path: str("Шлях; порожньо — корінь"), ref: str("Гілка/коміт, необовʼязково") }, ["repo"]) },
+  { name: "github_search", description: "GitHub: пошук по коду в репозиторіях Саші (або в одному, якщо вказати repo).", input_schema: obj({ query: str("Що шукати"), repo: str("owner/name, необовʼязково") }, ["query"]) },
+  { name: "github_issues", description: "GitHub: задачі (issues) і PR репозиторію.", input_schema: obj({ repo: str("owner/name"), state: { type: "string", enum: ["open", "closed", "all"] } }, ["repo"]) },
+  { name: "github_commits", description: "GitHub: останні коміти репозиторію (або конкретного файлу/папки через path).", input_schema: obj({ repo: str("owner/name"), path: str("Шлях, необовʼязково") }, ["repo"]) },
   { name: "system_updates", description: "Журнал оновлень системи: що Claude додав або змінив і коли (твої нові можливості). Дивись, коли не впевнений, чи щось уже вміє система.", input_schema: obj({ limit: int("Скільки останніх, за замовчуванням 20") }, []) },
   { name: "meta_ads", description: "Живі цифри Meta Ads клієнта (оновлюються самі кожні 2 год, тільки читання): підсумок за N днів і попередні N днів (витрати, покази, кліки, ліди, ціна ліда, CTR), по днях, кампанії з бюджетами і статусами, топ креативів за 30 днів, тривоги. Змінювати рекламу ти не можеш — тільки радити.", input_schema: obj({ client_id: int("ID клієнта"), days: int("Період у днях, за замовчуванням 7") }, ["client_id"]) },
   { name: "meta_accounts", description: "Усі рекламні кабінети Meta, які бачить система: id, назва, валюта, статус (активний/закритий/борг), до якого клієнта привʼязаний.", input_schema: obj({}) },
@@ -568,6 +573,20 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
         alerts: metaAlerts(cid).map((x) => x.text),
         note: "Сьогоднішні цифри неповні; остаточні дані за день — наступного дня.",
       };
+    }
+
+    case "github_repos":
+    case "github_browse":
+    case "github_search":
+    case "github_issues":
+    case "github_commits": {
+      const g = await import("../github");
+      const repo = s(input.repo).replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/$/, "");
+      if (name === "github_repos") return g.listRepos(s(input.q));
+      if (name === "github_browse") return g.browse(need(repo, "repo обовʼязковий"), s(input.path), s(input.ref));
+      if (name === "github_search") return g.searchCode(need(s(input.query), "query обовʼязковий"), repo);
+      if (name === "github_issues") return g.listIssues(need(repo, "repo обовʼязковий"), s(input.state) || "open");
+      return g.listCommits(need(repo, "repo обовʼязковий"), s(input.path));
     }
 
     case "system_updates":
