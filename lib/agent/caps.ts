@@ -5,6 +5,7 @@ import { getSetting, setSetting } from "../repo/settings";
 export const CAPS = [
   { key: "web", label: "Інтернет: пошук і читання сайтів", desc: "шукає в інтернеті і читає сторінки (GitHub, документація, сайти конкурентів); пошук ≈ 1 цент за запит", tools: [] },
   { key: "github", label: "GitHub (читання)", desc: "твої репозиторії, і приватні: файли, пошук по коду, задачі, PR, коміти — нічого не змінює", tools: ["github_repos", "github_browse", "github_search", "github_issues", "github_commits"] },
+  { key: "startups", label: "Стартапи", desc: "записувати ідеї, створювати проєкти, заповнювати фундамент, план, гіпотези, рішення, ТЗ", tools: ["idea_capture", "startup_create", "startup_update", "startup_item"] },
   { key: "write", label: "Створювати і змінювати", desc: "клієнти, задачі, історія, гроші, ідеї, матеріали, послуги, плейбуки", tools: ["create_client", "update_client", "create_task", "update_task", "task_subtasks", "complete_task", "reopen_task", "log_work", "add_idea", "set_idea", "add_material", "add_payment", "set_payment", "set_service", "checklist", "attach_playbook", "detach_playbook", "save_playbook", "set_folder"] },
   { key: "delete", label: "Видаляти", desc: "задачі, записи, послуги, клієнтів (клієнта — тільки з точною назвою)", tools: ["delete_task", "delete_record", "delete_client", "remove_service"] },
   { key: "memory", label: "Памʼять", desc: "сам запамʼятовує і переписує, що знає про тебе і роботу", tools: ["memory_add", "memory_rewrite"] },
@@ -26,6 +27,7 @@ export const AUTO = [
   { key: "backup", label: "Бекап бази на Google Диск", desc: "щоночі о 04:00, 30 копій", setting: "auto.backup" },
   { key: "tg_files", label: "Фото і файли з Telegram на Диск", desc: "копія в папку клієнта → «Telegram»", setting: "auto.tg_files" },
   { key: "live_dictation", label: "Живий текст під час диктування", desc: "бачиш, що Джері чує, поки говориш (ElevenLabs Realtime); вимкнеш — текст з'являється після «стоп»", setting: "voice.live" },
+  { key: "startup_monitor", label: "Моніторинг стартапів", desc: "раз на 5 хв перевіряє сайти проєктів; ліг або піднявся — повідомлення в Telegram", setting: "auto.startup_monitor" },
   { key: "reflect", label: "Самонавчання Джері", desc: "після кожної розмови оновлює памʼять — коштує трохи кредитів", setting: "auto.reflect" },
 ] as const;
 

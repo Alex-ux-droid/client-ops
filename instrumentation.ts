@@ -12,10 +12,12 @@ export async function register() {
   const { digestTick } = await import("./lib/digest");
   const { backupTick } = await import("./lib/backup");
   const { avatarsOnce } = await import("./lib/telegram");
+  const { monitorTick } = await import("./lib/startupMonitor");
   const tick = async () => {
     await digestTick().catch((e) => logError("digest", e));
     await backupTick().catch((e) => logError("backup", e));
     await avatarsOnce().catch((e) => logError("tg-avatar", e));
+    await monitorTick().catch((e) => logError("startup-monitor", e));
   };
   setTimeout(tick, 90_000);
   setInterval(tick, 60_000);

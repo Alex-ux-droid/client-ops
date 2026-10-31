@@ -16,6 +16,8 @@ export type Task = {
   created_at: string;
   priority: TaskPriority;
   gcal_event_id: string | null;
+  startup_id: number | null;
+  milestone_id: number | null;
 };
 
 export type TaskRow = Task & { client_name: string | null; items_total: number; items_done: number; links_count: number };
@@ -50,11 +52,18 @@ export function getTask(id: number): TaskRow | undefined {
   return db().prepare(`${SELECT} WHERE t.id = ?`).get(id) as TaskRow | undefined;
 }
 
-export function createTask(input: { title: string; client_id?: number | null; details?: string; due_date?: string | null; remind_at?: string | null; priority?: TaskPriority }): number {
+export function createTask(input: { title: string; client_id?: number | null; details?: string; due_date?: string | null; remind_at?: string | null; priority?: TaskPriority; startup_id?: number | null; milestone_id?: number | null }): number {
   return Number(db().prepare(`
-    INSERT INTO tasks (title, client_id, details, due_date, remind_at, priority)
-    VALUES (@title, @client_id, @details, @due_date, @remind_at, @priority)
-  `).run({ client_id: null, details: "", due_date: null, remind_at: null, priority: "normal", ...input }).lastInsertRowid);
+    INSERT INTO tasks (title, client_id, details, due_date, remind_at, priority, startup_id, milestone_id)
+    VALUES (@title, @client_id, @details, @due_date, @remind_at, @priority, @startup_id, @milestone_id)
+  `).run({ client_id: null, details: "", due_date: null, remind_at: null, priority: "normal", startup_id: null, milestone_id: null, ...input }).lastInsertRowid);
+}
+
+// Задачі стартапу (відкриті першими), за бажанням — одного етапу
+export function startupTasks(startupId: number, milestoneId?: number | null): TaskRow[] {
+  const extra = milestoneId === undefined ? "" : milestoneId === null ? " AND t.milestone_id IS NULL" : " AND t.milestone_id = ?";
+  const args: unknown[] = [startupId, ...(milestoneId ? [milestoneId] : [])];
+  return db().prepare(`${SELECT} WHERE t.startup_id = ?${extra} ORDER BY t.status = 'done', ${ORDER.replace("ORDER BY ", "")}`).all(...args) as TaskRow[];
 }
 
 export function setTaskStatus(id: number, status: TaskStatus): void {

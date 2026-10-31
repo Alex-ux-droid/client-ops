@@ -14,6 +14,8 @@ import {
   reopenLabAction, saveLabTextAction, saveMatrixAction, saveOptionAction,
 } from "../actions";
 import VoiceTextarea from "@/components/VoiceTextarea";
+import { labToStartupAction } from "@/app/startups/actions";
+import { startupForLab } from "@/lib/repo/startups";
 import Markdown from "@/components/Markdown";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +35,7 @@ export default async function LabSessionPage({ params }: { params: Promise<{ id:
   const leader = ranked[0];
   const done = l.status === "done";
   const hidden = <input type="hidden" name="id" value={id} />;
+  const startup = startupForLab(id);
 
   return (
     <div className="lab">
@@ -46,7 +49,12 @@ export default async function LabSessionPage({ params }: { params: Promise<{ id:
             <span className={`tag ${done ? "ok" : "warn"}`}>{done ? `Завершено ${fmtDate(l.done_at)}` : "В роботі"}</span>
           </div>
         </div>
-        {done && <form action={reopenLabAction}>{hidden}<button className="ghost">Відкрити знову</button></form>}
+        <div className="inline" style={{ flexWrap: "wrap" }}>
+          {startup
+            ? <Link href={`/startups/${startup.id}`} className="btn ghost">Стартап: {startup.name} →</Link>
+            : <form action={labToStartupAction}><input type="hidden" name="lab_id" value={id} /><SubmitButton className="ghost" pendingText="Переношу…">Будуємо самі → у Стартапи</SubmitButton></form>}
+          {done && <form action={reopenLabAction}>{hidden}<button className="ghost">Відкрити знову</button></form>}
+        </div>
       </div>
 
       <Suspense><LabAssistant id={id} /></Suspense>
