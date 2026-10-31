@@ -26,6 +26,7 @@ import { capOfTool, toolAllowed } from "./caps";
 import { accountsForClient, ACCOUNT_STATUS, listAccounts, adsetsForClient, breakdowns, campaignsWithStats, dailySeries, getAnalysis, kyivDay, metaAlerts, topAds, totals } from "../repo/meta";
 import { label as cutLabel } from "../metaInsights";
 import { listChangelog } from "../repo/changelog";
+import { ACCESS_OWNERS, getAccess, listAccess, saveAccess } from "../repo/access";
 import { addTip, reactedTips, TIP_TOPICS, tipStats, topicScores } from "../repo/tips";
 import { addCriterion, addOption, createLab, getLab, getOption, isLabCategory, LAB_CATEGORIES, listLab, setScore, updateLab, updateOption } from "../repo/lab";
 import { addTool, enableService, findToolByName, listServices, listTools, removeService, saveFolder, updateService } from "../repo/services";
@@ -139,6 +140,8 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "startup_create", description: "Створити стартап-проєкт (не сиру ідею). Потім заповни фундамент через startup_update.", input_schema: obj({ name: str("Робоча назва"), one_liner: str("Одним реченням: що і для кого"), stage: { type: "string", enum: ["idea", "research", "foundation", "build", "launch", "grow"] } }, ["name"]) },
   { name: "startup_update", description: "Оновити стартап: назву, суть, стадію (raw→idea→research→foundation→build→launch→grow, paused, closed), головну метрику, наступний крок, репозиторій, адресу продакшену, блоки фундаменту (canvas: problem, audience, solution, why_us, money, channels, competitors, metrics, risks — передавай тільки ті, що міняєш), ТЗ для Claude Code (spec_md, markdown — замінює повністю).", input_schema: obj({ startup_id: int("ID стартапу"), name: str("Назва"), one_liner: str("Суть одним реченням"), stage: { type: "string", enum: ["raw", "idea", "research", "foundation", "build", "launch", "grow", "paused", "closed"] }, north_star: str("Головна метрика"), next_step: str("Наступний крок"), repo: str("GitHub owner/name"), prod_url: str("Адреса продакшену"), canvas: { type: "object", description: "Блоки фундаменту: ключ → текст (markdown)", additionalProperties: { type: "string" } }, spec_md: str("ТЗ для Claude Code, markdown") }, ["startup_id"]) },
   { name: "startup_item", description: "Елементи стартапу: milestone (етап плану; status now|next|later|done), experiment (гіпотеза: title — що думаємо, body — як перевіряємо, criterion — успіх якщо, result; status planned|running|confirmed|refuted), decision (title — що вирішили, body — чому, alternatives), question (відкрите питання/ризик; status open|closed), note (нотатка в body), link (url + title). action add | update | delete. Задачі на етап — create_task зі startup_id і milestone_id.", input_schema: obj({ action: { type: "string", enum: ["add", "update", "delete"] }, startup_id: int("ID стартапу (для add)"), item_id: int("ID елемента (для update/delete)"), kind: { type: "string", enum: ["milestone", "experiment", "decision", "question", "note", "link"] }, title: str("Заголовок"), body: str("Текст"), status: str("Статус"), criterion: str("Для гіпотези: успіх, якщо…"), result: str("Для гіпотези: що вийшло"), alternatives: str("Для рішення: альтернативи"), url: str("Для посилання") }, ["action"]) },
+  { name: "client_access", description: "Доступи клієнта: які акаунти є (CRM, Meta, хостинг, домен…), логін, чий акаунт, де 2FA, назва/посилання запису в Bitwarden, коли перевіряли. Паролів тут нема — вони тільки в Bitwarden у Саші. Відповідай «де лежить доступ», пароль ніколи не проси і не приймай.", input_schema: obj({ client_id: int("ID клієнта") }, ["client_id"]) },
+  { name: "access_save", description: "Додати або змінити запис доступу клієнта (access_id — щоб змінити). ТІЛЬКИ де шукати: сервіс, логін/email, назва запису в Bitwarden («Клієнт — Сервіс»), посилання на запис, чий акаунт, де 2FA. Якщо Саша надіслав пароль — НЕ записуй його нікуди, порадь зберегти в Bitwarden і видалити повідомлення.", input_schema: obj({ client_id: int("ID клієнта"), access_id: int("ID запису, якщо змінюємо"), service: str("Сервіс"), login: str("Логін або email (не пароль)"), url: str("Адреса входу"), vault_name: str("Назва запису в Bitwarden"), vault_url: str("Посилання на запис у веб-сейфі"), owner: { type: "string", enum: Object.keys(ACCESS_OWNERS) }, twofa: str("Де 2FA"), note: str("Нотатка") }, ["client_id", "service"]) },
   { name: "tip_add", description: "Записати пораду в базу «Поради від Джері» (Саша побачить її під час роботи). Коли в розмові виникло щось корисне про бізнес, маркетинг, рекламу, продажі, переговори, термін чи факт — або Саша попросив «запамʼятай як пораду». Коротко: заголовок до 60 символів, текст 2–4 речення, тільки перевірені факти.", input_schema: obj({ topic: { type: "string", enum: Object.keys(TIP_TOPICS) }, title: str("Заголовок"), body: str("Текст поради: думка + як застосувати") }, ["topic", "title", "body"]) },
   { name: "tips_stats", description: "Поради дня: скільки показано, як Саша реагує по темах (знав / нове / не цікаво / детальніше) і які саме поради зачепили чи були відомі. Дивись, щоб розуміти його рівень і інтереси.", input_schema: obj({}) },
   { name: "system_updates", description: "Журнал оновлень системи: що Claude додав або змінив і коли (твої нові можливості). Дивись, коли не впевнений, чи щось уже вміє система.", input_schema: obj({ limit: int("Скільки останніх, за замовчуванням 20") }, []) },
@@ -675,6 +678,19 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       r.updateItem(it.id, { title: input.title !== undefined ? s(input.title) : undefined, body: input.body !== undefined ? s(input.body) : undefined, status: input.status !== undefined ? s(input.status) : undefined, data });
       act("startup", `Оновлено: ${it.title || it.kind}`, `/startups/${it.startup_id}${VIEW[it.kind] ? `?v=${VIEW[it.kind]}` : ""}`);
       return { ok: true };
+    }
+
+    case "client_access":
+      return listAccess(need(id(input.client_id), "client_id обов'язковий")).map((a) => ({ id: a.id, service: a.service, login: a.login, url: a.url, bitwarden: a.vault_name, bitwarden_link: a.vault_url, owner: ACCESS_OWNERS[a.owner], twofa: a.twofa, note: a.note, checked: a.checked_at?.slice(0, 10) ?? "ніколи", stale: a.stale }));
+
+    case "access_save": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      const aid = id(input.access_id);
+      const cur = aid ? need(getAccess(aid), "Запису нема") : undefined;
+      const pick = (k: string, d = "") => (input[k] !== undefined ? s(input[k]) : (cur as Record<string, unknown> | undefined)?.[k] as string ?? d);
+      const saved = saveAccess(cid, { service: pick("service"), login: pick("login"), url: pick("url"), vault_name: pick("vault_name"), vault_url: pick("vault_url"), owner: pick("owner", "client"), twofa: pick("twofa"), note: pick("note") }, aid);
+      act("access", `Доступ: ${pick("service")}`, `/clients/${cid}?tab=access`);
+      return { ok: true, access_id: saved };
     }
 
     case "tip_add": {

@@ -1315,3 +1315,19 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
   }
 }
 @media (prefers-reduced-motion: reduce) { .jtip, .jtip.out { animation: none; } }
+
+/* Доступи клієнта */
+.acc-list { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); }
+.acc.stale { border-color: rgba(251, 191, 36, 0.35); }
+.acc-top { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.acc-name { font-size: 1.0625rem; margin-right: auto; }
+.acc-name a { color: var(--text); }
+.acc-dl { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; margin: 0.75rem 0; font-size: 0.9375rem; }
+.acc-dl dt { color: var(--dim); }
+.acc-dl dd { margin: 0; color: var(--muted); overflow-wrap: anywhere; }
+.acc-dl a { color: var(--link); }
+.acc-edit[open] { width: 100%; }
+.acc-edit > summary { list-style: none; display: inline-flex; cursor: pointer; }
+.acc-edit > summary::-webkit-details-marker { display: none; }
+.acc-edit[open] { padding-top: 0.25rem; }
+@media (max-width: 480px) { .acc-list { grid-template-columns: 1fr; } }

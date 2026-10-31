@@ -22,6 +22,7 @@ import { createClientFolders, googleConnected, readMail, sendMail } from "@/lib/
 import { logError } from "@/lib/log";
 import { addDevEntry, deleteDev } from "@/lib/repo/devlog";
 import { getClient } from "@/lib/repo/clients";
+import { deleteAccess, getAccess, markAccessChecked, saveAccess } from "@/lib/repo/access";
 import { FOLDER_KINDS, isServiceType, serviceDef, TOOL_CATEGORY_LABEL, type ToolCategory } from "@/lib/services";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
@@ -118,6 +119,32 @@ export async function removeServiceAction(fd: FormData) {
 }
 
 // ---- Папки клієнта
+// ---- Доступи клієнта (без паролів)
+export async function accessSaveAction(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "client_id");
+  if (!id) return;
+  try {
+    saveAccess(id, { service: str(fd, "service"), login: str(fd, "login"), url: link(fd, "url"), vault_name: str(fd, "vault_name"), vault_url: link(fd, "vault_url"), owner: str(fd, "owner"), twofa: str(fd, "twofa"), note: str(fd, "note") }, num(fd, "access_id"));
+  } catch (e) {
+    done(`/clients/${id}?tab=access&err=${encodeURIComponent((e as Error).message)}`);
+    return;
+  }
+  done(`/clients/${id}?tab=access`);
+}
+export async function accessCheckedAction(fd: FormData) {
+  await requireUser();
+  const a = getAccess(num(fd, "access_id") ?? 0);
+  if (a) markAccessChecked(a.id);
+  done();
+}
+export async function accessDeleteAction(fd: FormData) {
+  await requireUser();
+  const a = getAccess(num(fd, "access_id") ?? 0);
+  if (a) deleteAccess(a.id);
+  done();
+}
+
 export async function saveFoldersAction(fd: FormData) {
   await requireUser();
   const id = num(fd, "client_id");
