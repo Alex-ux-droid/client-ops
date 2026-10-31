@@ -3,6 +3,7 @@
 import { getSetting, setSetting } from "../repo/settings";
 
 export const CAPS = [
+  { key: "web", label: "Інтернет: пошук і читання сайтів", desc: "шукає в інтернеті і читає сторінки (GitHub, документація, сайти конкурентів); пошук ≈ 1 цент за запит", tools: [] },
   { key: "write", label: "Створювати і змінювати", desc: "клієнти, задачі, історія, гроші, ідеї, матеріали, послуги, плейбуки", tools: ["create_client", "update_client", "create_task", "update_task", "task_subtasks", "complete_task", "reopen_task", "log_work", "add_idea", "set_idea", "add_material", "add_payment", "set_payment", "set_service", "checklist", "attach_playbook", "detach_playbook", "save_playbook", "set_folder"] },
   { key: "delete", label: "Видаляти", desc: "задачі, записи, послуги, клієнтів (клієнта — тільки з точною назвою)", tools: ["delete_task", "delete_record", "delete_client", "remove_service"] },
   { key: "memory", label: "Памʼять", desc: "сам запамʼятовує і переписує, що знає про тебе і роботу", tools: ["memory_add", "memory_rewrite"] },
