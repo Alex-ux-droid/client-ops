@@ -14,6 +14,8 @@ import { listClients } from "@/lib/repo/clients";
 import { getSetting } from "@/lib/repo/settings";
 import { listVoices, VOICE_MODELS, voiceConfig, type Voice } from "@/lib/voice";
 import { AUTO, CAPS, autoOn, capOn } from "@/lib/agent/caps";
+import { TIP_EVERY, tipEvery, tipStats } from "@/lib/repo/tips";
+import { TipNowButton } from "@/components/JerryTip";
 import { saveCapsAction } from "./actions";
 import { connectGithubAction, disconnectGithubAction } from "./actions";
 import { githubLogin, githubToken } from "@/lib/github";
@@ -656,6 +658,7 @@ function BackupBlock() {
 
 // Тумблери: що Джері може і що система робить сама
 function Caps() {
+  const ts = tipStats();
   const Row = ({ name, on, label, desc }: { name: string; on: boolean; label: string; desc: string }) => (
     <label className="cap-row">
       <input type="checkbox" name={name} defaultChecked={on} className="cap-toggle" />
@@ -674,6 +677,14 @@ function Caps() {
           <h2>Що система робить сама</h2>
           <div className="mono" style={{ color: "var(--dim)" }}>Фонові задачі. Вимкнув — просто перестане робити, нічого не зламається.</div>
           {AUTO.map((a) => <Row key={a.key} name={`auto.${a.key}`} on={autoOn(a.key)} label={a.label} desc={a.desc} />)}
+          <label className="stack" style={{ gap: "0.375rem" }}>
+            <b>Як часто поради</b>
+            <select name="tips.every" defaultValue={String(tipEvery())}>
+              {TIP_EVERY.map((m) => <option key={m} value={m}>{m < 60 ? `раз на ${m} хв` : `раз на ${m / 60} год`}</option>)}
+            </select>
+            <small style={{ color: "var(--dim)" }}>Показані: {ts.shown} з {ts.total}, нових у запасі {ts.unseen}. Рахується тільки час, коли ти в системі.</small>
+          </label>
+          <div><TipNowButton /></div>
         </div>
       </div>
       <div><SubmitButton>Зберегти</SubmitButton></div>

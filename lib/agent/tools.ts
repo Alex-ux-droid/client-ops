@@ -26,6 +26,7 @@ import { capOfTool, toolAllowed } from "./caps";
 import { accountsForClient, ACCOUNT_STATUS, listAccounts, adsetsForClient, breakdowns, campaignsWithStats, dailySeries, getAnalysis, kyivDay, metaAlerts, topAds, totals } from "../repo/meta";
 import { label as cutLabel } from "../metaInsights";
 import { listChangelog } from "../repo/changelog";
+import { addTip, reactedTips, TIP_TOPICS, tipStats, topicScores } from "../repo/tips";
 import { addCriterion, addOption, createLab, getLab, getOption, isLabCategory, LAB_CATEGORIES, listLab, setScore, updateLab, updateOption } from "../repo/lab";
 import { addTool, enableService, findToolByName, listServices, listTools, removeService, saveFolder, updateService } from "../repo/services";
 import { isServiceType, SERVICE_TYPES, SERVICES, type ServiceDef } from "../services";
@@ -138,6 +139,8 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "startup_create", description: "Створити стартап-проєкт (не сиру ідею). Потім заповни фундамент через startup_update.", input_schema: obj({ name: str("Робоча назва"), one_liner: str("Одним реченням: що і для кого"), stage: { type: "string", enum: ["idea", "research", "foundation", "build", "launch", "grow"] } }, ["name"]) },
   { name: "startup_update", description: "Оновити стартап: назву, суть, стадію (raw→idea→research→foundation→build→launch→grow, paused, closed), головну метрику, наступний крок, репозиторій, адресу продакшену, блоки фундаменту (canvas: problem, audience, solution, why_us, money, channels, competitors, metrics, risks — передавай тільки ті, що міняєш), ТЗ для Claude Code (spec_md, markdown — замінює повністю).", input_schema: obj({ startup_id: int("ID стартапу"), name: str("Назва"), one_liner: str("Суть одним реченням"), stage: { type: "string", enum: ["raw", "idea", "research", "foundation", "build", "launch", "grow", "paused", "closed"] }, north_star: str("Головна метрика"), next_step: str("Наступний крок"), repo: str("GitHub owner/name"), prod_url: str("Адреса продакшену"), canvas: { type: "object", description: "Блоки фундаменту: ключ → текст (markdown)", additionalProperties: { type: "string" } }, spec_md: str("ТЗ для Claude Code, markdown") }, ["startup_id"]) },
   { name: "startup_item", description: "Елементи стартапу: milestone (етап плану; status now|next|later|done), experiment (гіпотеза: title — що думаємо, body — як перевіряємо, criterion — успіх якщо, result; status planned|running|confirmed|refuted), decision (title — що вирішили, body — чому, alternatives), question (відкрите питання/ризик; status open|closed), note (нотатка в body), link (url + title). action add | update | delete. Задачі на етап — create_task зі startup_id і milestone_id.", input_schema: obj({ action: { type: "string", enum: ["add", "update", "delete"] }, startup_id: int("ID стартапу (для add)"), item_id: int("ID елемента (для update/delete)"), kind: { type: "string", enum: ["milestone", "experiment", "decision", "question", "note", "link"] }, title: str("Заголовок"), body: str("Текст"), status: str("Статус"), criterion: str("Для гіпотези: успіх, якщо…"), result: str("Для гіпотези: що вийшло"), alternatives: str("Для рішення: альтернативи"), url: str("Для посилання") }, ["action"]) },
+  { name: "tip_add", description: "Записати пораду в базу «Поради від Джері» (Саша побачить її під час роботи). Коли в розмові виникло щось корисне про бізнес, маркетинг, рекламу, продажі, переговори, термін чи факт — або Саша попросив «запамʼятай як пораду». Коротко: заголовок до 60 символів, текст 2–4 речення, тільки перевірені факти.", input_schema: obj({ topic: { type: "string", enum: Object.keys(TIP_TOPICS) }, title: str("Заголовок"), body: str("Текст поради: думка + як застосувати") }, ["topic", "title", "body"]) },
+  { name: "tips_stats", description: "Поради дня: скільки показано, як Саша реагує по темах (знав / нове / не цікаво / детальніше) і які саме поради зачепили чи були відомі. Дивись, щоб розуміти його рівень і інтереси.", input_schema: obj({}) },
   { name: "system_updates", description: "Журнал оновлень системи: що Claude додав або змінив і коли (твої нові можливості). Дивись, коли не впевнений, чи щось уже вміє система.", input_schema: obj({ limit: int("Скільки останніх, за замовчуванням 20") }, []) },
   { name: "meta_ads", description: "Живі цифри Meta Ads клієнта (оновлюються самі кожні 2 год, тільки читання): підсумок за N днів і попередні N днів (витрати, покази, кліки, ліди, ціна ліда, CTR), по днях, кампанії з бюджетами і статусами, топ креативів за 30 днів, тривоги. Змінювати рекламу ти не можеш — тільки радити.", input_schema: obj({ client_id: int("ID клієнта"), days: int("Період у днях, за замовчуванням 7") }, ["client_id"]) },
   { name: "meta_accounts", description: "Усі рекламні кабінети Meta, які бачить система: id, назва, валюта, статус (активний/закритий/борг), до якого клієнта привʼязаний.", input_schema: obj({}) },
@@ -673,6 +676,16 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       act("startup", `Оновлено: ${it.title || it.kind}`, `/startups/${it.startup_id}${VIEW[it.kind] ? `?v=${VIEW[it.kind]}` : ""}`);
       return { ok: true };
     }
+
+    case "tip_add": {
+      const tid = addTip({ topic: s(input.topic), title: need(s(input.title), "title обов'язковий"), body: need(s(input.body), "body обов'язковий"), source: "chat" });
+      if (!tid) return { ok: false, error: "Така порада вже є або порожня" };
+      act("tip", `Порада в базу: ${s(input.title)}`);
+      return { ok: true, tip_id: tid };
+    }
+
+    case "tips_stats":
+      return { ...tipStats(), topics: topicScores(), liked: [...reactedTips("new"), ...reactedTips("more")], knew: reactedTips("knew"), boring: reactedTips("boring") };
 
     case "system_updates":
       return listChangelog(Math.min(100, n(input.limit) || 20)).map((e) => ({ date: e.created_at.slice(0, 10), title: e.title, what: e.body }));

@@ -87,7 +87,7 @@ export default function Cosmos() {
     const conic = (c: CanvasRenderingContext2D, start: number, x: number, y: number) =>
       (c as CanvasRenderingContext2D & { createConicGradient?: (a: number, x: number, y: number) => CanvasGradient }).createConicGradient?.(start, x, y) ?? null;
     const TILT = 0.12, IN = 1.04, OUT = 4.4;
-    let disk: HTMLCanvasElement | null = null, streaks: HTMLCanvasElement | null = null, lensC: HTMLCanvasElement | null = null;
+    let disk: HTMLCanvasElement | null = null, streaks: HTMLCanvasElement | null = null, lensC: HTMLCanvasElement | null = null, lensF: HTMLCanvasElement | null = null;
     const DS = 640; // роздільність текстури диска
 
     const prepareHole = (R: number) => {
@@ -108,6 +108,7 @@ export default function Cosmos() {
       // лінза: кільце навколо горизонту, яскраве зверху, тане до боків, ледь видне знизу
       const LS = Math.ceil(R * 2 * 1.9 * dpr), lc = LS / 2, Rp = R * dpr;
       lensC = document.createElement("canvas"); lensC.width = lensC.height = LS;
+      lensF = document.createElement("canvas"); lensF.width = lensF.height = LS;
       const l = lensC.getContext("2d")!;
       const rg = l.createRadialGradient(lc, lc, Rp * 1.0, lc, lc, Rp * 1.85);
       rg.addColorStop(0, "rgba(255,240,215,0)");
@@ -122,7 +123,7 @@ export default function Cosmos() {
         // 0 = праворуч, π/2 = низ, π = ліворуч, 3π/2 = верх
         ang.addColorStop(0, "rgba(0,0,0,0.25)");
         ang.addColorStop(0.08, "rgba(0,0,0,0.25)");
-        ang.addColorStop(0.25, "rgba(0,0,0,0.45)");
+        ang.addColorStop(0.25, "rgba(0,0,0,0.3)");
         ang.addColorStop(0.42, "rgba(0,0,0,0.25)");
         ang.addColorStop(0.5, "rgba(0,0,0,0.2)");
         ang.addColorStop(0.62, "rgba(0,0,0,0.85)");
@@ -165,6 +166,22 @@ export default function Cosmos() {
       d.globalCompositeOperation = "source-over";
     };
 
+    // лінза з потоками: та сама текстура диска, що крутиться, вирізана маскою лінзи (lensC), під нею — рівне світіння
+    const renderLens = () => {
+      const l = lensF!.getContext("2d")!, LS = lensF!.width, lc = LS / 2;
+      const k = (LS * 1.85) / (1.9 * DS); // зовнішній край текстури диска → радіус лінзи 1.85R
+      l.globalCompositeOperation = "source-over"; l.clearRect(0, 0, LS, LS);
+      l.globalCompositeOperation = "lighter";
+      for (const [rot, a] of [[t * 0.22 + 0.6, 1], [-t * 0.13 + 2.3, 1], [t * 0.3 + 4.1, 1], [t * 0.17 + 1.2, 1], [t * 0.26 + 5.3, 0.8]] as const) {
+        l.save(); l.translate(lc, lc); l.rotate(rot); l.scale(k, k); l.globalAlpha = a;
+        l.drawImage(streaks!, -DS / 2, -DS / 2); l.restore();
+      }
+      l.globalAlpha = 1;
+      l.globalCompositeOperation = "destination-in"; l.drawImage(lensC!, 0, 0);
+      l.globalCompositeOperation = "destination-over"; l.globalAlpha = 0.75; l.drawImage(lensC!, 0, 0);
+      l.globalAlpha = 1; l.globalCompositeOperation = "source-over";
+    };
+
     let holeR = 0;
     const blackHole = (cx: number, cy: number, R: number, dt: number) => {
       if (R !== holeR || !disk) { holeR = R; prepareHole(R); }
@@ -191,8 +208,8 @@ export default function Cosmos() {
       const breathe = 0.9 + 0.1 * Math.sin(t * 0.9);
       ctx.globalAlpha = breathe;
       const lr = R * 1.9;
-      ctx.drawImage(lensC!, cx - lr, cy - lr, lr * 2, lr * 2); // лінза (двічі — яскравіше)
-      ctx.drawImage(lensC!, cx - lr, cy - lr, lr * 2, lr * 2);
+      renderLens();
+      ctx.drawImage(lensF!, cx - lr, cy - lr, lr * 2, lr * 2); // лінза з потоками
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
 
@@ -270,82 +287,194 @@ export default function Cosmos() {
     };
 
 
-    // ---- Станція «OPS»: ферма, сонячні панелі, кільце, що обертається, модуль з написом, вогники
-    const station = (cx: number, cy: number, s: number) => {
-      ctx.save(); ctx.translate(cx, cy); ctx.rotate(-0.18 + Math.sin(t * 0.2) * 0.04);
-      const spinR = t * 0.6;
-      // задня половина кільця
-      const ringPart = (front: boolean) => {
-        ctx.strokeStyle = "rgba(170,190,225,0.85)"; ctx.lineWidth = s * 0.16;
-        ctx.beginPath(); ctx.ellipse(0, 0, s * 1.55, s * 0.5, 0, front ? 0 : Math.PI, front ? Math.PI : TAU); ctx.stroke();
-        ctx.strokeStyle = "rgba(40,50,80,0.9)"; ctx.lineWidth = s * 0.05; ctx.setLineDash([s * 0.12, s * 0.22]); ctx.lineDashOffset = -spinR * s;
-        ctx.beginPath(); ctx.ellipse(0, 0, s * 1.55, s * 0.5, 0, front ? 0 : Math.PI, front ? Math.PI : TAU); ctx.stroke();
-        ctx.setLineDash([]);
-        if (front) { // вогники на кільці
-          for (let k = 0; k < 6; k++) {
-            const a = spinR + (k / 6) * TAU;
-            if (Math.sin(a) <= 0) continue;
-            ctx.fillStyle = "rgba(160,220,255,0.95)";
-            ctx.beginPath(); ctx.arc(Math.cos(a) * s * 1.55, Math.sin(a) * s * 0.5, s * 0.04, 0, TAU); ctx.fill();
-          }
+    // ---- Станція «OPS» — обʼємна: світло зверху-зліва (як у Марса), синій відблиск туманності знизу-справа.
+    // Ззаду наперед: задня половина кільця і спиці → ферма з радіаторами → сонячні крила → модуль-циліндр з написом,
+    // антена-тарілка → передня половина кільця. Кільце крутиться (сегменти й вогники біжать), час від часу пшикає двигун.
+    let puff = { x: 0, y: 0, life: 9, next: 4 };
+    const station = (cx: number, cy: number, s: number, dt: number) => {
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(-0.16 + Math.sin(t * 0.2) * 0.035);
+      const spin = t * 0.5;
+      const RX = s * 1.75, RY = s * 0.62, TUBE = s * 0.2;
+
+      // ледь помітне світіння навколо — станція «живе»
+      const aura = ctx.createRadialGradient(0, 0, s * 0.3, 0, 0, s * 3.6);
+      aura.addColorStop(0, "rgba(90,130,255,0.10)"); aura.addColorStop(1, "rgba(90,130,255,0)");
+      ctx.fillStyle = aura; ctx.fillRect(-s * 3.6, -s * 3.6, s * 7.2, s * 7.2);
+
+      // кільце-тор: товста труба з тінню знизу, світлом зверху, сегментами і вікнами
+      const torus = (front: boolean) => {
+        const a0 = front ? 0 : Math.PI, a1 = front ? Math.PI : TAU;
+        ctx.lineCap = "butt";
+        ctx.strokeStyle = front ? "#2a3150" : "#1d2340"; ctx.lineWidth = TUBE;
+        ctx.beginPath(); ctx.ellipse(0, 0, RX, RY, 0, a0, a1); ctx.stroke();
+        ctx.strokeStyle = front ? "#8e9ab8" : "#59637f"; ctx.lineWidth = TUBE * 0.62;
+        ctx.beginPath(); ctx.ellipse(0, -TUBE * 0.14, RX, RY, 0, a0, a1); ctx.stroke();
+        ctx.strokeStyle = front ? "rgba(235,242,255,0.85)" : "rgba(190,200,230,0.45)"; ctx.lineWidth = TUBE * 0.16;
+        ctx.beginPath(); ctx.ellipse(0, -TUBE * 0.3, RX, RY, 0, a0, a1); ctx.stroke();
+        ctx.strokeStyle = "rgba(61,107,255,0.35)"; ctx.lineWidth = TUBE * 0.12; // синій рефлекс знизу
+        ctx.beginPath(); ctx.ellipse(0, TUBE * 0.36, RX, RY, 0, a0, a1); ctx.stroke();
+        for (let k = 0; k < 18; k++) {
+          const a = spin + (k / 18) * TAU, sa = Math.sin(a);
+          if (front ? sa < 0 : sa >= 0) continue;
+          const x = Math.cos(a) * RX, y = sa * RY;
+          const depth = 0.55 + 0.45 * sa; // ближче — яскравіше
+          // шов між сегментами
+          ctx.strokeStyle = `rgba(15,20,40,${0.5 + 0.3 * depth})`; ctx.lineWidth = Math.max(1, s * 0.03);
+          ctx.beginPath(); ctx.moveTo(x, y - TUBE * 0.48); ctx.lineTo(x, y + TUBE * 0.48); ctx.stroke();
+          // вікна житлового кільця
+          const b = a + Math.PI / 18;
+          const wx = Math.cos(b) * RX, wy = Math.sin(b) * RY;
+          const on = 0.55 + 0.45 * Math.sin(t * 0.8 + k * 2.3);
+          ctx.fillStyle = `rgba(255,${200 + (k % 3) * 15},130,${(front ? 0.9 : 0.45) * on})`;
+          ctx.fillRect(wx - s * 0.045, wy - s * 0.02, s * 0.09, s * 0.04);
         }
       };
-      ringPart(false);
-      // спиці
-      ctx.strokeStyle = "rgba(150,165,200,0.7)"; ctx.lineWidth = s * 0.04;
-      for (let k = 0; k < 4; k++) { const a = spinR * 0.999 + (k / 4) * TAU; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * s * 1.5, Math.sin(a) * s * 0.48); ctx.stroke(); }
-      // ферма
-      ctx.fillStyle = "#5d6884"; ctx.fillRect(-s * 3.1, -s * 0.06, s * 6.2, s * 0.12);
-      ctx.strokeStyle = "rgba(200,210,235,0.35)"; ctx.lineWidth = 1;
-      for (let x = -3.1; x < 3.1; x += 0.3) { ctx.beginPath(); ctx.moveTo(x * s, -s * 0.06); ctx.lineTo((x + 0.3) * s, s * 0.06); ctx.stroke(); }
-      // сонячні панелі
-      const panel = (px: number, py: number) => {
-        const pw = s * 0.95, ph = s * 0.62;
-        const g = ctx.createLinearGradient(px, py, px + pw, py + ph);
-        g.addColorStop(0, "#2f5bff"); g.addColorStop(0.5, "#16328f"); g.addColorStop(1, "#0b1a52");
-        ctx.fillStyle = g; ctx.fillRect(px, py, pw, ph);
-        ctx.strokeStyle = "rgba(140,175,255,0.35)"; ctx.lineWidth = 0.8;
-        for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(px + (pw * i) / 4, py); ctx.lineTo(px + (pw * i) / 4, py + ph); ctx.stroke(); }
-        for (let i = 1; i < 3; i++) { ctx.beginPath(); ctx.moveTo(px, py + (ph * i) / 3); ctx.lineTo(px + pw, py + (ph * i) / 3); ctx.stroke(); }
-        ctx.strokeStyle = "rgba(230,190,110,0.8)"; ctx.lineWidth = 1.2; ctx.strokeRect(px, py, pw, ph);
-        // відблиск, що повільно пробігає
-        const sh = ((t * 0.25) % 1.6) - 0.3;
-        const gl = ctx.createLinearGradient(px + pw * sh - pw * 0.3, py, px + pw * sh + pw * 0.3, py + ph);
-        gl.addColorStop(0, "rgba(255,255,255,0)"); gl.addColorStop(0.5, "rgba(190,215,255,0.28)"); gl.addColorStop(1, "rgba(255,255,255,0)");
-        ctx.fillStyle = gl; ctx.fillRect(px, py, pw, ph);
+      const spokes = (front: boolean) => {
+        for (let k = 0; k < 4; k++) {
+          const a = spin + (k / 4) * TAU + Math.PI / 4, sa = Math.sin(a);
+          if (front ? sa < 0 : sa >= 0) continue;
+          const x = Math.cos(a) * RX, y = sa * RY;
+          // передні спиці починаються від корпусу, а не з центру — не лізуть поверх модуля
+          const k0 = front ? Math.min(1, (s * 1.02) / Math.abs(x || 1e-6), (s * 0.42) / Math.abs(y || 1e-6)) : 0;
+          ctx.strokeStyle = "#3b4463"; ctx.lineWidth = s * 0.09;
+          ctx.beginPath(); ctx.moveTo(x * k0, y * k0); ctx.lineTo(x, y); ctx.stroke();
+          ctx.strokeStyle = "rgba(200,212,240,0.55)"; ctx.lineWidth = s * 0.025;
+          ctx.beginPath(); ctx.moveTo(x * k0, y * k0 - s * 0.025); ctx.lineTo(x, y - s * 0.025); ctx.stroke();
+        }
       };
-      for (const px of [-s * 3.1, s * 2.15]) for (const py of [-s * 0.72, s * 0.1]) panel(px, py);
-      // модуль-капсула
-      const hw = s * 0.95, hh = s * 0.42;
-      const body = ctx.createLinearGradient(0, -hh, 0, hh);
-      body.addColorStop(0, "#e9eefb"); body.addColorStop(0.45, "#a9b4cf"); body.addColorStop(1, "#3c4562");
-      ctx.fillStyle = body;
-      ctx.beginPath(); ctx.roundRect(-hw, -hh, hw * 2, hh * 2, hh); ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1; ctx.stroke();
-      // ілюмінатори
-      for (let i = 0; i < 4; i++) {
-        const on = 0.6 + 0.4 * Math.sin(t * 1.7 + i * 1.3);
-        ctx.fillStyle = `rgba(255,214,140,${on})`;
-        ctx.beginPath(); ctx.arc(-hw * 0.72 + i * hw * 0.16, -hh * 0.05, s * 0.045, 0, TAU); ctx.fill();
+      torus(false); spokes(false);
+
+      // ферма: дві балки з розкосами
+      const TL = s * 3.4;
+      const rail = (y: number) => {
+        const g = ctx.createLinearGradient(0, y - s * 0.04, 0, y + s * 0.04);
+        g.addColorStop(0, "#c7d0e6"); g.addColorStop(1, "#3a4260");
+        ctx.fillStyle = g; ctx.fillRect(-TL, y - s * 0.035, TL * 2, s * 0.07);
+      };
+      rail(-s * 0.13); rail(s * 0.13);
+      ctx.strokeStyle = "rgba(160,172,205,0.7)"; ctx.lineWidth = Math.max(1, s * 0.022);
+      ctx.beginPath();
+      for (let x = -TL, up = true; x < TL; x += s * 0.26, up = !up) { ctx.moveTo(x, up ? -s * 0.13 : s * 0.13); ctx.lineTo(x + s * 0.26, up ? s * 0.13 : -s * 0.13); }
+      ctx.stroke();
+      // радіатори — білі ребра біля модуля
+      for (const side of [-1, 1]) {
+        const x0 = side * s * 2.05;
+        for (let k = 0; k < 3; k++) {
+          const x = x0 + side * k * s * 0.13;
+          const g = ctx.createLinearGradient(x, 0, x + s * 0.1, 0);
+          g.addColorStop(0, "#f1f4fb"); g.addColorStop(1, "#8890a8");
+          ctx.fillStyle = g; ctx.fillRect(x - s * 0.035, s * 0.15, s * 0.07, s * 0.38);
+        }
       }
-      // напис OPS
-      ctx.font = `700 ${Math.round(s * 0.42)}px Onest, system-ui, sans-serif`;
+
+      // сонячні крила: панелі в перспективі (паралелограм), з товщиною, сітка клітин, відблиск
+      const panel = (x0: number, y0: number, pw: number, ph: number, skew: number) => {
+        const P = (u: number, v: number) => [x0 + u * pw + v * skew, y0 + v * ph] as const;
+        // торець (товщина) — темний
+        const [ax, ay] = P(0, 1), [bx, by] = P(1, 1);
+        ctx.fillStyle = "#0a0f24";
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(bx, by + s * 0.06); ctx.lineTo(ax, ay + s * 0.06); ctx.fill();
+        const quad = () => { ctx.beginPath(); ctx.moveTo(...P(0, 0)); ctx.lineTo(...P(1, 0)); ctx.lineTo(...P(1, 1)); ctx.lineTo(...P(0, 1)); ctx.closePath(); };
+        const g = ctx.createLinearGradient(x0, y0, x0 + pw, y0 + ph);
+        g.addColorStop(0, "#4f7dff"); g.addColorStop(0.35, "#1f3fae"); g.addColorStop(1, "#0a1650");
+        ctx.fillStyle = g; quad(); ctx.fill();
+        ctx.save(); quad(); ctx.clip();
+        ctx.strokeStyle = "rgba(10,20,60,0.75)"; ctx.lineWidth = Math.max(0.7, s * 0.018);
+        ctx.beginPath();
+        for (let i = 1; i < 6; i++) { ctx.moveTo(...P(i / 6, 0)); ctx.lineTo(...P(i / 6, 1)); }
+        for (let i = 1; i < 4; i++) { ctx.moveTo(...P(0, i / 4)); ctx.lineTo(...P(1, i / 4)); }
+        ctx.stroke();
+        // сонячний відблиск, що повільно повзе по крилу
+        const sh = ((t * 0.12 + x0 / (s * 20)) % 1.8) - 0.4;
+        const gl = ctx.createLinearGradient(x0 + pw * sh - pw * 0.35, y0, x0 + pw * sh + pw * 0.35, y0 + ph);
+        gl.addColorStop(0, "rgba(255,255,255,0)"); gl.addColorStop(0.5, "rgba(200,225,255,0.35)"); gl.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = gl; ctx.fillRect(x0 - pw, y0 - ph, pw * 3, ph * 3);
+        ctx.restore();
+        ctx.strokeStyle = "rgba(225,185,105,0.9)"; ctx.lineWidth = Math.max(1, s * 0.025); quad(); ctx.stroke();
+      };
+      const PW = s * 1.15, PH = s * 0.78, SK = s * 0.16;
+      for (const side of [-1, 1]) {
+        const x0 = side < 0 ? -TL : TL - PW - SK;
+        // щогла, що тримає крило
+        ctx.fillStyle = "#6f7896"; ctx.fillRect(x0 + PW * 0.5 - s * 0.03, -PH - s * 0.12, s * 0.06, PH * 2 + s * 0.24);
+        panel(x0, -PH - s * 0.15, PW, PH, SK);
+        panel(x0 - SK * 0.1, s * 0.15, PW, PH, SK);
+      }
+
+      // модуль-циліндр
+      const HW = s * 1.0, HR = s * 0.4;
+      const body = ctx.createLinearGradient(0, -HR, 0, HR);
+      body.addColorStop(0, "#5c6684"); body.addColorStop(0.12, "#e9eefb"); body.addColorStop(0.3, "#f7f9ff");
+      body.addColorStop(0.65, "#8f9ab6"); body.addColorStop(0.9, "#2d3452"); body.addColorStop(1, "#3d6bff");
+      ctx.fillStyle = body; ctx.fillRect(-HW, -HR, HW * 2, HR * 2);
+      // правий торець — купол
+      ctx.fillStyle = body; ctx.beginPath(); ctx.ellipse(HW, 0, HR * 0.55, HR, 0, -Math.PI / 2, Math.PI / 2); ctx.fill();
+      // лівий торець — видно кришку (ми трохи збоку)
+      const cap = ctx.createRadialGradient(-HW - HR * 0.08, -HR * 0.3, HR * 0.05, -HW, 0, HR);
+      cap.addColorStop(0, "#f4f7ff"); cap.addColorStop(0.6, "#9aa5c2"); cap.addColorStop(1, "#3a4262");
+      ctx.fillStyle = cap; ctx.beginPath(); ctx.ellipse(-HW, 0, HR * 0.3, HR, 0, 0, TAU); ctx.fill();
+      ctx.strokeStyle = "rgba(40,48,80,0.8)"; ctx.lineWidth = Math.max(1, s * 0.02);
+      ctx.beginPath(); ctx.ellipse(-HW, 0, HR * 0.18, HR * 0.62, 0, 0, TAU); ctx.stroke(); // стикувальний люк
+      // шви сегментів — дуги, що підкреслюють циліндр
+      ctx.strokeStyle = "rgba(40,48,80,0.55)"; ctx.lineWidth = Math.max(1, s * 0.022);
+      for (const x of [-0.55, 0.05, 0.6]) { ctx.beginPath(); ctx.ellipse(x * s, 0, HR * 0.3, HR, 0, -Math.PI / 2, Math.PI / 2); ctx.stroke(); }
+      // блік уздовж
+      ctx.strokeStyle = "rgba(255,255,255,0.75)"; ctx.lineWidth = Math.max(1, s * 0.03);
+      ctx.beginPath(); ctx.moveTo(-HW * 0.92, -HR * 0.6); ctx.lineTo(HW * 1.05, -HR * 0.6); ctx.stroke();
+      // ілюмінатори з теплим світлом
+      for (let i = 0; i < 4; i++) {
+        const on = 0.65 + 0.35 * Math.sin(t * 1.4 + i * 1.7);
+        const x = -HW * 0.8 + i * s * 0.17, y = HR * 0.18;
+        ctx.fillStyle = "#1a2038"; ctx.beginPath(); ctx.arc(x, y, s * 0.06, 0, TAU); ctx.fill();
+        ctx.fillStyle = `rgba(255,205,120,${on})`; ctx.shadowColor = "rgba(255,190,100,0.9)"; ctx.shadowBlur = s * 0.15;
+        ctx.beginPath(); ctx.arc(x, y, s * 0.04, 0, TAU); ctx.fill(); ctx.shadowBlur = 0;
+      }
+      // напис OPS — фарба на корпусі, трохи стиснута по висоті (кривизна)
+      ctx.save(); ctx.translate(HW * 0.42, -HR * 0.06); ctx.scale(1, 0.92);
+      ctx.font = `800 ${Math.round(s * 0.5)}px Onest, system-ui, sans-serif`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.lineJoin = "round"; ctx.strokeStyle = "rgba(12,20,60,0.85)"; ctx.lineWidth = Math.max(1.5, s * 0.06);
+      ctx.strokeText("OPS", 0, 0);
       ctx.fillStyle = "#3d6bff"; ctx.shadowColor = "rgba(61,107,255,0.9)"; ctx.shadowBlur = s * 0.25;
-      ctx.fillText("OPS", hw * 0.36, hh * 0.04);
-      ctx.shadowBlur = 0;
-      // антена з червоним вогником
-      ctx.strokeStyle = "#9aa6c4"; ctx.lineWidth = Math.max(1, s * 0.035);
-      ctx.beginPath(); ctx.moveTo(hw * 0.5, -hh); ctx.lineTo(hw * 0.62, -hh - s * 0.7); ctx.stroke();
-      ctx.beginPath(); ctx.ellipse(hw * 0.62, -hh - s * 0.7, s * 0.16, s * 0.06, -0.3, 0, Math.PI); ctx.stroke();
-      const blink = Math.sin(t * 3) > 0.6 ? 1 : 0.15;
-      ctx.fillStyle = `rgba(255,70,70,${blink})`; ctx.shadowColor = "rgba(255,60,60,1)"; ctx.shadowBlur = s * 0.4 * blink;
-      ctx.beginPath(); ctx.arc(hw * 0.62, -hh - s * 0.74, s * 0.05, 0, TAU); ctx.fill();
-      const blink2 = Math.sin(t * 2.2 + 1) > 0.7 ? 1 : 0.1;
-      ctx.fillStyle = `rgba(80,255,150,${blink2})`; ctx.shadowColor = "rgba(80,255,150,1)"; ctx.shadowBlur = s * 0.3 * blink2;
-      ctx.beginPath(); ctx.arc(-hw, 0, s * 0.045, 0, TAU); ctx.fill();
-      ctx.shadowBlur = 0;
-      ringPart(true);
+      ctx.fillText("OPS", 0, 0); ctx.shadowBlur = 0;
+      ctx.restore();
+
+      // антена-тарілка, повільно водить головою
+      const mx = HW * 0.35, my = -HR;
+      const tipX = mx + s * 0.12, tipY = my - s * 0.7;
+      ctx.strokeStyle = "#8790ad"; ctx.lineWidth = Math.max(1, s * 0.045);
+      ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(tipX, tipY); ctx.stroke();
+      ctx.save(); ctx.translate(tipX, tipY); ctx.rotate(-0.5 + Math.sin(t * 0.35) * 0.35);
+      const dish = ctx.createLinearGradient(-s * 0.3, 0, s * 0.3, 0);
+      dish.addColorStop(0, "#f3f6ff"); dish.addColorStop(1, "#59627f");
+      ctx.fillStyle = dish; ctx.beginPath(); ctx.ellipse(0, 0, s * 0.3, s * 0.12, 0, Math.PI, TAU); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(0, 0, s * 0.3, s * 0.12, 0, Math.PI, TAU); ctx.stroke();
+      ctx.strokeStyle = "#b8c0d8"; ctx.beginPath(); ctx.moveTo(0, -s * 0.02); ctx.lineTo(0, -s * 0.24); ctx.stroke();
+      ctx.restore();
+
+      torus(true); spokes(true);
+
+      // навігаційні вогні: червоний на антені, зелений зліва, білий строб на кінці ферми (подвійний спалах)
+      const light = (x: number, y: number, rgb: string, on: number, r: number) => {
+        if (on < 0.05) return;
+        ctx.fillStyle = `rgba(${rgb},${on})`; ctx.shadowColor = `rgba(${rgb},1)`; ctx.shadowBlur = s * 0.5 * on;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.shadowBlur = 0;
+      };
+      light(tipX, tipY - s * 0.04, "255,70,70", Math.sin(t * 2.6) > 0.55 ? 1 : 0.12, s * 0.05);
+      light(-HW - HR * 0.3, 0, "80,255,150", Math.sin(t * 1.9 + 1) > 0.6 ? 1 : 0.1, s * 0.045);
+      const ph = t % 2.4;
+      light(TL, 0, "255,255,255", ph < 0.08 || (ph > 0.22 && ph < 0.3) ? 1 : 0, s * 0.05);
+
+      // пшик двигуна орієнтації
+      puff.next -= dt; puff.life += dt;
+      if (puff.next <= 0) { puff = { x: HW + HR * 0.5, y: -HR * 0.2, life: 0, next: rnd(5, 9) }; }
+      if (puff.life < 1.2) {
+        const k = puff.life / 1.2;
+        const g = ctx.createRadialGradient(puff.x + k * s * 0.9, puff.y - k * s * 0.3, 0, puff.x + k * s * 0.9, puff.y - k * s * 0.3, s * (0.1 + k * 0.5));
+        g.addColorStop(0, `rgba(230,240,255,${0.55 * (1 - k)})`); g.addColorStop(1, "rgba(230,240,255,0)");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(puff.x + k * s * 0.9, puff.y - k * s * 0.3, s * (0.1 + k * 0.5), 0, TAU); ctx.fill();
+      }
       ctx.restore();
     };
 
@@ -408,7 +537,7 @@ export default function Cosmos() {
       const L = layout();
       blackHole(L.bh.x + mouse.x * -18, L.bh.y + mouse.y * -14, L.bh.r, reduce ? 0 : dt);
       planet(L.planet.x + mouse.x * -40, L.planet.y + mouse.y * -30, L.planet.r);
-      station(L.station.x + mouse.x * -55 + Math.sin(t * 0.3) * 6, L.station.y + mouse.y * -40 + Math.sin(t * 0.45) * 5, L.station.s);
+      station(L.station.x + mouse.x * -55 + Math.sin(t * 0.3) * 6, L.station.y + mouse.y * -40 + Math.sin(t * 0.45) * 5, L.station.s, reduce ? 0 : dt);
 
       // віньєтка — глибина
       const v = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.8);

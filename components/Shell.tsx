@@ -12,6 +12,7 @@ import TaskModal from "./TaskModal";
 import type { AssistantSeed } from "./assistant";
 import Bot from "./Bot";
 import Drafts from "./Drafts";
+import JerryTip from "./JerryTip";
 import { useHoldToTalk } from "./useHoldToTalk";
 import Icon from "./Icon";
 import { SECTIONS, type Counts } from "./nav";
@@ -153,6 +154,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
       {search && <CommandPalette onClose={() => setSearch(false)} />}
       {add && <QuickAdd clients={clients} onClose={() => setAdd(false)} />}
       <Suspense fallback={null}><TaskModal /></Suspense>
+      <JerryTip hidden={dock || search || add} />
     </div>
   );
 }

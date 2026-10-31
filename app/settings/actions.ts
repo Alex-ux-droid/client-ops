@@ -233,6 +233,8 @@ export async function saveCapsAction(fd: FormData) {
   await requireUser();
   const { saveCaps } = await import("@/lib/agent/caps");
   saveCaps(new Set([...fd.keys()]));
+  const every = Number(fd.get("tips.every"));
+  if (every >= 5 && every <= 600) { const { setSetting } = await import("@/lib/repo/settings"); setSetting("tips.every", String(every)); }
   back("Збережено.", true, "caps");
 }
 
