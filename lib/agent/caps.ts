@@ -18,6 +18,7 @@ export const CAPS = [
   { key: "links", label: "Привʼязувати кабінети і групи", desc: "рекламний кабінет Meta і Telegram-групу до клієнта", tools: ["meta_link", "telegram_link"] },
   { key: "journal", label: "Журнал системи", desc: "записувати запити на доробку і глюки", tools: ["journal_add"] },
   { key: "kb", label: "База знань (запис)", desc: "зберігати інструкції", tools: ["kb_save"] },
+  { key: "tips", label: "Поради дня (запис)", desc: "записує в базу порад корисне, що виникло в розмові", tools: ["tip_add"] },
   { key: "lab", label: "Лабораторія", desc: "вести сесії вибору інструментів", tools: ["lab_create", "lab_update", "lab_add_option", "lab_update_option", "lab_add_criterion", "lab_set_scores", "lab_finish"] },
 ] as const;
 
@@ -28,6 +29,8 @@ export const AUTO = [
   { key: "tg_files", label: "Фото і файли з Telegram на Диск", desc: "копія в папку клієнта → «Telegram»", setting: "auto.tg_files" },
   { key: "live_dictation", label: "Живий текст під час диктування", desc: "бачиш, що Джері чує, поки говориш (ElevenLabs Realtime); вимкнеш — текст з'являється після «стоп»", setting: "voice.live" },
   { key: "startup_monitor", label: "Моніторинг стартапів", desc: "раз на 5 хв перевіряє сайти проєктів; ліг або піднявся — повідомлення в Telegram", setting: "auto.startup_monitor" },
+  { key: "tips", label: "Поради від Джері під час роботи", desc: "час від часу біля робота — коротка порада: бізнес, реклама, продажі, переговори, терміни, факти (безкоштовно)", setting: "auto.tips" },
+  { key: "tips_gen", label: "Джері сам поповнює поради", desc: "коли нових лишається мало — пише ще 15 під твої реакції; ≈1–2 цента за пачку", setting: "auto.tips_gen" },
   { key: "reflect", label: "Самонавчання Джері", desc: "після кожної розмови оновлює памʼять — коштує трохи кредитів", setting: "auto.reflect" },
 ] as const;
 

@@ -11,6 +11,7 @@ import { listChangelog } from "../repo/changelog";
 import { reflect } from "./reflect";
 import { runTool, TOOLS } from "./tools";
 import { CAPS, capOn, toolAllowed } from "./caps";
+import { tipsBlock } from "../repo/tips";
 
 // Останні оновлення системи — щоб Джері знав свої нові можливості і не тримався за старе з пам'яті
 function updatesBlock(): string {
@@ -128,6 +129,7 @@ export async function runAgent(clientId: number | null, userText: string, page =
     `Твоя пам'ять (що ти вже знаєш про Сашу і роботу):\n${memory.trim() || "поки порожньо"}`,
     updatesBlock(),
     capsBlock(),
+    tipsBlock(),
   ].filter(Boolean).join("\n\n");
   const system: Anthropic.Beta.BetaTextBlockParam[] = [
     { type: "text", text: stable, cache_control: { type: "ephemeral" } },
