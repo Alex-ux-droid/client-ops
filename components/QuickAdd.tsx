@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { addTask, logWork, saveIdea, savePayment } from "@/app/actions";
 import { ymd } from "@/lib/dates";
+import VoiceTextarea from "./VoiceTextarea";
 
 type Opt = { id: number; name: string };
 const TABS = [
@@ -41,7 +42,7 @@ export default function QuickAdd({ clients, onClose }: { clients: Opt[]; onClose
         )}
         {tab === "idea" && (
           <form action={submit(saveIdea)} className="stack">
-            <textarea name="text" placeholder="Що спало на думку" required autoFocus id="qa-idea" />
+            <VoiceTextarea name="text" placeholder="Що спало на думку" required autoFocus id="qa-idea" />
             <ClientSelect />
             <button>Записати ідею</button>
           </form>

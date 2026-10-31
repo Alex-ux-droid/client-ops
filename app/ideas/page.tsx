@@ -3,6 +3,7 @@ import { ideaToTask, markIdea, saveIdea } from "@/app/actions";
 import { fmtDate } from "@/lib/dates";
 import { listClients } from "@/lib/repo/clients";
 import { listIdeas, type IdeaStatus } from "@/lib/repo/ideas";
+import VoiceTextarea from "@/components/VoiceTextarea";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export default async function IdeasPage({ searchParams }: { searchParams: Promis
     <>
       <div className="head"><h1>Ідеї</h1></div>
       <form action={saveIdea} className="card" style={{ marginBottom: 14 }}>
-        <div className="field"><textarea name="text" placeholder="Що спало на думку…" required style={{ minHeight: 60 }} /></div>
+        <div className="field"><VoiceTextarea name="text" placeholder="Що спало на думку…" required style={{ minHeight: 60 }} /></div>
         <div className="inline">
           <select name="client_id" defaultValue="">
             <option value="">Загальна</option>

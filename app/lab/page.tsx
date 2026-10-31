@@ -4,6 +4,7 @@ import { fmtDate } from "@/lib/dates";
 import { listClients } from "@/lib/repo/clients";
 import { LAB_CATEGORIES, listLab } from "@/lib/repo/lab";
 import { createLabAction } from "./actions";
+import VoiceTextarea from "@/components/VoiceTextarea";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export default async function LabPage({ searchParams }: { searchParams: Promise<
           </div>
           <div className="field wide">
             <label htmlFor="brief">Яку проблему вирішуємо</label>
-            <textarea id="brief" name="brief" required style={{ minHeight: "7rem" }}
+            <VoiceTextarea id="brief" name="brief" required style={{ minHeight: "7rem" }}
               placeholder="Напр.: менеджери губляться в заявках з Facebook і сайту, 5 людей, бюджет до 50$/міс — потрібна CRM: готова чи своя на вайбкоді?" />
           </div>
         </div>

@@ -14,6 +14,7 @@ import { listPayments } from "@/lib/repo/payments";
 import { checklistItems, clientPlaybooks, listPlaybooks } from "@/lib/repo/playbooks";
 import { listTasks } from "@/lib/repo/tasks";
 import { listWork } from "@/lib/repo/worklog";
+import VoiceTextarea from "@/components/VoiceTextarea";
 
 export function TasksTab({ id }: { id: number }) {
   const open = listTasks("all", id);
@@ -100,7 +101,7 @@ export function MaterialsTab({ id }: { id: number }) {
             </select>
             <input name="title" placeholder="Назва (необов'язково)" aria-label="Назва" />
           </div>
-          <textarea name="content" placeholder="Встав сюди переписку з клієнтом, цифри з кабінету, бриф…" required style={{ minHeight: 160 }} aria-label="Текст" />
+          <VoiceTextarea name="content" placeholder="Встав сюди переписку з клієнтом, цифри з кабінету, бриф…" required style={{ minHeight: 160 }} aria-label="Текст" />
           <button>Зберегти</button>
         </form>
       </details>

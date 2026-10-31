@@ -7,6 +7,7 @@ import type { TaskItem, TaskLink, TaskRow } from "@/lib/repo/tasks";
 import { openAssistant } from "./assistant";
 import Markdown from "./Markdown";
 import { OPEN_TASK } from "./tasks";
+import VoiceTextarea from "./VoiceTextarea";
 
 type Data = { task: TaskRow; items: TaskItem[]; links: TaskLink[]; drive_url: string; calendar: "ok" | "reconnect" | "off" };
 const STATUS = [{ k: "todo", l: "Треба зробити" }, { k: "doing", l: "В роботі" }, { k: "done", l: "Готово" }] as const;
@@ -133,7 +134,7 @@ export default function TaskModal() {
                   ))}
                 </ul>
                 <form className="tm-add" onSubmit={(e) => { e.preventDefault(); const v = newItem.current?.value ?? ""; if (!v.trim()) return; void run(() => taskItemAdd(id, v)).then(() => { if (newItem.current) newItem.current.value = ""; }); }}>
-                  <textarea ref={newItem} rows={1} placeholder="+ Нова підзадача" title="Можна кілька — кожна з нового рядка (Shift+Enter)"
+                  <VoiceTextarea ref={newItem} rows={1} placeholder="+ Нова підзадача" title="Можна кілька — кожна з нового рядка (Shift+Enter)"
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} />
                   <button className="small" disabled={busy}>Додати</button>
                 </form>
@@ -146,7 +147,7 @@ export default function TaskModal() {
                 </div>
                 {editDetails ? (
                   <form onSubmit={(e) => { e.preventDefault(); const v = (new FormData(e.currentTarget).get("details") as string) ?? ""; void run(() => taskPatch(id, { details: v })).then(() => setEditDetails(false)); }}>
-                    <textarea name="details" defaultValue={t!.details} rows={10} className="tm-details-edit" placeholder={"Як зробити, кроки, нюанси.\n1. Перший крок\n2. Другий\n**жирне**, посилання https://…"} autoFocus />
+                    <VoiceTextarea name="details" defaultValue={t!.details} rows={10} className="tm-details-edit" placeholder={"Як зробити, кроки, нюанси.\n1. Перший крок\n2. Другий\n**жирне**, посилання https://…"} autoFocus />
                     <button disabled={busy}>Зберегти</button>
                   </form>
                 ) : t!.details ? (

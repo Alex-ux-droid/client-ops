@@ -7,6 +7,7 @@ import { listFolders, listTools, type ClientService } from "@/lib/repo/services"
 import { serviceDef, type ServiceType } from "@/lib/services";
 import { accountsForClient } from "@/lib/repo/meta";
 import MetaLive from "./MetaLive";
+import VoiceTextarea from "@/components/VoiceTextarea";
 
 const STATUS = [
   { v: "active", label: "Ведемо зараз" },
@@ -88,14 +89,14 @@ export default function ServiceTab({ clientId, service, edit, saved, mv, err }: 
               <div key={f.key} className={`field ${f.wide || f.type === "textarea" ? "wide" : ""}`}>
                 <label htmlFor={`d_${f.key}`}>{f.label}</label>
                 {f.type === "textarea"
-                  ? <textarea id={`d_${f.key}`} name={`d_${f.key}`} defaultValue={service.details[f.key] ?? ""} placeholder={f.placeholder} />
+                  ? <VoiceTextarea id={`d_${f.key}`} name={`d_${f.key}`} defaultValue={service.details[f.key] ?? ""} placeholder={f.placeholder} />
                   : <input id={`d_${f.key}`} name={`d_${f.key}`} type="text" inputMode={f.type === "number" ? "decimal" : f.type === "url" ? "url" : undefined} autoCapitalize={f.type === "url" ? "off" : undefined}
                       defaultValue={service.details[f.key] ?? ""} placeholder={f.placeholder} />}
               </div>
             ))}
             <div className="field wide">
               <label htmlFor="notes">Нотатки</label>
-              <textarea id="notes" name="notes" defaultValue={service.notes} placeholder="Домовленості, нюанси, що не забути" />
+              <VoiceTextarea id="notes" name="notes" defaultValue={service.notes} placeholder="Домовленості, нюанси, що не забути" />
             </div>
           </div>
           <div className="inline">
