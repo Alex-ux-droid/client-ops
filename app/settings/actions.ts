@@ -235,3 +235,23 @@ export async function saveCapsAction(fd: FormData) {
   saveCaps(new Set([...fd.keys()]));
   back("Збережено.", true, "caps");
 }
+
+// ---- GitHub (тільки читання)
+export async function connectGithubAction(fd: FormData) {
+  await requireUser();
+  const token = String(fd.get("token") ?? "").trim();
+  if (token.length < 20 || /\s/.test(token)) back("Токен виглядає неправильно — скопіюй його повністю.", false, "connectors&c=github");
+  let msg = "", ok = false;
+  try {
+    const { connectGithub } = await import("@/lib/github");
+    msg = `GitHub підключено: ${await connectGithub(token)}. Джері тепер бачить твої репозиторії.`; ok = true;
+  } catch (e) { msg = e instanceof Error ? e.message : "Не вдалось"; }
+  back(msg, ok, "connectors&c=github");
+}
+
+export async function disconnectGithubAction() {
+  await requireUser();
+  const { disconnectGithub } = await import("@/lib/github");
+  disconnectGithub();
+  back("GitHub відключено.", true, "connectors&c=github");
+}
