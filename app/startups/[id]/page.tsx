@@ -8,7 +8,10 @@ import TaskItem from "@/components/TaskItem";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import { fmtDate } from "@/lib/dates";
 import { getClient, listClients } from "@/lib/repo/clients";
-import { CANVAS, FLOW, getStartup, listItems, STAGES, type Startup, type StartupItem } from "@/lib/repo/startups";
+import { FLOW, getStartup, listItems, PILLARS, pillarFilled, STAGES, type PillarKey, type Startup, type StartupItem } from "@/lib/repo/startups";
+import { currency, money } from "@/lib/config";
+import { calcFinance, hasFinance } from "@/lib/startupFinance";
+import FinanceCalc from "./FinanceCalc";
 import { startupTasks } from "@/lib/repo/tasks";
 import {
   addItemAction, addStartupTaskAction, deleteItemAction, deleteStartupAction, saveCanvasAction, saveSpecAction, saveStartupAction, updateItemAction,
@@ -19,16 +22,20 @@ import StartupAssistant from "./StartupAssistant";
 
 export const dynamic = "force-dynamic";
 
+// Чотири опори (ідея, маркетинг, технічна з ТЗ, фінанси) + робочі вкладки
 const VIEWS = [
   { k: "overview", label: "Огляд" },
-  { k: "canvas", label: "Фундамент" },
+  { k: "idea", label: "1 · Ідея" },
+  { k: "marketing", label: "2 · Маркетинг" },
+  { k: "tech", label: "3 · Технічна і ТЗ" },
+  { k: "finance", label: "4 · Фінанси" },
   { k: "plan", label: "План" },
   { k: "tests", label: "Тести" },
   { k: "decisions", label: "Рішення" },
-  { k: "spec", label: "ТЗ для Claude Code" },
   { k: "notes", label: "Нотатки" },
   { k: "monitor", label: "Моніторинг" },
 ] as const;
+const ALIAS: Record<string, string> = { canvas: "idea", spec: "tech" }; // старі посилання
 type View = (typeof VIEWS)[number]["k"];
 
 const MS = [
@@ -43,10 +50,9 @@ export default async function StartupPage({ params, searchParams }: { params: Pr
   const s = getStartup(id);
   if (!s) notFound();
   const sv = (await searchParams).v;
-  const v = (VIEWS.find((x) => x.k === sv)?.k ?? "overview") as View;
+  const v = (VIEWS.find((x) => x.k === (ALIAS[sv ?? ""] ?? sv))?.k ?? "overview") as View;
   const items = listItems(id);
   const by = (k: StartupItem["kind"]) => items.filter((i) => i.kind === k);
-  const filled = CANVAS.filter((c) => s.canvas[c.k]?.trim()).length;
   const client = s.client_id ? getClient(s.client_id) : undefined;
   const hidden = <input type="hidden" name="id" value={id} />;
   const base = `/startups/${id}`;
@@ -87,17 +93,19 @@ export default async function StartupPage({ params, searchParams }: { params: Pr
       <nav className="mx-tabs su-tabs">
         {VIEWS.map((x) => (
           <Link key={x.k} href={x.k === "overview" ? base : `${base}?v=${x.k}`} scroll={false} className={x.k === v ? "on" : ""}>
-            {x.label}{x.k === "canvas" ? <em>{filled}/{CANVAS.length}</em> : x.k === "tests" && by("experiment").length ? <em>{by("experiment").length}</em> : null}
+            {x.label}{PILLARS.some((p) => p.k === x.k) ? <em>{pillarFilled(s, x.k as PillarKey).filled}/{pillarFilled(s, x.k as PillarKey).total}</em> : x.k === "tests" && by("experiment").length ? <em>{by("experiment").length}</em> : null}
           </Link>
         ))}
       </nav>
 
-      {v === "overview" && <Overview s={s} items={items} filled={filled} />}
-      {v === "canvas" && <Canvas s={s} />}
+      {v === "overview" && <Overview s={s} items={items} />}
+      {v === "idea" && <Pillar s={s} p="idea" />}
+      {v === "marketing" && <Pillar s={s} p="marketing" />}
+      {v === "tech" && <><Spec s={s} /><Pillar s={s} p="tech" /></>}
+      {v === "finance" && <><FinanceCalc id={s.id} initial={s.finance} cur={currency()} /><Pillar s={s} p="finance" /></>}
       {v === "plan" && <Plan s={s} milestones={by("milestone")} />}
       {v === "tests" && <Tests s={s} items={by("experiment")} />}
       {v === "decisions" && <Decisions s={s} items={by("decision")} />}
-      {v === "spec" && <Spec s={s} />}
       {v === "notes" && <Notes s={s} items={items.filter((i) => i.kind === "note" || i.kind === "link")} />}
       {v === "monitor" && <Monitor s={s} />}
 
@@ -131,7 +139,7 @@ function Stages({ s, v }: { s: Startup; v: View }) {
 const Empty = ({ children }: { children: React.ReactNode }) => <p className="lab-muted" style={{ margin: 0 }}>{children}</p>;
 
 // ---------- Огляд: пульт проєкту
-function Overview({ s, items, filled }: { s: Startup; items: StartupItem[]; filled: number }) {
+function Overview({ s, items }: { s: Startup; items: StartupItem[] }) {
   const ms = items.filter((i) => i.kind === "milestone");
   const current = ms.find((m) => m.status === "now") ?? ms.find((m) => m.status !== "done");
   const curTasks = current ? startupTasks(s.id, current.id) : [];
@@ -140,8 +148,7 @@ function Overview({ s, items, filled }: { s: Startup; items: StartupItem[]; fill
   const decisions = items.filter((i) => i.kind === "decision").slice(0, 3);
   const exps = items.filter((i) => i.kind === "experiment");
   const running = exps.filter((e) => e.status === "running" || e.status === "planned");
-  const empty = CANVAS.filter((c) => !s.canvas[c.k]?.trim());
-  const pct = Math.round((filled / CANVAS.length) * 100);
+  const fin = hasFinance(s.finance) ? calcFinance(s.finance) : null;
   const doneT = curTasks.filter((t) => t.status === "done").length;
 
   return (
@@ -193,13 +200,29 @@ function Overview({ s, items, filled }: { s: Startup; items: StartupItem[]; fill
       </div>
 
       <div className="su-ov-side">
-        <Link href={`/startups/${s.id}?v=canvas`} className="card su-ring-card">
-          <div className="su-ring" style={{ "--p": pct } as React.CSSProperties}><b>{filled}/{CANVAS.length}</b></div>
-          <div>
-            <b>Фундамент</b>
-            {empty.length ? <span>Не заповнено: {empty.map((c) => c.label.toLowerCase()).join(", ")}</span> : <span>Усі блоки заповнені</span>}
-          </div>
-        </Link>
+        <div className="su-pillars">
+          {PILLARS.map((p, i) => {
+            const { filled, total } = pillarFilled(s, p.k);
+            const empty = p.blocks.filter((b) => !s.canvas[b.k]?.trim());
+            const extra = p.k === "tech" ? (s.spec_md ? "ТЗ зібране" : "ТЗ ще не зібране") : p.k === "finance" ? (fin ? `окупність: ${fin.payback == null ? "> 3 р." : fin.payback === 0 ? "без вкладень" : `${fin.payback}-й міс`}` : "калькулятор порожній") : "";
+            return (
+              <Link key={p.k} href={`/startups/${s.id}?v=${p.k}`} className="card su-ring-card">
+                <div className="su-ring" style={{ "--p": Math.round((filled / total) * 100) } as React.CSSProperties}><b>{filled}/{total}</b></div>
+                <div>
+                  <b>{i + 1} · {p.label}</b>
+                  <span>{empty.length ? `Бракує: ${empty.slice(0, 4).map((c) => c.label.toLowerCase()).join(", ")}${empty.length > 4 ? "…" : ""}` : "Усе заповнено"}</span>
+                  {extra && <span className={p.k === "tech" && s.spec_md ? "su-ok" : ""}>{extra}</span>}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+        {fin && (
+          <Link href={`/startups/${s.id}?v=finance`} className="card su-fin-mini">
+            <span>Прибуток за 1-й рік</span><b className={fin.year.profit >= 0 ? "pos" : "neg"}>{money(Math.round(fin.year.profit))}</b>
+            {fin.breakEven != null && <span>у нуль: {Math.ceil(fin.breakEven)} {s.finance.model === "sub" ? "клієнтів" : "продажів/міс"}</span>}
+          </Link>
+        )}
 
         <div className="card stack">
           <div className="mx-main-head"><b>Гіпотези</b><Link href={`/startups/${s.id}?v=tests`}>усі →</Link></div>
@@ -220,6 +243,7 @@ function Overview({ s, items, filled }: { s: Startup; items: StartupItem[]; fill
             <AskAssistant text="Подивись на цей стартап цілком: що зараз найважливіше зробити і чому? Онови «наступний крок».">Що далі?</AskAssistant>
             <AskAssistant text="Чого не вистачає цьому стартапу, щоб перейти на наступну стадію? Чесно, з ризиками.">Чого бракує?</AskAssistant>
             <AskAssistant text="Склади або онови план етапами з задачами для цього стартапу.">Склади план</AskAssistant>
+            <AskAssistant text="Пройдись по всіх чотирьох опорах цього стартапу (ідея, маркетинг, технічна, фінанси): заповни порожні блоки, де можеш, чесно познач, де бракує даних, і запиши питання, на які мені треба відповісти.">Заповни опори</AskAssistant>
           </div>
         </div>
       </div>
@@ -227,14 +251,24 @@ function Overview({ s, items, filled }: { s: Startup; items: StartupItem[]; fill
   );
 }
 
-// ---------- Фундамент: 9 опорних блоків
-function Canvas({ s }: { s: Startup }) {
+// ---------- Опора: набір блоків-питань (ідея / маркетинг / технічна / фінанси)
+const PILLAR_ASK: Record<PillarKey, string> = {
+  idea: "Відшліфуй ідею цього стартапу: пройдись по блоках опори «Ідея» (біль, для кого, рішення, цінність, чому ми, конкуренти, метрика, ризики) — заповни порожні і посиль слабкі. Чесно скажи, де ідея тонка.",
+  marketing: "Розпиши маркетинг цього стартапу: позиціонування, оффер, ідеальний клієнт (його словами), канали, головні повідомлення, докази, план перших 10 клієнтів, воронка, назва. Конкретно, під мої навички (Meta-реклама, відділи продажу). Запиши в блоки опори «Маркетинг».",
+  tech: "Розпиши технічну сторону цього стартапу: обсяг MVP (що НЕ робимо), ядро і сутності, стек з причинами, дані і бекапи, інтеграції, сервер і хостинг з цінами, систему оновлень (автодеплой, міграції, відкат, без простою), безпеку, обслуговування і моніторинг. Запиши в блоки опори «Технічна», важливі вибори — в журнал рішень.",
+  finance: "Порахуй фінанси цього стартапу: модель грошей, тарифи з обґрунтуванням ціни, витрати по пунктах, і заповни калькулятор (finance: ціна, витрати на клієнта, постійні, реклама, нові клієнти, ріст, відтік, вкладення). Реалістично, з поясненням звідки цифри. Потім висновок: вигідно чи ні, що найризикованіше.",
+};
+function Pillar({ s, p }: { s: Startup; p: PillarKey }) {
+  const P = PILLARS.find((x) => x.k === p)!;
   return (
-    <>
-      <p className="lab-muted">На цьому стоїть продукт. Порожній блок — це питання, на яке ще нема відповіді. Заповнюй своїми словами або натисни «Джері».</p>
+    <div className="stack" style={{ gap: "1rem" }}>
+      <div className="su-pillar-head">
+        <p className="lab-muted" style={{ margin: 0 }}>{P.hint[0].toUpperCase() + P.hint.slice(1)}. Порожній блок — питання, на яке ще нема відповіді. Пиши своїми словами, диктуй або натисни «Джері».</p>
+        <AskAssistant text={PILLAR_ASK[p]}>Джері, пройдись по всій опорі</AskAssistant>
+      </div>
       <div className="su-canvas">
-        {CANVAS.map((c, i) => {
-          const val = s.canvas[c.k]?.trim() ?? "";
+        {P.blocks.map((c, i) => {
+          const val = s.canvas[c.k as keyof Startup["canvas"]]?.trim() ?? "";
           return (
             <article key={c.k} id={`c-${c.k}`} className={`card su-block ${val ? "filled" : ""}`}>
               <div className="su-block-head"><span className="su-num">{i + 1}</span><b>{c.label}</b></div>
@@ -248,13 +282,13 @@ function Canvas({ s }: { s: Startup }) {
                     <SubmitButton className="small" />
                   </form>
                 </details>
-                <AskAssistant text={`Допоможи з блоком «${c.label}» фундаменту цього стартапу (${c.q}). Запропонуй і, якщо згоден, запиши.`}>Джері</AskAssistant>
+                <AskAssistant text={`Допоможи з блоком «${c.label}» (опора «${P.label}») цього стартапу: ${c.q} Запропонуй і, якщо згоден, запиши.`}>Джері</AskAssistant>
               </div>
             </article>
           );
         })}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -402,23 +436,45 @@ function Decisions({ s, items }: { s: Startup; items: StartupItem[] }) {
   );
 }
 
-// ---------- ТЗ для Claude Code
+// ---------- ТЗ для Claude Code (у вкладці «Технічна»)
+const SPEC_PROMPT = `Збери повний промпт-ТЗ для Claude Code по цьому стартапу, щоб він міг будувати без уточнень. Бери з усіх опор (ідея, маркетинг, технічна, фінанси), журналу рішень, плану і тестів. Структура (markdown):
+1. Роль і мета: хто ти (Claude Code), що будуємо, для кого, яку біль закриває, головна метрика.
+2. Обсяг MVP: що входить, що свідомо НЕ робимо.
+3. Ядро: модулі, сутності з полями і звʼязками, ролі користувачів, основні сценарії крок за кроком.
+4. Екрани: перелік і що на кожному (мобільний UI першим).
+5. Стек і архітектура: що використовуємо і чому (з журналу рішень), структура папок.
+6. Дані: схема бази, міграції, бекапи, чутливі дані.
+7. Інтеграції: які, що потрібно (ключі — тільки в .env, ніколи в коді).
+8. Сервер і деплой: де живе, домен, HTTPS, як розгортаємо.
+9. Система оновлень: гілки, автодеплой без простою, міграції, відкат при помилці.
+10. Безпека: вхід, доступи, захист даних.
+11. Обслуговування: логи, моніторинг, помилки, що автоматизуємо.
+12. Етапи розробки з критеріями «готово» і як тестувати кожен.
+13. Правила роботи: коміти по етапах, перевірки перед злиттям, що питати в мене, а що вирішувати самому.
+14. Відкриті питання.
+Конкретно, без води; де даних бракує — познач «ПИТАННЯ:» і спитай мене. Збережи в ТЗ стартапу (spec_md).`;
 function Spec({ s }: { s: Startup }) {
   return (
     <div className="stack" style={{ gap: "1rem" }}>
-      <div className="card su-spec-bar">
+      <div className="card su-spec-bar" id="spec">
         <div>
-          <b>ТЗ для Claude Code</b>
-          <span>{s.spec_updated_at ? `оновлено ${fmtDate(s.spec_updated_at)}` : "ще не зібране"} · Джері збирає з фундаменту, рішень, плану і тестів. Копіюєш → вставляєш у Claude Code → будується за планом.</span>
+          <b>Промпт (ТЗ) для Claude Code</b>
+          <span>{s.spec_updated_at ? `оновлено ${fmtDate(s.spec_updated_at)}` : "ще не зібране"} · Джері збирає з усіх опор, рішень і плану. Копіюєш → вставляєш у Claude Code → будується за планом.</span>
         </div>
         <div className="inline" style={{ flexWrap: "wrap" }}>
-          <AskAssistant text="Збери ТЗ для Claude Code по цьому стартапу: мета і для кого, MVP (що входить і що НІ), сутності і дані, екрани/сценарії, інтеграції, стек і архітектурні рішення (з журналу рішень), етапи з критеріями готовності, як тестувати, відкриті питання. Markdown, конкретно, без води. Збережи в ТЗ стартапу.">{s.spec_md ? "Джері, онови ТЗ" : "Джері, збери ТЗ"}</AskAssistant>
+          <AskAssistant text={SPEC_PROMPT}>{s.spec_md ? "Джері, онови ТЗ" : "Джері, збери ТЗ"}</AskAssistant>
           {s.spec_md && <CopyText text={s.spec_md} />}
           {s.spec_md && <a href={`/api/startups/${s.id}/spec?format=md`} className="btn ghost small">.md</a>}
           {s.spec_md && <a href={`/api/startups/${s.id}/spec?format=pdf`} target="_blank" rel="noreferrer" className="btn ghost small">PDF</a>}
+          <a href={`/api/startups/${s.id}/spec?what=all&format=md`} className="btn ghost small" title="Усі опори, фінанси, рішення, план і ТЗ одним файлом">Експорт проєкту</a>
         </div>
       </div>
-      {s.spec_md ? <article className="card su-spec"><Markdown md={s.spec_md} /></article> : <div className="empty card">Коли фундамент і перші рішення є — натисни «Джері, збери ТЗ».</div>}
+      {s.spec_md ? (
+        <details className="card su-spec-wrap">
+          <summary><b>Показати ТЗ</b> <span className="lab-muted">({s.spec_md.length.toLocaleString("uk-UA")} символів)</span></summary>
+          <article className="su-spec"><Markdown md={s.spec_md} /></article>
+        </details>
+      ) : <div className="empty card">Заповни блоки нижче (або попроси Джері) — і збери ТЗ однією кнопкою.</div>}
       <details className="lab-edit">
         <summary>Редагувати ТЗ вручну</summary>
         <form action={saveSpecAction} className="stack" style={{ marginTop: "0.75rem" }}>

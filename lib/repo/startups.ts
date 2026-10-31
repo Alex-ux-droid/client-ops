@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { normFinance, type Finance } from "../startupFinance";
 
 export const STAGES = [
   { k: "raw", label: "Скринька", hint: "сира ідея, ще не розгорнута" },
@@ -14,35 +15,85 @@ export const STAGES = [
 export type Stage = (typeof STAGES)[number]["k"];
 export const FLOW: Stage[] = ["idea", "research", "foundation", "build", "launch", "grow"];
 
-// Фундамент: опорні блоки, на яких стоїть продукт
-export const CANVAS = [
-  { k: "problem", label: "Біль", q: "Яку проблему закриваємо? Як люди живуть з нею зараз і скільки вона їм коштує?" },
-  { k: "audience", label: "Для кого", q: "Хто саме платить і хто користується? Перший сегмент, з якого почнемо." },
-  { k: "solution", label: "Рішення", q: "Що робимо? Яким буде перший мінімальний продукт (MVP)?" },
-  { k: "why_us", label: "Чому ми", q: "Чому саме ми це зробимо краще: досвід, клієнти, навички, доступ." },
-  { k: "money", label: "Гроші", q: "Як заробляє: модель, ціна, хто і за що платить." },
-  { k: "channels", label: "Канали", q: "Як знаходимо перших клієнтів і як масштабуємо." },
-  { k: "competitors", label: "Конкуренти", q: "Хто вже це робить і чим користуються зараз замість нас." },
-  { k: "metrics", label: "Метрика", q: "По якій цифрі зрозуміємо, що працює (північна зірка)." },
-  { k: "risks", label: "Ризики", q: "Що може вбити проєкт і як перевіримо це раніше." },
+// Чотири опори проєкту. Кожна — набір блоків-питань; усі тексти лежать в одному canvas_json (ключ → markdown).
+// Старі ключі (problem…risks, money, channels) збережені — просто розкладені по опорах.
+export const PILLARS = [
+  {
+    k: "idea", label: "Ідея", hint: "що це, для кого і чому за це платитимуть",
+    blocks: [
+      { k: "problem", label: "Біль", q: "Яку проблему закриваємо? Як люди живуть з нею зараз і скільки вона їм коштує?" },
+      { k: "audience", label: "Для кого", q: "Хто саме платить і хто користується? Перший сегмент, з якого почнемо." },
+      { k: "solution", label: "Рішення", q: "Що робимо? Яким буде перший мінімальний продукт (MVP)?" },
+      { k: "value", label: "Цінність", q: "Що людина отримує в результаті: гроші, час, спокій? Чому це краще, ніж як зараз?" },
+      { k: "why_us", label: "Чому ми", q: "Чому саме ми це зробимо краще: досвід, клієнти, навички, доступ." },
+      { k: "competitors", label: "Конкуренти", q: "Хто вже це робить і чим користуються зараз замість нас." },
+      { k: "metrics", label: "Метрика", q: "По якій цифрі зрозуміємо, що працює (північна зірка)." },
+      { k: "risks", label: "Ризики", q: "Що може вбити проєкт і як перевіримо це раніше." },
+    ],
+  },
+  {
+    k: "marketing", label: "Маркетинг", hint: "як подамо це світу і знайдемо перших клієнтів",
+    blocks: [
+      { k: "mk_position", label: "Позиціонування", q: "Одне речення для клієнта: що це, для кого і чим відрізняється. Як ми хочемо, щоб про нас думали." },
+      { k: "mk_offer", label: "Оффер", q: "Що клієнт отримає + чому зараз + чому нам вірити (гарантія, кейс, пробний період)." },
+      { k: "mk_avatar", label: "Ідеальний клієнт", q: "Хто він, де сидить, як сам описує свою біль (його слова), що його зупиняє купити." },
+      { k: "channels", label: "Канали", q: "Де і як знаходимо клієнтів: реклама, контент, партнери, прямі продажі. З чого починаємо." },
+      { k: "mk_message", label: "Повідомлення", q: "Головні заголовки і тези: що кажемо в рекламі, на сайті, в першому дзвінку." },
+      { k: "mk_proof", label: "Докази", q: "Кейси з цифрами, відгуки, демо, скріни — що покажемо, щоб повірили." },
+      { k: "mk_launch", label: "Запуск", q: "Як отримаємо перших 10 клієнтів: конкретні кроки, терміни, бюджет." },
+      { k: "mk_funnel", label: "Воронка", q: "Шлях від першого контакту до оплати: етапи, де губимо людей, що автоматизуємо." },
+      { k: "mk_brand", label: "Назва і стиль", q: "Назва, домен, вигляд, тон спілкування." },
+    ],
+  },
+  {
+    k: "tech", label: "Технічна", hint: "як влаштовано, де живе, як оновлюється — з цього збирається ТЗ для Claude Code",
+    blocks: [
+      { k: "tx_scope", label: "Обсяг MVP", q: "Що точно входить у першу версію і що свідомо НЕ робимо зараз." },
+      { k: "tx_core", label: "Ядро", q: "Головні модулі і сутності (клієнт, замовлення, …), основні сценарії користувача." },
+      { k: "tx_stack", label: "Стек", q: "На чому будуємо і чому: мова, фреймворк, база, UI." },
+      { k: "tx_data", label: "Дані", q: "Що зберігаємо, де, скільки, бекапи, що чутливе." },
+      { k: "tx_integrations", label: "Інтеграції", q: "З чим зʼєднуємось: оплата, пошта, месенджери, CRM, API. Що треба отримати (ключі, доступи)." },
+      { k: "tx_server", label: "Сервер і хостинг", q: "Де живе: сервер, домен, HTTPS, скільки коштує, як розгортаємо." },
+      { k: "tx_updates", label: "Система оновлень", q: "Як доставляємо нові версії: гілки, автодеплой, без простою, міграції бази, відкат при помилці." },
+      { k: "tx_security", label: "Безпека і доступи", q: "Вхід, ролі, де лежать ключі, захист даних клієнтів." },
+      { k: "tx_support", label: "Обслуговування", q: "Моніторинг, логи, помилки, хто реагує і як швидко, що автоматизуємо." },
+    ],
+  },
+  {
+    k: "finance", label: "Фінанси", hint: "ціна, витрати, окупність",
+    blocks: [
+      { k: "money", label: "Модель грошей", q: "Хто і за що платить: підписка, разово, відсоток, тарифи." },
+      { k: "fin_tiers", label: "Тарифи і обґрунтування ціни", q: "Які пакети, що в кожному, чому така ціна (порівняння з альтернативами, цінність для клієнта)." },
+      { k: "fin_costs", label: "Витрати детально", q: "З чого складаються витрати: сервери, API, сервіси, люди, реклама — по пунктах." },
+      { k: "fin_summary", label: "Висновок по грошах", q: "Чи вигідно, що найризикованіше в цифрах, що перевірити першим." },
+    ],
+  },
 ] as const;
+export type PillarKey = (typeof PILLARS)[number]["k"];
+export const CANVAS = PILLARS.flatMap((p) => p.blocks.map((b) => ({ ...b, pillar: p.k as PillarKey })));
+export const pillarFilled = (s: { canvas: Record<string, string | undefined> }, p: PillarKey) => {
+  const bl = PILLARS.find((x) => x.k === p)!.blocks;
+  return { filled: bl.filter((b) => s.canvas[b.k]?.trim()).length, total: bl.length };
+};
 export type CanvasKey = (typeof CANVAS)[number]["k"];
+export type { Finance } from "../startupFinance";
 
 export type Startup = {
   id: number; name: string; one_liner: string; stage: Stage; north_star: string; next_step: string;
-  canvas: Partial<Record<CanvasKey, string>>; spec_md: string; spec_updated_at: string | null;
+  canvas: Partial<Record<CanvasKey, string>>; finance: Finance; spec_md: string; spec_updated_at: string | null;
   repo: string; prod_url: string; lab_id: number | null; client_id: number | null; raw_text: string; created_at: string; updated_at: string;
 };
 export type ItemKind = "milestone" | "experiment" | "decision" | "question" | "note" | "link";
 export type StartupItem = { id: number; startup_id: number; kind: ItemKind; title: string; body: string; status: string; data: Record<string, string>; position: number; created_at: string; updated_at: string };
 
-type Row = Omit<Startup, "canvas"> & { canvas_json: string };
+type Row = Omit<Startup, "canvas" | "finance"> & { canvas_json: string; finance_json: string };
 const parse = (r: Row | undefined): Startup | undefined => {
   if (!r) return undefined;
-  const { canvas_json, ...rest } = r;
-  let canvas: Startup["canvas"] = {};
+  const { canvas_json, finance_json, ...rest } = r;
+  let canvas: Startup["canvas"] = {}, fin: Record<string, unknown> = {};
   try { canvas = JSON.parse(canvas_json); } catch {}
-  return { ...rest, canvas };
+  try { fin = JSON.parse(finance_json || "{}"); } catch {}
+  return { ...rest, canvas, finance: normFinance(fin) };
 };
 const parseItem = (r: Omit<StartupItem, "data"> & { data_json: string }): StartupItem => {
   const { data_json, ...rest } = r;
@@ -71,7 +122,7 @@ export function createStartup(input: { name: string; one_liner?: string; stage?:
 }
 
 const FIELDS = ["name", "one_liner", "stage", "north_star", "next_step", "spec_md", "repo", "prod_url", "client_id"] as const;
-export function updateStartup(id: number, patch: Partial<Pick<Startup, (typeof FIELDS)[number]>> & { canvas?: Startup["canvas"] }): void {
+export function updateStartup(id: number, patch: Partial<Pick<Startup, (typeof FIELDS)[number]>> & { canvas?: Startup["canvas"]; finance?: Partial<Record<keyof Finance, unknown>> }): void {
   const keys = FIELDS.filter((k) => patch[k] !== undefined);
   const sets = keys.map((k) => `${k} = @${k}`);
   const args: Record<string, unknown> = { id };
@@ -81,6 +132,11 @@ export function updateStartup(id: number, patch: Partial<Pick<Startup, (typeof F
     const cur = getStartup(id)?.canvas ?? {};
     args.canvas_json = JSON.stringify({ ...cur, ...patch.canvas });
     sets.push("canvas_json = @canvas_json");
+  }
+  if (patch.finance) {
+    const cur = getStartup(id)?.finance ?? {};
+    args.finance_json = JSON.stringify(normFinance({ ...cur, ...patch.finance }));
+    sets.push("finance_json = @finance_json");
   }
   if (!sets.length) return;
   db().prepare(`UPDATE startups SET ${sets.join(", ")}, updated_at = datetime('now') WHERE id = @id`).run(args);
