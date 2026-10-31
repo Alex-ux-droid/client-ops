@@ -10,6 +10,7 @@ import { listChangelog } from "../repo/changelog";
 
 import { reflect } from "./reflect";
 import { runTool, TOOLS } from "./tools";
+import { isToolImages } from "./images";
 import { CAPS, capOn, toolAllowed } from "./caps";
 import { tipsBlock } from "../repo/tips";
 
@@ -170,7 +171,16 @@ export async function runAgent(clientId: number | null, userText: string, page =
       if (block.type !== "tool_use") continue;
       try {
         const out = await runTool(block.name, (block.input ?? {}) as Record<string, unknown>, ctx);
-        results.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(out ?? null) });
+        if (isToolImages(out)) {
+          // Картинки — справжніми зображеннями, щоб модель їх бачила
+          const content: Anthropic.Beta.BetaToolResultBlockParam["content"] = [];
+          if (out.note) content.push({ type: "text", text: out.note });
+          for (const im of out.__images) {
+            content.push({ type: "text", text: im.image ? im.label : `${im.label}: не вдалось — ${im.error}` });
+            if (im.image) content.push(im.image);
+          }
+          results.push({ type: "tool_result", tool_use_id: block.id, content });
+        } else results.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(out ?? null) });
       } catch (e) {
         results.push({ type: "tool_result", tool_use_id: block.id, content: e instanceof Error ? e.message : String(e), is_error: true });
       }
