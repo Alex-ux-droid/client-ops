@@ -6,6 +6,7 @@ import Shell from "@/components/Shell";
 import { isAuthed, SESSION_COOKIE } from "@/lib/session";
 import { clientOptions, navCounts } from "@/lib/repo/counts";
 import "./globals.css";
+import { SIDE_MINI_SCRIPT } from "@/components/sideMini";
 
 const body = Onest({ subsets: ["latin", "cyrillic"], variable: "--f-body", weight: ["400", "500", "600", "700"] });
 const mono = JetBrains_Mono({ subsets: ["latin", "cyrillic"], variable: "--f-mono" });
@@ -35,7 +36,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const counts = authed ? navCounts() : { tasks: 0, leads: 0, debts: 0, ideas: 0, journal: 0 };
   const clients = authed ? clientOptions() : [];
   return (
-    <html lang="uk" className={`${body.variable} ${mono.variable}`}>
+    <html lang="uk" className={`${body.variable} ${mono.variable}`} suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: SIDE_MINI_SCRIPT }} /></head>
       <body>
         <Shell counts={counts} clients={clients}>{children}</Shell>
         <RegisterSW />

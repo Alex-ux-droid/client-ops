@@ -82,6 +82,7 @@ export async function saveOptionAction(fd: FormData) {
     pros: str(fd, "pros"),
     cons: str(fd, "cons"),
     notes: str(fd, "notes"),
+    about: str(fd, "about"),
   });
   back(int(fd, "id")!, `#opt-${optionId}`);
 }

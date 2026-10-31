@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import Icon from "@/components/Icon";
+import { SideToggle } from "@/components/sideMini";
 import type { Section } from "./sections";
 
 // Ліва панель у клієнті: «карта» клієнта поверх загального меню (на компʼютері). На телефоні — вкладки в самій сторінці.
@@ -12,8 +13,9 @@ export default function ClientNav({ id, name, status, statusTag, sections }: { i
   const groups = [...new Set(sections.map((s) => s.group))];
   return (
     <aside className="client-side" aria-label={`Клієнт ${name}`}>
-      <Link href="/clients" className="client-back"><Icon name="back" size={18} /> Усі клієнти</Link>
-      <Link href={`/clients/${id}`} className="client-name">
+      <Link href="/clients" className="client-back" title="Усі клієнти"><Icon name="back" size={18} /> <span className="lbl">Усі клієнти</span></Link>
+      <Link href={`/clients/${id}`} className="client-name" title={name}>
+        <i className="client-initial">{name.replace(/^Тест:\s*/, "").trim().slice(0, 1).toUpperCase()}</i>
         <b>{name}</b>
         <span className={`tag ${statusTag}`}>{status}</span>
       </Link>
@@ -21,7 +23,7 @@ export default function ClientNav({ id, name, status, statusTag, sections }: { i
         <div key={g || "main"} className="side-group">
           {g && <div className="side-title">{g}</div>}
           {sections.filter((s) => s.group === g).map((s) => (
-            <Link key={s.k} href={s.k === "overview" ? `/clients/${id}` : `/clients/${id}?tab=${s.k}`} className={`side-link ${tab === s.k ? "on" : ""}`} scroll={false}>
+            <Link key={s.k} href={s.k === "overview" ? `/clients/${id}` : `/clients/${id}?tab=${s.k}`} className={`side-link ${tab === s.k ? "on" : ""}`} scroll={false} title={s.label}>
               <span className="ico"><Icon name={s.ico} /></span>
               <span className="grow">{s.label}</span>
               {s.badge ? <span className="count">{s.badge}</span> : null}
@@ -29,6 +31,7 @@ export default function ClientNav({ id, name, status, statusTag, sections }: { i
           ))}
         </div>
       ))}
+      <div className="side-foot"><SideToggle /></div>
     </aside>
   );
 }
