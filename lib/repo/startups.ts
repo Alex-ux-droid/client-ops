@@ -1,5 +1,6 @@
 import { db } from "../db";
 import { normFinance, type Finance } from "../startupFinance";
+import { normIdea, normMkt, type IdeaData, type MktData } from "../startupSystem";
 
 export const STAGES = [
   { k: "raw", label: "Скринька", hint: "сира ідея, ще не розгорнута" },
@@ -80,20 +81,19 @@ export type { Finance } from "../startupFinance";
 
 export type Startup = {
   id: number; name: string; one_liner: string; stage: Stage; north_star: string; next_step: string;
-  canvas: Partial<Record<CanvasKey, string>>; finance: Finance; spec_md: string; spec_updated_at: string | null;
+  canvas: Partial<Record<CanvasKey, string>>; finance: Finance; idea: IdeaData; mkt: MktData; spec_md: string; spec_updated_at: string | null;
   repo: string; prod_url: string; lab_id: number | null; client_id: number | null; raw_text: string; created_at: string; updated_at: string;
 };
-export type ItemKind = "milestone" | "experiment" | "decision" | "question" | "note" | "link";
+export const ITEM_KINDS = ["milestone", "experiment", "decision", "question", "note", "link", "segment", "angle", "channel", "module", "infra", "release", "interview", "competitor", "version"] as const;
+export type ItemKind = (typeof ITEM_KINDS)[number];
 export type StartupItem = { id: number; startup_id: number; kind: ItemKind; title: string; body: string; status: string; data: Record<string, string>; position: number; created_at: string; updated_at: string };
 
-type Row = Omit<Startup, "canvas" | "finance"> & { canvas_json: string; finance_json: string };
+type Row = Omit<Startup, "canvas" | "finance" | "idea" | "mkt"> & { canvas_json: string; finance_json: string; idea_json: string; mkt_json: string };
 const parse = (r: Row | undefined): Startup | undefined => {
   if (!r) return undefined;
-  const { canvas_json, finance_json, ...rest } = r;
-  let canvas: Startup["canvas"] = {}, fin: Record<string, unknown> = {};
-  try { canvas = JSON.parse(canvas_json); } catch {}
-  try { fin = JSON.parse(finance_json || "{}"); } catch {}
-  return { ...rest, canvas, finance: normFinance(fin) };
+  const { canvas_json, finance_json, idea_json, mkt_json, ...rest } = r;
+  const j = (t: string | undefined) => { try { return JSON.parse(t || "{}"); } catch { return {}; } };
+  return { ...rest, canvas: j(canvas_json), finance: normFinance(j(finance_json)), idea: normIdea(j(idea_json)), mkt: normMkt(j(mkt_json)) };
 };
 const parseItem = (r: Omit<StartupItem, "data"> & { data_json: string }): StartupItem => {
   const { data_json, ...rest } = r;
@@ -122,7 +122,7 @@ export function createStartup(input: { name: string; one_liner?: string; stage?:
 }
 
 const FIELDS = ["name", "one_liner", "stage", "north_star", "next_step", "spec_md", "repo", "prod_url", "client_id"] as const;
-export function updateStartup(id: number, patch: Partial<Pick<Startup, (typeof FIELDS)[number]>> & { canvas?: Startup["canvas"]; finance?: Partial<Record<keyof Finance, unknown>> }): void {
+export function updateStartup(id: number, patch: Partial<Pick<Startup, (typeof FIELDS)[number]>> & { canvas?: Startup["canvas"]; finance?: Partial<Record<keyof Finance, unknown>>; idea?: { formula?: Record<string, string>; stress?: Record<string, { score: number; why: string }>; verdict?: string }; mkt?: Partial<MktData> }): void {
   const keys = FIELDS.filter((k) => patch[k] !== undefined);
   const sets = keys.map((k) => `${k} = @${k}`);
   const args: Record<string, unknown> = { id };
@@ -137,6 +137,21 @@ export function updateStartup(id: number, patch: Partial<Pick<Startup, (typeof F
     const cur = getStartup(id)?.finance ?? {};
     args.finance_json = JSON.stringify(normFinance({ ...cur, ...patch.finance }));
     sets.push("finance_json = @finance_json");
+  }
+  if (patch.idea) {
+    const cur = getStartup(id)?.idea;
+    const next = normIdea({
+      formula: { ...cur?.formula, ...patch.idea.formula },
+      stress: { ...cur?.stress, ...patch.idea.stress },
+      verdict: patch.idea.verdict ?? cur?.verdict ?? "",
+    });
+    args.idea_json = JSON.stringify(next);
+    sets.push("idea_json = @idea_json");
+  }
+  if (patch.mkt) {
+    const cur = getStartup(id)?.mkt;
+    args.mkt_json = JSON.stringify(normMkt({ ...cur, ...patch.mkt }));
+    sets.push("mkt_json = @mkt_json");
   }
   if (!sets.length) return;
   db().prepare(`UPDATE startups SET ${sets.join(", ")}, updated_at = datetime('now') WHERE id = @id`).run(args);

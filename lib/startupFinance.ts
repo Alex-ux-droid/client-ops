@@ -13,9 +13,37 @@ export type Finance = {
   churn: number;       // відтік клієнтів, % на місяць (sub)
   invest: number;      // стартові вкладення: розробка, дизайн, юристи
   goal: number;        // бажаний прибуток на місяць
+  tiers: Tier[];       // тарифи: якщо є — ціна = середня за часткою продажів
+  link_mkt: boolean;   // нові клієнти і реклама — з воронки маркетингу
+  link_tech: boolean;  // постійні витрати — з інфраструктури технічної опори
 };
+export type Tier = { name: string; price: number; share: number }; // share — % продажів на цьому тарифі
 
-export const FIN_FIELDS: { k: Exclude<keyof Finance, "model">; label: string; hint: string; pct?: boolean; count?: boolean; only?: FinModel }[] = [
+// Звʼязки з іншими опорами: що підставляється замість ручних цифр
+export type FinLinks = { mktClients: number | null; mktBudget: number | null; techFixed: number | null };
+export function tiersPrice(t: Tier[]): number | null {
+  const v = t.filter((x) => x.price > 0 && x.share > 0);
+  const total = v.reduce((a, x) => a + x.share, 0);
+  return total > 0 ? v.reduce((a, x) => a + x.price * x.share, 0) / total : null;
+}
+export function effectiveFinance(f: Finance, l: FinLinks): Finance {
+  const e = { ...f };
+  const tp = tiersPrice(f.tiers);
+  if (tp != null) e.price = tp;
+  if (f.link_mkt && l.mktClients != null) e.new_clients = l.mktClients;
+  if (f.link_mkt && l.mktBudget != null) e.marketing = l.mktBudget;
+  if (f.link_tech && l.techFixed != null) e.fixed = f.fixed + l.techFixed; // інфраструктура + інші постійні (люди, сервіси)
+  return e;
+}
+// Сценарії: як зміняться цифри, якщо продажі підуть гірше/краще
+export const SCENARIOS = [
+  { k: "bad", label: "Песимістичний", hint: "продажів удвічі менше, відтік ×1.5, витрати +20%", apply: (f: Finance): Finance => ({ ...f, new_clients: f.new_clients * 0.5, churn: f.churn * 1.5, fixed: f.fixed * 1.2, growth: f.growth * 0.5 }) },
+  { k: "base", label: "Реальний", hint: "як вписано", apply: (f: Finance): Finance => f },
+  { k: "good", label: "Оптимістичний", hint: "продажів ×1.5, відтік ×0.7", apply: (f: Finance): Finance => ({ ...f, new_clients: f.new_clients * 1.5, churn: f.churn * 0.7 }) },
+] as const;
+
+export type FinNumKey = { [K in keyof Finance]: Finance[K] extends number ? K : never }[keyof Finance];
+export const FIN_FIELDS: { k: FinNumKey; label: string; hint: string; pct?: boolean; count?: boolean; only?: FinModel }[] = [
   { k: "price", label: "Ціна", hint: "за місяць підписки або за один продаж" },
   { k: "setup", label: "Підключення", hint: "разово з нового клієнта", only: "sub" },
   { k: "unit_cost", label: "Витрати на клієнта", hint: "сервер, API, підтримка — на 1 клієнта/міс (або на продаж)" },
@@ -28,19 +56,25 @@ export const FIN_FIELDS: { k: Exclude<keyof Finance, "model">; label: string; hi
   { k: "goal", label: "Хочу заробляти / міс", hint: "чистими — порахуємо, скільки треба клієнтів" },
 ];
 
-export const FIN_DEFAULT: Finance = { model: "sub", price: 0, setup: 0, unit_cost: 0, fixed: 0, marketing: 0, new_clients: 0, growth: 0, churn: 5, invest: 0, goal: 0 };
+export const FIN_DEFAULT: Finance = { model: "sub", price: 0, setup: 0, unit_cost: 0, fixed: 0, marketing: 0, new_clients: 0, growth: 0, churn: 5, invest: 0, goal: 0, tiers: [], link_mkt: false, link_tech: false };
 
 export function normFinance(raw: Record<string, unknown> | null | undefined): Finance {
-  const f = { ...FIN_DEFAULT };
+  const f: Finance = { ...FIN_DEFAULT, tiers: [] };
   if (!raw) return f;
   if (raw.model === "once" || raw.model === "sub") f.model = raw.model;
   for (const { k } of FIN_FIELDS) {
     const n = Number(String(raw[k] ?? "").replace(",", ".").replace(/[^\d.-]/g, ""));
     if (raw[k] !== undefined && raw[k] !== "" && Number.isFinite(n)) f[k] = Math.max(0, n);
   }
+  const tiers = typeof raw.tiers === "string" ? (() => { try { return JSON.parse(raw.tiers as string); } catch { return []; } })() : raw.tiers;
+  if (Array.isArray(tiers)) f.tiers = (tiers as Record<string, unknown>[]).filter((t) => t && String(t.name ?? "").trim()).slice(0, 6)
+    .map((t) => ({ name: String(t.name).slice(0, 40), price: Math.max(0, Number(t.price) || 0), share: Math.max(0, Math.min(100, Number(t.share) || 0)) }));
+  const bool = (v: unknown) => v === true || v === "1" || v === "true" || v === "on";
+  if (raw.link_mkt !== undefined) f.link_mkt = bool(raw.link_mkt);
+  if (raw.link_tech !== undefined) f.link_tech = bool(raw.link_tech);
   return f;
 }
-export const hasFinance = (f: Finance) => f.price > 0;
+export const hasFinance = (f: Finance) => f.price > 0 || tiersPrice(f.tiers) != null;
 
 export type FinMonth = { m: number; sales: number; clients: number; revenue: number; costs: number; profit: number; cumulative: number };
 export type FinResult = {

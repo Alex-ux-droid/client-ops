@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getLab } from "@/lib/repo/lab";
 import {
-  addItem, CANVAS, createStartup, deleteItem, deleteStartup, getItem, getStartup, STAGES, updateItem, updateStartup,
+  addItem, CANVAS, createStartup, deleteItem, deleteStartup, getItem, getStartup, ITEM_KINDS, STAGES, updateItem, updateStartup,
   type CanvasKey, type ItemKind, type Stage,
 } from "@/lib/repo/startups";
 import { createTask } from "@/lib/repo/tasks";
@@ -12,7 +12,7 @@ import { createTask } from "@/lib/repo/tasks";
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const int = (fd: FormData, k: string) => { const n = Number(fd.get(k)); return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null; };
 const isStage = (s: string): s is Stage => STAGES.some((x) => x.k === s);
-const KINDS: ItemKind[] = ["milestone", "experiment", "decision", "question", "note", "link"];
+const KINDS: readonly ItemKind[] = ITEM_KINDS;
 const back = (id: number, v = "", hash = "") => {
   revalidatePath(`/startups/${id}`);
   revalidatePath("/startups");
@@ -103,6 +103,40 @@ export async function saveSpecAction(fd: FormData) {
   const id = int(fd, "id")!;
   updateStartup(id, { spec_md: String(fd.get("spec_md") ?? "") });
   back(id, "tech", "#spec");
+}
+
+// Воронка маркетингу: етапи з конверсією, ціль клієнтів, ціна ліда вручну
+export async function saveMktAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  let stages: unknown = [];
+  try { stages = JSON.parse(str(fd, "stages")); } catch {}
+  updateStartup(id, { mkt: { stages: stages as { name: string; conv: number }[], target: Number(str(fd, "target")) || 0, cpl: Number(str(fd, "cpl")) || 0 } });
+  back(id, "marketing", "#funnel");
+}
+
+// Ідея: формула (кожне збереження = нова версія в історії) і стрес-тест
+export async function saveFormulaAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  const s = getStartup(id);
+  if (!s) return;
+  const { FORMULA, formulaText } = await import("@/lib/startupSystem");
+  const formula: Record<string, string> = {};
+  for (const f of FORMULA) formula[f.k] = str(fd, `f_${f.k}`);
+  const before = formulaText(s.idea.formula), after = formulaText(formula);
+  updateStartup(id, { idea: { formula } });
+  if (after && after !== before) addItem(id, { kind: "version", title: after, body: str(fd, "why") });
+  back(id, "idea", "#formula");
+}
+export async function saveStressAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  const { STRESS } = await import("@/lib/startupSystem");
+  const stress: Record<string, { score: number; why: string }> = {};
+  for (const x of STRESS) { const sc = Number(fd.get(`s_${x.k}`)); if (sc >= 1 && sc <= 5) stress[x.k] = { score: sc, why: str(fd, `w_${x.k}`) }; }
+  updateStartup(id, { idea: { stress, ...(fd.has("verdict") ? { verdict: str(fd, "verdict") } : {}) } });
+  back(id, "idea", "#stress");
 }
 
 // Калькулятор фінансів: усі поля одним махом

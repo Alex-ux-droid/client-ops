@@ -8,16 +8,21 @@ import TaskItem from "@/components/TaskItem";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import { fmtDate } from "@/lib/dates";
 import { getClient, listClients } from "@/lib/repo/clients";
-import { FLOW, getStartup, listItems, PILLARS, pillarFilled, STAGES, type PillarKey, type Startup, type StartupItem } from "@/lib/repo/startups";
+import { FLOW, getStartup, listItems, PILLARS, STAGES, type PillarKey, type Startup, type StartupItem } from "@/lib/repo/startups";
 import { currency, money } from "@/lib/config";
-import { calcFinance, hasFinance } from "@/lib/startupFinance";
+import { calcFinance, effectiveFinance, hasFinance } from "@/lib/startupFinance";
 import FinanceCalc from "./FinanceCalc";
+import IdeaView from "./views/IdeaView";
+import MarketingView from "./views/MarketingView";
+import TechView from "./views/TechView";
+import { OldNotes, StepsBar, stepsOf } from "./views/shared";
+import { finLinks, formulaText } from "@/lib/startupSystem";
+
 import { startupTasks } from "@/lib/repo/tasks";
 import {
-  addItemAction, addStartupTaskAction, deleteItemAction, deleteStartupAction, saveCanvasAction, saveSpecAction, saveStartupAction, updateItemAction,
+  addItemAction, addStartupTaskAction, deleteItemAction, deleteStartupAction, saveStartupAction, updateItemAction,
 } from "../actions";
 import Monitor from "./Monitor";
-import { CopyText } from "./CopyText";
 import StartupAssistant from "./StartupAssistant";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +32,7 @@ const VIEWS = [
   { k: "overview", label: "Огляд" },
   { k: "idea", label: "1 · Ідея" },
   { k: "marketing", label: "2 · Маркетинг" },
-  { k: "tech", label: "3 · Технічна і ТЗ" },
+  { k: "tech", label: "3 · Технічна" },
   { k: "finance", label: "4 · Фінанси" },
   { k: "plan", label: "План" },
   { k: "tests", label: "Тести" },
@@ -79,7 +84,7 @@ export default async function StartupPage({ params, searchParams }: { params: Pr
             </form>
           </details>
         </div>
-        {s.one_liner ? <p className="su-line">{s.one_liner}</p> : <p className="su-line lab-muted">Одне речення суті — попроси Джері або «Редагувати».</p>}
+        {formulaText(s.idea.formula) ? <p className="su-line">{formulaText(s.idea.formula)}</p> : s.one_liner ? <p className="su-line">{s.one_liner}</p> : <p className="su-line lab-muted">Одне речення суті — попроси Джері або «Редагувати».</p>}
         <Stages s={s} v={v} />
         <div className="su-links">
           {s.north_star && <span className="tag accent">★ {s.north_star}</span>}
@@ -93,16 +98,22 @@ export default async function StartupPage({ params, searchParams }: { params: Pr
       <nav className="mx-tabs su-tabs">
         {VIEWS.map((x) => (
           <Link key={x.k} href={x.k === "overview" ? base : `${base}?v=${x.k}`} scroll={false} className={x.k === v ? "on" : ""}>
-            {x.label}{PILLARS.some((p) => p.k === x.k) ? <em>{pillarFilled(s, x.k as PillarKey).filled}/{pillarFilled(s, x.k as PillarKey).total}</em> : x.k === "tests" && by("experiment").length ? <em>{by("experiment").length}</em> : null}
+            {x.label}{PILLARS.some((p) => p.k === x.k) ? (() => { const st = stepsOf(s, items, x.k as PillarKey); return <em>{st.filter((z) => z.done).length}/{st.length}</em>; })() : x.k === "tests" && by("experiment").length ? <em>{by("experiment").length}</em> : null}
           </Link>
         ))}
       </nav>
 
       {v === "overview" && <Overview s={s} items={items} />}
-      {v === "idea" && <Pillar s={s} p="idea" />}
-      {v === "marketing" && <Pillar s={s} p="marketing" />}
-      {v === "tech" && <><Spec s={s} /><Pillar s={s} p="tech" /></>}
-      {v === "finance" && <><FinanceCalc id={s.id} initial={s.finance} cur={currency()} /><Pillar s={s} p="finance" /></>}
+      {v === "idea" && <IdeaView s={s} items={items} />}
+      {v === "marketing" && <MarketingView s={s} items={items} />}
+      {v === "tech" && <TechView s={s} items={items} />}
+      {v === "finance" && (
+        <div className="stack" style={{ gap: "1.25rem" }}>
+          <StepsBar s={s} items={items} p="finance" ask="Порахуй фінанси цього стартапу: тарифи з обґрунтуванням ціни, витрати на клієнта, стартові вкладення, ріст і відтік (startup_update finance; tiers — масив {name, price, share}). Якщо в маркетингу є воронка, а в технічній — ціни інфраструктури, увімкни link_mkt і link_tech. Поясни, звідки цифри, і дай чесний висновок: вигідно чи ні, що найризикованіше." />
+          <FinanceCalc id={s.id} initial={s.finance} cur={currency()} links={finLinks(s.mkt, items)} />
+          <OldNotes s={s} p="finance" />
+        </div>
+      )}
       {v === "plan" && <Plan s={s} milestones={by("milestone")} />}
       {v === "tests" && <Tests s={s} items={by("experiment")} />}
       {v === "decisions" && <Decisions s={s} items={by("decision")} />}
@@ -148,7 +159,7 @@ function Overview({ s, items }: { s: Startup; items: StartupItem[] }) {
   const decisions = items.filter((i) => i.kind === "decision").slice(0, 3);
   const exps = items.filter((i) => i.kind === "experiment");
   const running = exps.filter((e) => e.status === "running" || e.status === "planned");
-  const fin = hasFinance(s.finance) ? calcFinance(s.finance) : null;
+  const fin = hasFinance(s.finance) ? calcFinance(effectiveFinance(s.finance, finLinks(s.mkt, items))) : null;
   const doneT = curTasks.filter((t) => t.status === "done").length;
 
   return (
@@ -202,16 +213,17 @@ function Overview({ s, items }: { s: Startup; items: StartupItem[] }) {
       <div className="su-ov-side">
         <div className="su-pillars">
           {PILLARS.map((p, i) => {
-            const { filled, total } = pillarFilled(s, p.k);
-            const empty = p.blocks.filter((b) => !s.canvas[b.k]?.trim());
-            const extra = p.k === "tech" ? (s.spec_md ? "ТЗ зібране" : "ТЗ ще не зібране") : p.k === "finance" ? (fin ? `окупність: ${fin.payback == null ? "> 3 р." : fin.payback === 0 ? "без вкладень" : `${fin.payback}-й міс`}` : "калькулятор порожній") : "";
+            const st = stepsOf(s, items, p.k);
+            const filled = st.filter((x) => x.done).length, total = st.length;
+            const next = st.find((x) => !x.done);
+            const extra = p.k === "idea" && s.idea.formula.who ? null : p.k === "finance" && fin ? `окупність: ${fin.payback == null ? "> 3 р." : fin.payback === 0 ? "без вкладень" : `${fin.payback}-й міс`}` : null;
             return (
               <Link key={p.k} href={`/startups/${s.id}?v=${p.k}`} className="card su-ring-card">
                 <div className="su-ring" style={{ "--p": Math.round((filled / total) * 100) } as React.CSSProperties}><b>{filled}/{total}</b></div>
                 <div>
                   <b>{i + 1} · {p.label}</b>
-                  <span>{empty.length ? `Бракує: ${empty.slice(0, 4).map((c) => c.label.toLowerCase()).join(", ")}${empty.length > 4 ? "…" : ""}` : "Усе заповнено"}</span>
-                  {extra && <span className={p.k === "tech" && s.spec_md ? "su-ok" : ""}>{extra}</span>}
+                  <span>{next ? `Далі: ${next.label.toLowerCase()}` : "Усе готово"}</span>
+                  {extra && <span className="su-ok">{extra}</span>}
                 </div>
               </Link>
             );
@@ -243,50 +255,9 @@ function Overview({ s, items }: { s: Startup; items: StartupItem[] }) {
             <AskAssistant text="Подивись на цей стартап цілком: що зараз найважливіше зробити і чому? Онови «наступний крок».">Що далі?</AskAssistant>
             <AskAssistant text="Чого не вистачає цьому стартапу, щоб перейти на наступну стадію? Чесно, з ризиками.">Чого бракує?</AskAssistant>
             <AskAssistant text="Склади або онови план етапами з задачами для цього стартапу.">Склади план</AskAssistant>
-            <AskAssistant text="Пройдись по всіх чотирьох опорах цього стартапу (ідея, маркетинг, технічна, фінанси): заповни порожні блоки, де можеш, чесно познач, де бракує даних, і запиши питання, на які мені треба відповісти.">Заповни опори</AskAssistant>
+            <AskAssistant text="Подивись на всі чотири опори цього стартапу (startup_get → steps): що з кожної ще не зроблено, що з цього ти можеш зробити зараз — зроби; що потребує мене (розмови з клієнтами, цифри, рішення) — запиши як питання і скажи коротко.">Добудуй опори</AskAssistant>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Опора: набір блоків-питань (ідея / маркетинг / технічна / фінанси)
-const PILLAR_ASK: Record<PillarKey, string> = {
-  idea: "Відшліфуй ідею цього стартапу: пройдись по блоках опори «Ідея» (біль, для кого, рішення, цінність, чому ми, конкуренти, метрика, ризики) — заповни порожні і посиль слабкі. Чесно скажи, де ідея тонка.",
-  marketing: "Розпиши маркетинг цього стартапу: позиціонування, оффер, ідеальний клієнт (його словами), канали, головні повідомлення, докази, план перших 10 клієнтів, воронка, назва. Конкретно, під мої навички (Meta-реклама, відділи продажу). Запиши в блоки опори «Маркетинг».",
-  tech: "Розпиши технічну сторону цього стартапу: обсяг MVP (що НЕ робимо), ядро і сутності, стек з причинами, дані і бекапи, інтеграції, сервер і хостинг з цінами, систему оновлень (автодеплой, міграції, відкат, без простою), безпеку, обслуговування і моніторинг. Запиши в блоки опори «Технічна», важливі вибори — в журнал рішень.",
-  finance: "Порахуй фінанси цього стартапу: модель грошей, тарифи з обґрунтуванням ціни, витрати по пунктах, і заповни калькулятор (finance: ціна, витрати на клієнта, постійні, реклама, нові клієнти, ріст, відтік, вкладення). Реалістично, з поясненням звідки цифри. Потім висновок: вигідно чи ні, що найризикованіше.",
-};
-function Pillar({ s, p }: { s: Startup; p: PillarKey }) {
-  const P = PILLARS.find((x) => x.k === p)!;
-  return (
-    <div className="stack" style={{ gap: "1rem" }}>
-      <div className="su-pillar-head">
-        <p className="lab-muted" style={{ margin: 0 }}>{P.hint[0].toUpperCase() + P.hint.slice(1)}. Порожній блок — питання, на яке ще нема відповіді. Пиши своїми словами, диктуй або натисни «Джері».</p>
-        <AskAssistant text={PILLAR_ASK[p]}>Джері, пройдись по всій опорі</AskAssistant>
-      </div>
-      <div className="su-canvas">
-        {P.blocks.map((c, i) => {
-          const val = s.canvas[c.k as keyof Startup["canvas"]]?.trim() ?? "";
-          return (
-            <article key={c.k} id={`c-${c.k}`} className={`card su-block ${val ? "filled" : ""}`}>
-              <div className="su-block-head"><span className="su-num">{i + 1}</span><b>{c.label}</b></div>
-              {val ? <div className="su-block-body"><Markdown md={val} /></div> : <p className="su-block-q">{c.q}</p>}
-              <div className="su-block-foot">
-                <details className="lab-edit">
-                  <summary>{val ? "Змінити" : "Заповнити"}</summary>
-                  <form action={saveCanvasAction} className="stack" style={{ marginTop: "0.625rem" }}>
-                    <input type="hidden" name="id" value={s.id} /><input type="hidden" name="key" value={c.k} />
-                    <VoiceTextarea name="value" defaultValue={val} placeholder={c.q} style={{ minHeight: "7rem" }} />
-                    <SubmitButton className="small" />
-                  </form>
-                </details>
-                <AskAssistant text={`Допоможи з блоком «${c.label}» (опора «${P.label}») цього стартапу: ${c.q} Запропонуй і, якщо згоден, запиши.`}>Джері</AskAssistant>
-              </div>
-            </article>
-          );
-        })}
       </div>
     </div>
   );
@@ -432,57 +403,6 @@ function Decisions({ s, items }: { s: Startup; items: StartupItem[] }) {
           ))}
         </div>
       ) : <div className="empty card">Рішень ще нема.</div>}
-    </div>
-  );
-}
-
-// ---------- ТЗ для Claude Code (у вкладці «Технічна»)
-const SPEC_PROMPT = `Збери повний промпт-ТЗ для Claude Code по цьому стартапу, щоб він міг будувати без уточнень. Бери з усіх опор (ідея, маркетинг, технічна, фінанси), журналу рішень, плану і тестів. Структура (markdown):
-1. Роль і мета: хто ти (Claude Code), що будуємо, для кого, яку біль закриває, головна метрика.
-2. Обсяг MVP: що входить, що свідомо НЕ робимо.
-3. Ядро: модулі, сутності з полями і звʼязками, ролі користувачів, основні сценарії крок за кроком.
-4. Екрани: перелік і що на кожному (мобільний UI першим).
-5. Стек і архітектура: що використовуємо і чому (з журналу рішень), структура папок.
-6. Дані: схема бази, міграції, бекапи, чутливі дані.
-7. Інтеграції: які, що потрібно (ключі — тільки в .env, ніколи в коді).
-8. Сервер і деплой: де живе, домен, HTTPS, як розгортаємо.
-9. Система оновлень: гілки, автодеплой без простою, міграції, відкат при помилці.
-10. Безпека: вхід, доступи, захист даних.
-11. Обслуговування: логи, моніторинг, помилки, що автоматизуємо.
-12. Етапи розробки з критеріями «готово» і як тестувати кожен.
-13. Правила роботи: коміти по етапах, перевірки перед злиттям, що питати в мене, а що вирішувати самому.
-14. Відкриті питання.
-Конкретно, без води; де даних бракує — познач «ПИТАННЯ:» і спитай мене. Збережи в ТЗ стартапу (spec_md).`;
-function Spec({ s }: { s: Startup }) {
-  return (
-    <div className="stack" style={{ gap: "1rem" }}>
-      <div className="card su-spec-bar" id="spec">
-        <div>
-          <b>Промпт (ТЗ) для Claude Code</b>
-          <span>{s.spec_updated_at ? `оновлено ${fmtDate(s.spec_updated_at)}` : "ще не зібране"} · Джері збирає з усіх опор, рішень і плану. Копіюєш → вставляєш у Claude Code → будується за планом.</span>
-        </div>
-        <div className="inline" style={{ flexWrap: "wrap" }}>
-          <AskAssistant text={SPEC_PROMPT}>{s.spec_md ? "Джері, онови ТЗ" : "Джері, збери ТЗ"}</AskAssistant>
-          {s.spec_md && <CopyText text={s.spec_md} />}
-          {s.spec_md && <a href={`/api/startups/${s.id}/spec?format=md`} className="btn ghost small">.md</a>}
-          {s.spec_md && <a href={`/api/startups/${s.id}/spec?format=pdf`} target="_blank" rel="noreferrer" className="btn ghost small">PDF</a>}
-          <a href={`/api/startups/${s.id}/spec?what=all&format=md`} className="btn ghost small" title="Усі опори, фінанси, рішення, план і ТЗ одним файлом">Експорт проєкту</a>
-        </div>
-      </div>
-      {s.spec_md ? (
-        <details className="card su-spec-wrap">
-          <summary><b>Показати ТЗ</b> <span className="lab-muted">({s.spec_md.length.toLocaleString("uk-UA")} символів)</span></summary>
-          <article className="su-spec"><Markdown md={s.spec_md} /></article>
-        </details>
-      ) : <div className="empty card">Заповни блоки нижче (або попроси Джері) — і збери ТЗ однією кнопкою.</div>}
-      <details className="lab-edit">
-        <summary>Редагувати ТЗ вручну</summary>
-        <form action={saveSpecAction} className="stack" style={{ marginTop: "0.75rem" }}>
-          <input type="hidden" name="id" value={s.id} />
-          <VoiceTextarea name="spec_md" defaultValue={s.spec_md} style={{ minHeight: "24rem", fontSize: "0.9375rem" }} />
-          <div><SubmitButton /></div>
-        </form>
-      </details>
     </div>
   );
 }
