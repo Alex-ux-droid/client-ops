@@ -7,16 +7,19 @@ import { useDictation } from "./useDictation";
 // Заміна звичайного <textarea> у формах (працює і з defaultValue, і з ref).
 export default function VoiceTextarea({ ref, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { ref?: React.Ref<HTMLTextAreaElement> }) {
   const el = useRef<HTMLTextAreaElement | null>(null);
-  const dict = useDictation((chunk) => {
+  const base = useRef<string | null>(null); // що було в полі до початку диктування
+  // Пишемо в поле: те, що було, + почуте (живий текст замінюється остаточним)
+  const put = (heard: string, final: boolean) => {
     const t = el.current;
     if (!t) return;
-    const v = t.value;
-    // через нативний setter, щоб React (якщо поле кероване) побачив зміну
-    const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
-    set?.call(t, v && !/\s$/.test(v) ? `${v} ${chunk}` : v + chunk);
+    const b = base.current ?? t.value;
+    const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set; // щоб React бачив зміну
+    set?.call(t, heard ? (b && !/\s$/.test(b) ? `${b} ${heard}` : b + heard) : b);
     t.dispatchEvent(new Event("input", { bubbles: true }));
-    t.focus();
-  });
+    t.scrollTop = t.scrollHeight;
+    if (final) { base.current = null; t.focus(); }
+  };
+  const dict = useDictation((text) => put(text, true), (text) => { if (base.current === null) base.current = el.current?.value ?? ""; put(text, false); });
   const setRef = (node: HTMLTextAreaElement | null) => {
     el.current = node;
     if (typeof ref === "function") ref(node);

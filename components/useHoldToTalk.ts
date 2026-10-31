@@ -7,7 +7,8 @@ import { useDictation } from "./useDictation";
 const HOLD_MS = 350;
 
 export function useHoldToTalk(openChat: () => void) {
-  const dict = useDictation((text) => { if (text.trim()) openAssistant(text.trim(), true); });
+  const [heard, setHeard] = useState("");
+  const dict = useDictation((text) => { setHeard(""); if (text.trim()) openAssistant(text.trim(), true); }, setHeard);
   const downAt = useRef(0);
   const pressed = useRef(false);
   const [hint, setHint] = useState("");
@@ -36,6 +37,7 @@ export function useHoldToTalk(openChat: () => void) {
       pressed.current = true;
       downAt.current = Date.now();
       setHint("");
+      setHeard("");
       dict.start(); // одразу, поки триває жест — інакше iPhone не дасть мікрофон
     },
     onPointerUp: release,
@@ -45,6 +47,8 @@ export function useHoldToTalk(openChat: () => void) {
   };
 
   const state = dict.listening ? "listening" : dict.transcribing ? "thinking" : "idle";
-  const label = dict.listening ? "Слухаю… відпусти — надішлю Джері" : dict.transcribing ? "Розпізнаю…" : hint;
+  // поки говориш — показуємо, що чути (останні слова), щоб видно було, що записує
+  const tail = heard.length > 90 ? `…${heard.slice(-90)}` : heard;
+  const label = dict.listening ? (tail || "Слухаю… відпусти — надішлю Джері") : dict.transcribing ? "Розпізнаю…" : hint;
   return { bind, state: state as "idle" | "listening" | "thinking", label };
 }
