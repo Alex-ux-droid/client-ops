@@ -157,3 +157,7 @@ data/
 .next/
 next-env.d.ts
 .npm/
+
+# збірка без простою (deploy/deploy.sh)
+.next-new/
+.next-old/

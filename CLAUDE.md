@@ -80,6 +80,7 @@
 - Адреси: `deploy/Caddyfile` (sslip + `ops.alexbentsa.com`, DNS у Cloudflare: A-запис `ops` → 2.28.114.219, без проксі). `update.sh` синхронізує його на кожному запуску.
 - Код у `/opt/client-ops`, база `/var/lib/client-ops/app.db`, `.env` на сервері (chmod 600), HTTPS через Caddy на `<ip-з-дефісами>.sslip.io` (можна свій домен: `DOMAIN=... `).
 - Бекап бази щодня о 03:30 у `/var/lib/client-ops/backups` (14 копій).
+- Оновлення без простою: таймер запускає `deploy/deploy.sh` (весь скрипт у `main()`, щоб `git reset` посеред роботи не збивав bash): `npm ci` тільки якщо змінились package*.json, збірка в `.next-new` (`NEXT_DIST_DIR`, `distDir` у next.config), потім `mv` → `.next` і restart; збірка впала — стара `.next` працює далі. Старий `deploy/update.sh` лишився (його викликав старий таймер).
 - Отже: ВСЕ, що потрапляє в `main`, за 2 хв на проді. Перед мерджем — typecheck + build.
 - Seed на проді НЕ запускати.
 
