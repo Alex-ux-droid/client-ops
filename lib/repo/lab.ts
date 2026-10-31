@@ -35,7 +35,7 @@ export type LabSession = {
 export type LabCriterion = { id: number; session_id: number; name: string; weight: number };
 export type LabOption = {
   id: number; session_id: number; name: string; tool_id: number | null; link: string;
-  price_month: number | null; price_setup: number | null; pros: string; cons: string; notes: string;
+  price_month: number | null; price_setup: number | null; pros: string; cons: string; notes: string; about: string;
 };
 export type LabFull = LabSession & {
   criteria: LabCriterion[];
@@ -115,15 +115,16 @@ export function deleteCriterion(id: number): void {
 const clampW = (w: number) => Math.min(3, Math.max(1, Math.round(w) || 2));
 
 export function addOption(sessionId: number, input: Partial<Omit<LabOption, "id" | "session_id">> & { name: string }): number {
-  return Number(db().prepare(`INSERT INTO lab_options (session_id, name, tool_id, link, price_month, price_setup, pros, cons, notes)
-    VALUES (@session_id, @name, @tool_id, @link, @price_month, @price_setup, @pros, @cons, @notes)`).run({
+  return Number(db().prepare(`INSERT INTO lab_options (session_id, name, tool_id, link, price_month, price_setup, pros, cons, notes, about)
+    VALUES (@session_id, @name, @tool_id, @link, @price_month, @price_setup, @pros, @cons, @notes, @about)`).run({
+    about: input.about ?? "",
     session_id: sessionId, name: input.name, tool_id: input.tool_id ?? null, link: input.link ?? "",
     price_month: input.price_month ?? null, price_setup: input.price_setup ?? null, pros: input.pros ?? "", cons: input.cons ?? "", notes: input.notes ?? "",
   }).lastInsertRowid);
 }
 
 export function updateOption(id: number, patch: Partial<Omit<LabOption, "id" | "session_id">>): void {
-  const keys = (["name", "tool_id", "link", "price_month", "price_setup", "pros", "cons", "notes"] as const).filter((k) => patch[k] !== undefined);
+  const keys = (["name", "tool_id", "link", "price_month", "price_setup", "pros", "cons", "notes", "about"] as const).filter((k) => patch[k] !== undefined);
   if (!keys.length) return;
   db().prepare(`UPDATE lab_options SET ${keys.map((k) => `${k} = @${k}`).join(", ")} WHERE id = @id`).run({ ...patch, id });
 }

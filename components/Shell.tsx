@@ -6,6 +6,7 @@ import { logout } from "@/app/login/actions";
 import Chat from "./Chat";
 import CommandPalette from "./CommandPalette";
 import QuickAdd from "./QuickAdd";
+import { SideToggle } from "./sideMini";
 import TaskModal from "./TaskModal";
 
 import type { AssistantSeed } from "./assistant";
@@ -80,7 +81,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
       {s.items.map((i) => {
         const c = i.count ? counts[i.count] : 0;
         return (
-          <Link key={i.href} href={i.href} className={`side-link ${on(i.href) ? "on" : ""}`}>
+          <Link key={i.href} href={i.href} className={`side-link ${on(i.href) ? "on" : ""}`} title={i.label}>
             <span className="ico"><Icon name={i.ico} /></span>
             <span className="grow">{i.label}</span>
             {c > 0 && <span className={`count ${i.bad ? "bad" : ""}`}>{c}</span>}
@@ -95,13 +96,16 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
       <aside className="side">
         <Link href="/" className="brand">Client Ops</Link>
         <button className="side-search" onClick={() => setSearch(true)}>
-          <span className="inline"><Icon name="search" size={16} /> Пошук</span><kbd>Ctrl K</kbd>
+          <span className="inline"><Icon name="search" size={16} /> <span className="lbl">Пошук</span></span><kbd>Ctrl K</kbd>
         </button>
         <div className="side-actions">
-          <button className="side-add" onClick={() => setAdd(true)}><Icon name="plus" size={18} stroke={2.5} /> Додати</button>
+          <button className="side-add" onClick={() => setAdd(true)} title="Додати"><Icon name="plus" size={18} stroke={2.5} /> <span className="lbl">Додати</span></button>
         </div>
         {links}
-        <form action={logout} className="side-foot"><button className="ghost small">Вийти</button></form>
+        <div className="side-foot">
+          <SideToggle />
+          <form action={logout}><button className="ghost small side-logout">Вийти</button></form>
+        </div>
       </aside>
 
       <header className="topbar">

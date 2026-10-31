@@ -140,8 +140,8 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "lab_get", description: "Лабораторія: повна сесія — що треба клієнту, критерії (з id і вагою 1-3), варіанти (з id, цінами, плюсами/мінусами, оцінками, % разом), штурм, висновок.", input_schema: obj({ lab_id: int("ID сесії") }, ["lab_id"]) },
   { name: "lab_create", description: "Лабораторія: нова сесія підбору (додає стартові критерії для категорії).", input_schema: obj({ client_id: int("ID клієнта"), title: str("Питання: напр. «Яку CRM поставити»"), category: { type: "string", enum: Object.keys(LAB_CATEGORIES) }, brief: str("Що треба клієнту, бюджет, обмеження") }, ["title", "category"]) },
   { name: "lab_update", description: "Лабораторія: змінити сесію — title (коротке питання), category (що підбираємо: crm/telephony/site/other — від цього залежить, у яку вкладку клієнта піде вибір), brief (проблема), notes (штурм), conclusion (висновок: чому цей варіант, ризики, наступні кроки).", input_schema: obj({ lab_id: int("ID сесії"), title: str("Питання"), category: { type: "string", enum: Object.keys(LAB_CATEGORIES) }, brief: str("Що треба клієнту"), notes: str("Штурм — повний текст"), conclusion: str("Висновок — повний текст") }, ["lab_id"]) },
-  { name: "lab_add_option", description: "Лабораторія: додати варіант (сервіс або своє рішення) з тим, що відомо.", input_schema: obj({ lab_id: int("ID сесії"), name: str("Назва"), link: str("Посилання"), price_month: num("Ціна на місяць"), price_setup: num("Разова вартість впровадження"), pros: str("Плюси"), cons: str("Мінуси"), notes: str("Що видно на тесті") }, ["lab_id", "name"]) },
-  { name: "lab_update_option", description: "Лабораторія: оновити варіант (передавай тільки те, що змінюєш).", input_schema: obj({ option_id: int("ID варіанта"), name: str("Назва"), link: str("Посилання"), price_month: num("Ціна на місяць"), price_setup: num("Впровадження"), pros: str("Плюси"), cons: str("Мінуси"), notes: str("Що видно на тесті") }, ["option_id"]) },
+  { name: "lab_add_option", description: "Лабораторія: додати варіант (сервіс або своє рішення) з тим, що відомо. ОБОВʼЯЗКОВО about — що це простими словами, 1 речення, щоб Саша без гугла зрозумів. Плюси/мінуси — кожен з нового рядка, коротко.", input_schema: obj({ lab_id: int("ID сесії"), name: str("Назва"), about: str("Що це простими словами, 1 речення: напр. «Готова CRM з телефонією і задачами, популярна в Україні, від $49/міс»"), link: str("Посилання"), price_month: num("Ціна на місяць"), price_setup: num("Разова вартість впровадження"), pros: str("Плюси"), cons: str("Мінуси"), notes: str("Що видно на тесті") }, ["lab_id", "name"]) },
+  { name: "lab_update_option", description: "Лабораторія: оновити варіант (передавай тільки те, що змінюєш).", input_schema: obj({ option_id: int("ID варіанта"), name: str("Назва"), about: str("Що це простими словами, 1 речення"), link: str("Посилання"), price_month: num("Ціна на місяць"), price_setup: num("Впровадження"), pros: str("Плюси"), cons: str("Мінуси"), notes: str("Що видно на тесті") }, ["option_id"]) },
   { name: "lab_add_criterion", description: "Лабораторія: додати критерій порівняння.", input_schema: obj({ lab_id: int("ID сесії"), name: str("Критерій"), weight: int("1 неважливо, 2 важливо, 3 критично") }, ["lab_id", "name"]) },
   { name: "lab_set_scores", description: "Лабораторія: поставити оцінки 1-5 варіантам за критеріями. Став тільки там, де маєш підстави (дані Саші, відомі факти про сервіс); якщо оцінка — твоє припущення, скажи про це.", input_schema: obj({ scores: { type: "array", items: obj({ option_id: int("ID варіанта"), criterion_id: int("ID критерію"), score: int("1-5") }, ["option_id", "criterion_id", "score"]) } }, ["scores"]) },
   { name: "lab_finish", description: "Лабораторія: завершити сесію — зберегти вибір і висновок, закинути звіт у картку клієнта (матеріали + історія) і, якщо enable_service, поставити обраний інструмент у послугу клієнта. Тільки коли Саша каже завершити.", input_schema: obj({ lab_id: int("ID сесії"), chosen_option_id: int("ID обраного варіанта"), conclusion: str("Висновок (якщо міняєш)"), enable_service: { type: "boolean", description: "Поставити обраний варіант у послугу клієнта" } }, ["lab_id"]) },
@@ -660,7 +660,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const oid = addOption(lid, {
         name: need(s(input.name), "name обов'язковий"), link: s(input.link),
         price_month: input.price_month != null ? n(input.price_month) : null, price_setup: input.price_setup != null ? n(input.price_setup) : null,
-        pros: s(input.pros), cons: s(input.cons), notes: s(input.notes),
+        pros: s(input.pros), cons: s(input.cons), notes: s(input.notes), about: s(input.about),
       });
       act("lab", `Варіант: ${s(input.name)}`, `/lab/${lid}#options`);
       return { ok: true, option_id: oid };
@@ -669,7 +669,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
     case "lab_update_option": {
       const o = need(getOption(need(id(input.option_id), "option_id обов'язковий")), "Варіанта нема");
       const patch: Record<string, string | number | null> = {};
-      for (const k of ["name", "link", "pros", "cons", "notes"]) if (input[k] !== undefined) patch[k] = s(input[k]);
+      for (const k of ["name", "link", "pros", "cons", "notes", "about"]) if (input[k] !== undefined) patch[k] = s(input[k]);
       for (const k of ["price_month", "price_setup"]) if (input[k] !== undefined) patch[k] = input[k] === null ? null : n(input[k]);
       updateOption(o.id, patch);
       act("lab", `Варіант оновлено: ${o.name}`, `/lab/${o.session_id}#opt-${o.id}`);
