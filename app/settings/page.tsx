@@ -28,6 +28,7 @@ import { agentConfig, agentMemory, EFFORT_LABEL, EFFORTS, KNOWN_MODELS, MEMORY_M
 import { currency, CURRENCIES } from "@/lib/config";
 import { getApiKey, hasAgentToken, maskKey } from "@/lib/secrets";
 import { systemInfo } from "@/lib/system";
+import VoiceTextarea from "@/components/VoiceTextarea";
 
 const TABS = [
   { k: "general", label: "Загальне" },
@@ -135,7 +136,7 @@ async function Agent() {
       </div>
       <div className="field">
         <label htmlFor="instructions">Твої інструкції для Джері</label>
-        <textarea id="instructions" name="instructions" defaultValue={cfg.instructions} style={{ minHeight: 200 }}
+        <VoiceTextarea id="instructions" name="instructions" defaultValue={cfg.instructions} style={{ minHeight: 200 }}
           placeholder={"Напр.: Відповідай максимально коротко.\nЗвіти клієнтам пиши на «Ви», без води.\nЦіна моєї години — $30, враховуй у пропозиціях."} />
       </div>
       <div className="mono" style={{ color: "var(--dim)" }}>

@@ -2,12 +2,13 @@ import { saveClient } from "@/app/actions";
 import { currency } from "@/lib/config";
 import { STAGE_LABEL, STATUS_LABEL } from "@/lib/labels";
 import { CLIENT_STATUSES, LEAD_STAGES, type Client } from "@/lib/repo/clients";
+import VoiceTextarea from "./VoiceTextarea";
 
 const F = ({ name, label, c, area, wide, placeholder, mode, type }: { name: keyof Client; label: string; c?: Partial<Client>; area?: boolean; wide?: boolean; placeholder?: string; mode?: "decimal" | "numeric"; type?: string }) => (
   <div className={`field ${wide ? "wide" : ""}`}>
     <label htmlFor={name}>{label}</label>
     {area
-      ? <textarea id={name} name={name} defaultValue={String(c?.[name] ?? "")} placeholder={placeholder} />
+      ? <VoiceTextarea id={name} name={name} defaultValue={String(c?.[name] ?? "")} placeholder={placeholder} />
       : <input id={name} name={name} type={type} defaultValue={c?.[name] === 0 ? "" : String(c?.[name] ?? "")} placeholder={placeholder} inputMode={mode} />}
   </div>
 );

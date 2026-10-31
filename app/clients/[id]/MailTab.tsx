@@ -2,6 +2,7 @@ import Link from "next/link";
 import { saveMailToMaterials, sendMailAction } from "@/app/actions";
 import { fmtDate } from "@/lib/dates";
 import { GoogleReconnectError, listMail, mailQuery, readMail, type MailItem } from "@/lib/google";
+import VoiceTextarea from "@/components/VoiceTextarea";
 
 const who = (s: string) => s.replace(/<.*>/, "").replace(/"/g, "").trim() || s;
 
@@ -72,7 +73,7 @@ export default async function MailTab({ clientId, email, open, err, sent }: { cl
             {msg && <input type="hidden" name="in_reply_to" value={msg.messageId} />}
             <input name="to" defaultValue={replyTo} aria-label="Кому" required />
             <input name="subject" defaultValue={msg ? (msg.subject.startsWith("Re:") ? msg.subject : `Re: ${msg.subject}`) : ""} placeholder="Тема" aria-label="Тема" />
-            <textarea name="body" placeholder="Текст листа (можна попросити Джері написати чернетку)" style={{ minHeight: "9rem" }} aria-label="Текст" required />
+            <VoiceTextarea name="body" placeholder="Текст листа (можна попросити Джері написати чернетку)" style={{ minHeight: "9rem" }} aria-label="Текст" required />
             <div><button>Надіслати</button></div>
           </form>
         </div>

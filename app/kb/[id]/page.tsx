@@ -5,6 +5,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { fmtDate } from "@/lib/dates";
 import { getKb, kbCategories } from "@/lib/repo/kb";
 import { deleteKbAction, saveKbAction } from "../actions";
+import VoiceTextarea from "@/components/VoiceTextarea";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export default async function KbArticlePage({ params, searchParams }: { params: 
         </div>
         <div className="field">
           <label htmlFor="body_md">Текст</label>
-          <textarea id="body_md" name="body_md" defaultValue={a?.body_md} style={{ minHeight: "24rem", fontSize: "0.9375rem", lineHeight: 1.55 }}
+          <VoiceTextarea id="body_md" name="body_md" defaultValue={a?.body_md} style={{ minHeight: "24rem", fontSize: "0.9375rem", lineHeight: 1.55 }}
             placeholder={"# Коли робити\n- …\n\n# Кроки\n1. …\n2. …\n\n# Підводні камені\n- …"} />
           <div className="mono" style={{ color: "var(--dim)", marginTop: "0.375rem" }}># заголовок · 1. крок · - пункт · **жирне** · `код` · посилання як є</div>
         </div>

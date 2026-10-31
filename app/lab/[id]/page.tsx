@@ -13,6 +13,7 @@ import {
   addCriterionAction, addOptionAction, deleteCriterionAction, deleteLabAction, deleteOptionAction, finishLabAction,
   reopenLabAction, saveLabTextAction, saveMatrixAction, saveOptionAction,
 } from "../actions";
+import VoiceTextarea from "@/components/VoiceTextarea";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +78,7 @@ export default async function LabSessionPage({ params }: { params: Promise<{ id:
         <form action={saveLabTextAction} className="card stack">
           {hidden}
           <h2>Проблема</h2>
-          <textarea name="brief" defaultValue={l.brief} placeholder="Задачі, скільки людей, звідки ліди, бюджет, обмеження, що вже пробували" style={{ minHeight: "8rem" }} />
+          <VoiceTextarea name="brief" defaultValue={l.brief} placeholder="Задачі, скільки людей, звідки ліди, бюджет, обмеження, що вже пробували" style={{ minHeight: "8rem" }} />
           <div><SubmitButton className="ghost">Зберегти</SubmitButton></div>
         </form>
       </div>
@@ -111,9 +112,9 @@ export default async function LabSessionPage({ params }: { params: Promise<{ id:
                 <div className="field"><label>Ціна / міс</label><input name="price_month" inputMode="decimal" defaultValue={o.price_month ?? ""} placeholder="0" /></div>
                 <div className="field"><label>Впровадження (разово)</label><input name="price_setup" inputMode="decimal" defaultValue={o.price_setup ?? ""} placeholder="0" /></div>
                 <div className="field wide"><label>Посилання</label><input name="link" inputMode="url" autoCapitalize="off" defaultValue={o.link} placeholder="сайт сервісу або демо" /></div>
-                <div className="field"><label>Плюси</label><textarea name="pros" defaultValue={o.pros} /></div>
-                <div className="field"><label>Мінуси</label><textarea name="cons" defaultValue={o.cons} /></div>
-                <div className="field wide"><label>Що побачили на тесті</label><textarea name="notes" defaultValue={o.notes} /></div>
+                <div className="field"><label>Плюси</label><VoiceTextarea name="pros" defaultValue={o.pros} /></div>
+                <div className="field"><label>Мінуси</label><VoiceTextarea name="cons" defaultValue={o.cons} /></div>
+                <div className="field wide"><label>Що побачили на тесті</label><VoiceTextarea name="notes" defaultValue={o.notes} /></div>
               </div>
               <div className="inline">
                 <SubmitButton className="ghost small" />
@@ -197,7 +198,7 @@ export default async function LabSessionPage({ params }: { params: Promise<{ id:
         <form action={saveLabTextAction} className="card stack">
           {hidden}
           <h2>Штурм</h2>
-          <textarea name="notes" defaultValue={l.notes} placeholder="Думки, ідеї, питання до клієнта, що ще перевірити" style={{ minHeight: "8rem" }} />
+          <VoiceTextarea name="notes" defaultValue={l.notes} placeholder="Думки, ідеї, питання до клієнта, що ще перевірити" style={{ minHeight: "8rem" }} />
           <div><SubmitButton className="ghost">Зберегти</SubmitButton></div>
         </form>
       </section>
@@ -215,7 +216,7 @@ export default async function LabSessionPage({ params }: { params: Promise<{ id:
           </div>
           <div className="field">
             <label htmlFor="conclusion">Чому і що далі</label>
-            <textarea id="conclusion" name="conclusion" defaultValue={l.conclusion} style={{ minHeight: "8rem" }} placeholder="Чому цей варіант, ризики, наступні кроки" />
+            <VoiceTextarea id="conclusion" name="conclusion" defaultValue={l.conclusion} style={{ minHeight: "8rem" }} placeholder="Чому цей варіант, ризики, наступні кроки" />
           </div>
           {client && HAS_SERVICE.includes(l.category) && (
             <label className="check-line">
