@@ -14,7 +14,7 @@ export const CAPS = [
   { key: "groups", label: "Писати в групи клієнтів", desc: "повідомлення і файли (звіти, PDF) у Telegram-групу клієнта — тільки коли ти прямо попросив", tools: ["telegram_group_send"] },
   { key: "vision", label: "Дивитись картинки", desc: "фото з Telegram-груп клієнтів і креативи Meta — бачить і оцінює сам; кожна картинка коштує токенів", tools: ["view_images"] },
   { key: "mail", label: "Пошта (читання)", desc: "шукати і читати листи в Gmail; надсилати листи Джері не може", tools: ["mail_search", "mail_read"] },
-  { key: "drive", label: "Google Диск", desc: "створювати папки клієнтів", tools: ["drive_create_folders"] },
+  { key: "drive", label: "Google Диск", desc: "створювати папки клієнтів і класти туди файли: фото з Telegram-груп, креативи Meta", tools: ["drive_create_folders", "drive_save_files"] },
   { key: "calendar", label: "Google Календар", desc: "ставити задачі в календар", tools: ["task_to_calendar"] },
   { key: "links", label: "Привʼязувати кабінети і групи", desc: "рекламний кабінет Meta і Telegram-групу до клієнта", tools: ["meta_link", "telegram_link"] },
   { key: "journal", label: "Журнал системи", desc: "записувати запити на доробку і глюки", tools: ["journal_add"] },
