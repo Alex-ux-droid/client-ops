@@ -21,6 +21,7 @@ import { finishLab } from "../lab";
 import { getKb, listKb, saveKb } from "../repo/kb";
 import { chatsForClient, clientMessages, linkChat, listChats } from "../repo/telegram";
 import { getFile, readFile, saveFile } from "../repo/files";
+import type { ItemKind, Stage } from "../repo/startups";
 import { capOfTool, toolAllowed } from "./caps";
 import { accountsForClient, ACCOUNT_STATUS, listAccounts, adsetsForClient, breakdowns, campaignsWithStats, dailySeries, getAnalysis, kyivDay, metaAlerts, topAds, totals } from "../repo/meta";
 import { label as cutLabel } from "../metaInsights";
@@ -89,7 +90,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "create_client", description: "Створити клієнта або ліда.", input_schema: obj(CLIENT_PROPS, ["name"]) },
   { name: "update_client", description: "Змінити поля клієнта. Передавай тільки те, що змінюється. Текстові поля замінюються повністю — якщо доповнюєш, передай старий текст + нове.", input_schema: obj({ client_id: int("ID клієнта"), ...CLIENT_PROPS }, ["client_id"]) },
   { name: "list_tasks", description: "Задачі. view: overdue, today, week (наступні дні тижня), later, all (всі відкриті), done (останні закриті).", input_schema: obj({ view: { type: "string", enum: ["overdue", "today", "week", "later", "all", "done"] }, client_id: int("Фільтр по клієнту, необов'язково") }, ["view"]) },
-  { name: "create_task", description: "Створити задачу. Назва — коротко (до 80 символів). Кроки — в subtasks (галочки), «як зробити» / інструкція — в details (markdown: 1. списки, **жирне**, посилання), посилання на Диск/документи/чати — в links. Не пиши план абзацом у details.", input_schema: obj({ title: str("Що зробити, коротко"), client_id: int("ID клієнта, якщо стосується клієнта"), due_date: str("Дедлайн YYYY-MM-DD"), details: str("Інструкція / деталі, markdown"), priority: { type: "string", enum: ["high", "normal", "low"] }, subtasks: { type: "array", items: { type: "string" }, description: "Підзадачі-кроки (галочки)" }, links: { type: "array", items: obj({ url: str("https://…"), title: str("Назва") }, ["url"]), description: "Посилання і файли" } }, ["title"]) },
+  { name: "create_task", description: "Створити задачу. Назва — коротко (до 80 символів). Кроки — в subtasks (галочки), «як зробити» / інструкція — в details (markdown: 1. списки, **жирне**, посилання), посилання на Диск/документи/чати — в links. Не пиши план абзацом у details.", input_schema: obj({ title: str("Що зробити, коротко"), client_id: int("ID клієнта, якщо стосується клієнта"), due_date: str("Дедлайн YYYY-MM-DD"), details: str("Інструкція / деталі, markdown"), priority: { type: "string", enum: ["high", "normal", "low"] }, subtasks: { type: "array", items: { type: "string" }, description: "Підзадачі-кроки (галочки)" }, startup_id: int("Стартап, якщо задача його"), milestone_id: int("Етап плану стартапу"), links: { type: "array", items: obj({ url: str("https://…"), title: str("Назва") }, ["url"]), description: "Посилання і файли" } }, ["title"]) },
   { name: "update_task", description: "Змінити задачу: назву, інструкцію (details замінює повністю), дедлайн, пріоритет, статус; додати підзадачі і посилання.", input_schema: obj({ task_id: int("ID задачі"), title: str("Назва"), details: str("Інструкція, markdown — замінює стару"), due_date: str("YYYY-MM-DD"), priority: { type: "string", enum: ["high", "normal", "low"] }, status: { type: "string", enum: ["todo", "doing"] }, add_subtasks: { type: "array", items: { type: "string" } }, add_links: { type: "array", items: obj({ url: str("https://…"), title: str("Назва") }, ["url"]) } }, ["task_id"]) },
   { name: "get_task", description: "Задача повністю: інструкція, підзадачі з id і відмітками, посилання.", input_schema: obj({ task_id: int("ID задачі") }, ["task_id"]) },
   { name: "task_to_calendar", description: "Поставити задачу в Google Календар Саші: подія на день дедлайну з нагадуванням напередодні (якщо вже є — оновити). Потрібен дедлайн.", input_schema: obj({ task_id: int("ID задачі") }, ["task_id"]) },
@@ -131,6 +132,12 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "github_search", description: "GitHub: пошук по коду в репозиторіях Саші (або в одному, якщо вказати repo).", input_schema: obj({ query: str("Що шукати"), repo: str("owner/name, необовʼязково") }, ["query"]) },
   { name: "github_issues", description: "GitHub: задачі (issues) і PR репозиторію.", input_schema: obj({ repo: str("owner/name"), state: { type: "string", enum: ["open", "closed", "all"] } }, ["repo"]) },
   { name: "github_commits", description: "GitHub: останні коміти репозиторію (або конкретного файлу/папки через path).", input_schema: obj({ repo: str("owner/name"), path: str("Шлях, необовʼязково") }, ["repo"]) },
+  { name: "startups_list", description: "Стартапи Саші (власні продукти) і скринька сирих ідей (stage raw): стадія, суть, наскільки заповнений фундамент, наступний крок.", input_schema: obj({}, []) },
+  { name: "startup_get", description: "Стартап повністю: суть, стадія, фундамент (canvas), етапи плану з задачами, гіпотези, рішення, питання, нотатки, ТЗ.", input_schema: obj({ startup_id: int("ID стартапу") }, ["startup_id"]) },
+  { name: "idea_capture", description: "Записати сиру ідею в скриньку стартапів дослівно (коли Саша накидає ідею «на потім»).", input_schema: obj({ text: str("Ідея як сказав Саша") }, ["text"]) },
+  { name: "startup_create", description: "Створити стартап-проєкт (не сиру ідею). Потім заповни фундамент через startup_update.", input_schema: obj({ name: str("Робоча назва"), one_liner: str("Одним реченням: що і для кого"), stage: { type: "string", enum: ["idea", "research", "foundation", "build", "launch", "grow"] } }, ["name"]) },
+  { name: "startup_update", description: "Оновити стартап: назву, суть, стадію (raw→idea→research→foundation→build→launch→grow, paused, closed), головну метрику, наступний крок, репозиторій, адресу продакшену, блоки фундаменту (canvas: problem, audience, solution, why_us, money, channels, competitors, metrics, risks — передавай тільки ті, що міняєш), ТЗ для Claude Code (spec_md, markdown — замінює повністю).", input_schema: obj({ startup_id: int("ID стартапу"), name: str("Назва"), one_liner: str("Суть одним реченням"), stage: { type: "string", enum: ["raw", "idea", "research", "foundation", "build", "launch", "grow", "paused", "closed"] }, north_star: str("Головна метрика"), next_step: str("Наступний крок"), repo: str("GitHub owner/name"), prod_url: str("Адреса продакшену"), canvas: { type: "object", description: "Блоки фундаменту: ключ → текст (markdown)", additionalProperties: { type: "string" } }, spec_md: str("ТЗ для Claude Code, markdown") }, ["startup_id"]) },
+  { name: "startup_item", description: "Елементи стартапу: milestone (етап плану; status now|next|later|done), experiment (гіпотеза: title — що думаємо, body — як перевіряємо, criterion — успіх якщо, result; status planned|running|confirmed|refuted), decision (title — що вирішили, body — чому, alternatives), question (відкрите питання/ризик; status open|closed), note (нотатка в body), link (url + title). action add | update | delete. Задачі на етап — create_task зі startup_id і milestone_id.", input_schema: obj({ action: { type: "string", enum: ["add", "update", "delete"] }, startup_id: int("ID стартапу (для add)"), item_id: int("ID елемента (для update/delete)"), kind: { type: "string", enum: ["milestone", "experiment", "decision", "question", "note", "link"] }, title: str("Заголовок"), body: str("Текст"), status: str("Статус"), criterion: str("Для гіпотези: успіх, якщо…"), result: str("Для гіпотези: що вийшло"), alternatives: str("Для рішення: альтернативи"), url: str("Для посилання") }, ["action"]) },
   { name: "system_updates", description: "Журнал оновлень системи: що Claude додав або змінив і коли (твої нові можливості). Дивись, коли не впевнений, чи щось уже вміє система.", input_schema: obj({ limit: int("Скільки останніх, за замовчуванням 20") }, []) },
   { name: "meta_ads", description: "Живі цифри Meta Ads клієнта (оновлюються самі кожні 2 год, тільки читання): підсумок за N днів і попередні N днів (витрати, покази, кліки, ліди, ціна ліда, CTR), по днях, кампанії з бюджетами і статусами, топ креативів за 30 днів, тривоги. Змінювати рекламу ти не можеш — тільки радити.", input_schema: obj({ client_id: int("ID клієнта"), days: int("Період у днях, за замовчуванням 7") }, ["client_id"]) },
   { name: "meta_accounts", description: "Усі рекламні кабінети Meta, які бачить система: id, назва, валюта, статус (активний/закритий/борг), до якого клієнта привʼязаний.", input_schema: obj({}) },
@@ -222,7 +229,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const cid = id(input.client_id);
       const due = date(input.due_date);
       const prio = (["high", "normal", "low"].includes(s(input.priority)) ? s(input.priority) : "normal") as TaskPriority;
-      const tid = createTask({ title, client_id: cid, due_date: due, details: s(input.details), priority: prio });
+      const tid = createTask({ title, client_id: cid, due_date: due, details: s(input.details), priority: prio, startup_id: id(input.startup_id), milestone_id: id(input.milestone_id) });
       if (Array.isArray(input.subtasks)) addTaskItems(tid, (input.subtasks as unknown[]).map(String));
       for (const l of (Array.isArray(input.links) ? input.links : []) as { url?: string; title?: string }[]) if (/^https?:\/\//.test(l.url ?? "")) addTaskLink(tid, l.url!, l.title ?? "");
       act("task", `Задача: ${title}${due ? ` · ${due}` : ""}${cid ? ` · ${clientName(cid)}` : ""}`, cid ? `/clients/${cid}?tab=tasks` : "/tasks?view=all");
@@ -587,6 +594,84 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       if (name === "github_search") return g.searchCode(need(s(input.query), "query обовʼязковий"), repo);
       if (name === "github_issues") return g.listIssues(need(repo, "repo обовʼязковий"), s(input.state) || "open");
       return g.listCommits(need(repo, "repo обовʼязковий"), s(input.path));
+    }
+
+    case "startups_list": {
+      const { listStartups, CANVAS } = await import("../repo/startups");
+      return listStartups().map((x) => ({ id: x.id, name: x.name, stage: x.stage, one_liner: x.one_liner || undefined, raw: x.stage === "raw" ? x.raw_text.slice(0, 300) : undefined,
+        foundation: `${CANVAS.filter((c) => x.canvas[c.k]?.trim()).length}/${CANVAS.length}`, tasks_open: x.open_tasks, next_step: x.next_step || undefined }));
+    }
+
+    case "startup_get": {
+      const r = await import("../repo/startups");
+      const { startupTasks } = await import("../repo/tasks");
+      const sid = need(id(input.startup_id), "startup_id обовʼязковий");
+      const x = need(r.getStartup(sid), "Стартапу нема");
+      const items = r.listItems(sid);
+      const pick = (k: string) => items.filter((i) => i.kind === k).map((i) => ({ id: i.id, title: i.title, body: i.body.slice(0, 800) || undefined, status: i.status || undefined, ...i.data, at: i.created_at.slice(0, 10) }));
+      return {
+        id: x.id, name: x.name, stage: x.stage, one_liner: x.one_liner, north_star: x.north_star, next_step: x.next_step, repo: x.repo || undefined, prod_url: x.prod_url || undefined,
+        first_idea: x.raw_text || undefined, canvas: x.canvas,
+        missing_foundation: r.CANVAS.filter((c) => !x.canvas[c.k]?.trim()).map((c) => c.k),
+        milestones: pick("milestone"), tasks: startupTasks(sid).map((t) => ({ id: t.id, title: t.title, status: t.status, milestone_id: t.milestone_id, due: t.due_date })),
+        experiments: pick("experiment"), decisions: pick("decision"), questions: pick("question"), notes: pick("note").slice(0, 15), links: pick("link"),
+        spec_md: x.spec_md ? x.spec_md.slice(0, 6000) : undefined,
+      };
+    }
+
+    case "idea_capture": {
+      const { createStartup } = await import("../repo/startups");
+      const text = need(s(input.text), "text обовʼязковий");
+      const first = text.split(/[.!?\n]/)[0].trim().split(/\s+/).slice(0, 7).join(" ");
+      const sid = createStartup({ name: first || "Нова ідея", stage: "raw", raw_text: text });
+      act("startup", `У скриньку ідей: ${first}`, "/startups");
+      return { ok: true, startup_id: sid };
+    }
+
+    case "startup_create": {
+      const { createStartup } = await import("../repo/startups");
+      const sid = createStartup({ name: need(s(input.name), "name обовʼязковий"), one_liner: s(input.one_liner), stage: (s(input.stage) || "idea") as "idea" });
+      act("startup", `Стартап: ${s(input.name)}`, `/startups/${sid}`);
+      return { ok: true, startup_id: sid };
+    }
+
+    case "startup_update": {
+      const r = await import("../repo/startups");
+      const sid = need(id(input.startup_id), "startup_id обовʼязковий");
+      const x = need(r.getStartup(sid), "Стартапу нема");
+      const patch: Parameters<typeof r.updateStartup>[1] = {};
+      for (const k of ["name", "one_liner", "north_star", "next_step", "repo", "prod_url", "spec_md"] as const) if (input[k] !== undefined) patch[k] = s(input[k]);
+      if (input.stage !== undefined && r.STAGES.some((st) => st.k === s(input.stage))) patch.stage = s(input.stage) as Stage;
+      if (input.canvas && typeof input.canvas === "object") {
+        const c: Record<string, string> = {};
+        for (const [k, val] of Object.entries(input.canvas as Record<string, unknown>)) if (r.CANVAS.some((b) => b.k === k)) c[k] = String(val ?? "");
+        patch.canvas = c;
+      }
+      r.updateStartup(sid, patch);
+      act("startup", `${x.name}: ${[patch.canvas && "фундамент", patch.spec_md !== undefined && "ТЗ", patch.stage && `стадія → ${r.STAGES.find((st) => st.k === patch.stage)?.label}`, patch.next_step !== undefined && "наступний крок"].filter(Boolean).join(", ") || "оновлено"}`,
+        `/startups/${sid}${patch.spec_md !== undefined ? "?v=spec" : patch.canvas ? "?v=canvas" : ""}`);
+      return { ok: true };
+    }
+
+    case "startup_item": {
+      const r = await import("../repo/startups");
+      const a = s(input.action);
+      const data: Record<string, string> = {};
+      for (const k of ["criterion", "result", "alternatives", "url"]) if (input[k] !== undefined) data[k] = s(input[k]);
+      const VIEW: Record<string, string> = { milestone: "plan", experiment: "tests", decision: "decisions", question: "", note: "notes", link: "notes" };
+      if (a === "add") {
+        const sid = need(id(input.startup_id), "startup_id обовʼязковий");
+        need(r.getStartup(sid), "Стартапу нема");
+        const kind = need(s(input.kind), "kind обовʼязковий") as ItemKind;
+        const iid = r.addItem(sid, { kind, title: s(input.title), body: s(input.body), status: s(input.status) || (kind === "experiment" ? "planned" : kind === "question" ? "open" : kind === "milestone" ? "next" : ""), data });
+        act("startup", `${({ milestone: "Етап", experiment: "Гіпотеза", decision: "Рішення", question: "Питання", note: "Нотатка", link: "Посилання" } as Record<string, string>)[kind] ?? kind}: ${s(input.title) || s(input.body).slice(0, 50)}`, `/startups/${sid}${VIEW[kind] ? `?v=${VIEW[kind]}` : ""}`);
+        return { ok: true, item_id: iid };
+      }
+      const it = need(r.getItem(need(id(input.item_id), "item_id обовʼязковий")), "Елемента нема");
+      if (a === "delete") { r.deleteItem(it.id); return { ok: true }; }
+      r.updateItem(it.id, { title: input.title !== undefined ? s(input.title) : undefined, body: input.body !== undefined ? s(input.body) : undefined, status: input.status !== undefined ? s(input.status) : undefined, data });
+      act("startup", `Оновлено: ${it.title || it.kind}`, `/startups/${it.startup_id}${VIEW[it.kind] ? `?v=${VIEW[it.kind]}` : ""}`);
+      return { ok: true };
     }
 
     case "system_updates":
