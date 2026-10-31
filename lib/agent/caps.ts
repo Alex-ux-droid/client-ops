@@ -18,6 +18,7 @@ export const CAPS = [
   { key: "links", label: "Привʼязувати кабінети і групи", desc: "рекламний кабінет Meta і Telegram-групу до клієнта", tools: ["meta_link", "telegram_link"] },
   { key: "journal", label: "Журнал системи", desc: "записувати запити на доробку і глюки", tools: ["journal_add"] },
   { key: "kb", label: "База знань (запис)", desc: "зберігати інструкції", tools: ["kb_save"] },
+  { key: "access", label: "Доступи клієнтів", desc: "додавати і змінювати записи «де лежить доступ» (сервіс, логін, назва в Bitwarden, 2FA) — паролів не бачить і не зберігає", tools: ["access_save"] },
   { key: "tips", label: "Поради дня (запис)", desc: "записує в базу порад корисне, що виникло в розмові", tools: ["tip_add"] },
   { key: "lab", label: "Лабораторія", desc: "вести сесії вибору інструментів", tools: ["lab_create", "lab_update", "lab_add_option", "lab_update_option", "lab_add_criterion", "lab_set_scores", "lab_finish"] },
 ] as const;

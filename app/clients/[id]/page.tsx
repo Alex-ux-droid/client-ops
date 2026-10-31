@@ -10,6 +10,7 @@ import { listPayments } from "@/lib/repo/payments";
 import { listServices } from "@/lib/repo/services";
 import { SERVICES, type ServiceType } from "@/lib/services";
 import FilesTab from "./FilesTab";
+import AccessTab from "./AccessTab";
 import MailTab from "./MailTab";
 import TelegramTab from "./TelegramTab";
 import { googleConnected } from "@/lib/google";
@@ -95,6 +96,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       {tab === "tasks" && <TasksTab id={id} />}
       {tab === "history" && <HistoryTab id={id} />}
       {tab === "money" && <MoneyTab id={id} fee={c.fee_monthly} payDay={c.pay_day} paidTotal={paidTotal} />}
+      {tab === "access" && <AccessTab clientId={id} err={sp.err} />}
       {tab === "files" && <FilesTab clientId={id} driveUrl={c.drive_url} google={google} err={sp.err} />}
       {tab === "telegram" && <TelegramTab clientId={id} q={sp.q} n={sp.n} />}
       {tab === "mail" && <MailTab clientId={id} email={c.email} open={sp.m} err={sp.err} sent={sp.sent === "1"} />}

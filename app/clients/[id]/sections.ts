@@ -4,6 +4,7 @@ import type { ClientRow } from "@/lib/repo/clients";
 import { clientPlaybooks } from "@/lib/repo/playbooks";
 import type { ClientService } from "@/lib/repo/services";
 import { listTasks } from "@/lib/repo/tasks";
+import { accessCount } from "@/lib/repo/access";
 import { chatsForClient } from "@/lib/repo/telegram";
 import { SERVICES, type ServiceType } from "@/lib/services";
 
@@ -27,6 +28,7 @@ export function clientSections(c: ClientRow, services: ClientService[]): Section
     { k: "history", label: "Історія", ico: "clock", group: "Робота" },
     { k: "money", label: "Гроші", ico: "wallet", group: "Робота" },
     { k: "files", label: "Файли", ico: "folder", group: "Робота" },
+    { k: "access", label: "Доступи", ico: "lock", group: "Робота", badge: accessCount(c.id) },
     { k: "materials", label: "Матеріали", ico: "file", group: "Робота" },
     { k: "playbooks", label: "Плейбуки", ico: "book", group: "Робота", badge: pbs },
     { k: "setup", label: "Налаштування клієнта", ico: "gear", group: "Налаштування" },
