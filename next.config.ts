@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Сервер збирає нову версію в окрему папку (NEXT_DIST_DIR), поки стара працює, потім міняє місцями — без простою
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   serverExternalPackages: ["better-sqlite3", "pdfkit"],
   poweredByHeader: false,
   async headers() {
