@@ -1,6 +1,7 @@
 "use client";
 // Диктування голосом через вбудоване в браузер розпізнавання мови (Chrome, Edge, Safari).
 import { useCallback, useEffect, useRef, useState } from "react";
+import { startLive, type Live } from "./liveStt";
 import { voiceCaps } from "./voiceCaps";
 
 type Rec = {
@@ -18,7 +19,8 @@ const ERRORS: Record<string, string> = {
   network: "Розпізнаванню потрібен інтернет.",
 };
 
-export function useDictation(onText: (chunk: string) => void) {
+// onText — остаточний текст сесії (на «стоп»); onLive — що чути зараз, поки говориш (вся сесія, оновлюється)
+export function useDictation(onText: (chunk: string) => void, onLive?: (text: string) => void) {
   const rec = useRef<Rec | null>(null);
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(true);
@@ -30,11 +32,18 @@ export function useDictation(onText: (chunk: string) => void) {
   const aborted = useRef(false);   // відпустили ще до того, як мікрофон увімкнувся
   const cb = useRef(onText);
   cb.current = onText;
+  const liveCb = useRef(onLive);
+  liveCb.current = onLive;
+  const [liveOn, setLiveOn] = useState(false); // ElevenLabs Realtime: текст видно, поки говориш
+  const live = useRef<Promise<Live | null> | null>(null);
 
   useEffect(() => {
     const w = window as unknown as { SpeechRecognition?: new () => Rec; webkitSpeechRecognition?: new () => Rec };
     setSupported(!!(w.SpeechRecognition || w.webkitSpeechRecognition) || typeof MediaRecorder !== "undefined");
-    voiceCaps().then((c) => setPaid(c.stt && typeof MediaRecorder !== "undefined" && !!navigator.mediaDevices?.getUserMedia));
+    voiceCaps().then((c) => {
+      setPaid(c.stt && typeof MediaRecorder !== "undefined" && !!navigator.mediaDevices?.getUserMedia);
+      setLiveOn(c.live && typeof AudioWorkletNode !== "undefined" && typeof WebSocket !== "undefined");
+    });
     return () => { rec.current?.stop(); recorder.current?.stream.getTracks().forEach((t) => t.stop()); };
   }, []);
 
@@ -81,6 +90,7 @@ export function useDictation(onText: (chunk: string) => void) {
         else if (!acc.toLowerCase().endsWith(t.toLowerCase())) acc = `${acc} ${t}`;
       }
       x.heard = acc;
+      liveCb.current?.(acc);
     };
     r.onerror = (e) => { if (e.error !== "aborted" && e.error !== "no-speech") setError(ERRORS[e.error] ?? `Помилка розпізнавання: ${e.error}`); };
     r.onend = () => { if (sess.current === x) setListening(false); flush(x); };
@@ -92,20 +102,28 @@ export function useDictation(onText: (chunk: string) => void) {
 
   // Платне розпізнавання: записуємо звук, на «стоп» відправляємо на сервер
   const startRec = useCallback(async () => {
+    // AudioContext — синхронно в межах натискання, інакше Safari лишить його «заснулим»
+    let ctx: AudioContext | null = null;
+    if (liveOn && liveCb.current) { try { ctx = new AudioContext(); } catch { ctx = null; } }
+    live.current = null;
     window.speechSynthesis?.cancel();
     setError("");
     discard.current = false;
     aborted.current = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-      if (aborted.current) { stream.getTracks().forEach((t) => t.stop()); return; }
+      if (aborted.current) { stream.getTracks().forEach((t) => t.stop()); void ctx?.close(); return; }
       const type = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"].find((t) => MediaRecorder.isTypeSupported?.(t));
       const mr = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
       const chunks: Blob[] = [];
       mr.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
       mr.onstop = async () => {
+        // живий текст: дочекатись останнього шматка і взяти його; не вийшло — розпізнаємо запис, як раніше
+        const lv = live.current ? await live.current : null;
+        const liveText = lv ? await lv.stop() : "";
         stream.getTracks().forEach((t) => t.stop());
         if (discard.current) return;
+        if (liveText) { cb.current(liveText); return; }
         const blob = new Blob(chunks, { type: mr.mimeType || type || "audio/webm" });
         if (blob.size < 2000) { setError(ERRORS["no-speech"]); return; }
         setTranscribing(true);
@@ -125,10 +143,11 @@ export function useDictation(onText: (chunk: string) => void) {
       recorder.current = mr;
       mr.start(1000);
       setListening(true);
+      if (ctx) live.current = startLive(ctx, stream, (t) => liveCb.current?.(t));
     } catch {
       setError(ERRORS["not-allowed"]);
     }
-  }, []);
+  }, [liveOn]);
 
   const stopRec = useCallback(() => {
     setListening(false);

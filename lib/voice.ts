@@ -85,3 +85,13 @@ export async function transcribe(audio: Blob, filename: string): Promise<string>
   }
   throw new Error(`Розпізнавання не вдалось: ${last}`);
 }
+
+// Одноразовий токен для живого розпізнавання (Scribe v2 Realtime): браузер підключається до ElevenLabs напряму,
+// постійний ключ лишається на сервері. Токен живе 15 хв і згорає при підключенні.
+export async function liveSttToken(): Promise<string> {
+  const key = voiceKey();
+  if (!key) throw new Error("ElevenLabs не підключено");
+  const r = await fetch(`${BASE()}/v1/single-use-token/realtime_scribe`, { method: "POST", headers: { "xi-api-key": key }, signal: AbortSignal.timeout(10000) });
+  if (!r.ok) throw new Error(`ElevenLabs ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  return ((await r.json()) as { token: string }).token;
+}

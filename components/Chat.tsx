@@ -54,7 +54,13 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
   const box = useRef<HTMLTextAreaElement>(null);
   const [speaking, setSpeaking] = useState(false);
   const voice = useSpeech(setSpeaking);
-  const dict = useDictation((chunk) => setText((t) => (t && !t.endsWith(" ") && !t.endsWith("\n") ? `${t} ${chunk}` : t + chunk)));
+  // Диктування: живий текст видно в полі, поки говориш; на «стоп» — остаточний
+  const dictBase = useRef<string | null>(null);
+  const join = (b: string, heard: string) => (heard ? (b && !b.endsWith(" ") && !b.endsWith("\n") ? `${b} ${heard}` : b + heard) : b);
+  const dict = useDictation(
+    (chunk) => { setText((t) => join(dictBase.current ?? t, chunk)); dictBase.current = null; },
+    (heard) => setText((t) => { if (dictBase.current === null) dictBase.current = t; return join(dictBase.current, heard); }),
+  );
 
   // Без initial (плаваюча панель) — підвантажуємо розмову самі
   useEffect(() => {

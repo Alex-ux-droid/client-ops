@@ -23,6 +23,7 @@ export const AUTO = [
   { key: "meta_analysis", label: "Тижневий розбір реклами від Джері", desc: "раз на тиждень на клієнта, дивиться креативи — коштує кредитів API", setting: "auto.meta_analysis" },
   { key: "backup", label: "Бекап бази на Google Диск", desc: "щоночі о 04:00, 30 копій", setting: "auto.backup" },
   { key: "tg_files", label: "Фото і файли з Telegram на Диск", desc: "копія в папку клієнта → «Telegram»", setting: "auto.tg_files" },
+  { key: "live_dictation", label: "Живий текст під час диктування", desc: "бачиш, що Джері чує, поки говориш (ElevenLabs Realtime); вимкнеш — текст з'являється після «стоп»", setting: "voice.live" },
   { key: "reflect", label: "Самонавчання Джері", desc: "після кожної розмови оновлює памʼять — коштує трохи кредитів", setting: "auto.reflect" },
 ] as const;
 
