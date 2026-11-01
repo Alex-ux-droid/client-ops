@@ -27,6 +27,13 @@ const PRESETS_CLIENT = [
 type Msg = Pick<ChatMessage, "role" | "content" | "actions">;
 
 // Що зараз на екрані: адреса, заголовок, активна вкладка і текст сторінки (без меню і самого чату)
+// Задача, з якою Саша працює: відкрита зараз або закрита не більше 20 хв тому
+function currentTask(): number | null {
+  const ds = document.documentElement.dataset;
+  const id = Number(ds.task), at = Number(ds.taskAt);
+  return id && (ds.taskOpen === "1" || (at && Date.now() - at < 20 * 60_000)) ? id : null;
+}
+
 function screenText(): string {
   const main = document.querySelector("main");
   if (!main) return "";
@@ -95,7 +102,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
     setMsgs((m) => [...m, { role: "user", content: message, actions: [] }]);
     setText("");
     try {
-      const r = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message, clientId, page, screen: compact ? screenText() : "" }) });
+      const r = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message, clientId, page, screen: compact ? screenText() : "", taskId: currentTask() }) });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Помилка");
       setMsgs((m) => [...m, { role: "assistant", content: data.reply, actions: data.actions }]);

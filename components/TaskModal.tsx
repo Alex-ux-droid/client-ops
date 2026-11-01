@@ -63,9 +63,13 @@ export default function TaskModal() {
     setD(null); setErr(""); setEditDetails(false); setClosing(false); setCalMsg("");
     void load(id);
     document.documentElement.classList.add("locked");
+    // Джері бачить, з якою задачею Саша працює (Chat читає це з кожним повідомленням)
+    document.documentElement.dataset.task = String(id);
+    document.documentElement.dataset.taskAt = String(Date.now());
+    document.documentElement.dataset.taskOpen = "1";
     const key = (e: KeyboardEvent) => { if (e.key === "Escape" && !(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) close(); };
     window.addEventListener("keydown", key);
-    return () => { window.removeEventListener("keydown", key); document.documentElement.classList.remove("locked"); };
+    return () => { window.removeEventListener("keydown", key); document.documentElement.classList.remove("locked"); document.documentElement.dataset.taskAt = String(Date.now()); delete document.documentElement.dataset.taskOpen; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, load]);
 
