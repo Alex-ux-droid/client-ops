@@ -8,7 +8,7 @@ import { isAuthed, SESSION_COOKIE } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   if (!isAuthed(req.cookies.get(SESSION_COOKIE)?.value, req.headers.get("authorization"))) return NextResponse.json({ error: "Потрібен вхід" }, { status: 401 });
-  const body = (await req.json().catch(() => ({}))) as { message?: string; clientId?: number | null; clear?: boolean; page?: string; screen?: string };
+  const body = (await req.json().catch(() => ({}))) as { message?: string; clientId?: number | null; clear?: boolean; page?: string; screen?: string; taskId?: number | null };
   const clientId = Number(body.clientId) > 0 ? Number(body.clientId) : null;
   if (body.clear) { clearChat(clientId); return NextResponse.json({ ok: true }); }
   const message = String(body.message ?? "").trim();
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   if (message.length > 100_000) return NextResponse.json({ error: "Задовгий текст (макс. 100 000 символів)" }, { status: 400 });
 
   try {
-    return NextResponse.json(await runAgent(clientId, message, String(body.page ?? "").slice(0, 300), String(body.screen ?? "").slice(0, 4000)));
+    return NextResponse.json(await runAgent(clientId, message, String(body.page ?? "").slice(0, 300), String(body.screen ?? "").slice(0, 4000), Number(body.taskId) > 0 ? Number(body.taskId) : null));
   } catch (e) {
     const error =
       e instanceof NoKeyError ? "Нема ключа API. Додай його в Налаштуваннях." :
