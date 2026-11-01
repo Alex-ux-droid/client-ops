@@ -35,6 +35,21 @@ export function useDictation(onText: (chunk: string) => void, onLive?: (text: st
   const liveCb = useRef(onLive);
   liveCb.current = onLive;
   const [liveOn, setLiveOn] = useState(false); // ElevenLabs Realtime: текст видно, поки говориш
+  const [fixing, setFixing] = useState(false);  // після «стоп»: ШІ ставить розділові знаки і правильні назви
+  // Остаточний текст: показуємо сирий (сірим), причісуємо на сервері, віддаємо в поле
+  const finalize = useCallback(async (raw: string) => {
+    const text = raw.trim();
+    if (!text) return;
+    liveCb.current?.(text);
+    setFixing(true);
+    let out = text;
+    try {
+      const r = await fetch("/api/stt/fix", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }), signal: AbortSignal.timeout(15000) });
+      if (r.ok) out = ((await r.json()) as { text?: string }).text?.trim() || text;
+    } catch {}
+    setFixing(false);
+    cb.current(out);
+  }, []);
   const live = useRef<Promise<Live | null> | null>(null);
 
   useEffect(() => {
@@ -55,9 +70,9 @@ export function useDictation(onText: (chunk: string) => void, onLive?: (text: st
     if (x.done) return;
     x.done = true;
     const text = x.heard.trim();
-    if (text) cb.current(text);
+    if (text) void finalize(text);
     else setError(ERRORS["no-speech"]);
-  }, []);
+  }, [finalize]);
 
   const stop = useCallback(() => {
     const x = sess.current;
@@ -123,7 +138,7 @@ export function useDictation(onText: (chunk: string) => void, onLive?: (text: st
         const liveText = lv ? await lv.stop() : "";
         stream.getTracks().forEach((t) => t.stop());
         if (discard.current) return;
-        if (liveText) { cb.current(liveText); return; }
+        if (liveText) { void finalize(liveText); return; }
         const blob = new Blob(chunks, { type: mr.mimeType || type || "audio/webm" });
         if (blob.size < 2000) { setError(ERRORS["no-speech"]); return; }
         setTranscribing(true);
@@ -133,7 +148,7 @@ export function useDictation(onText: (chunk: string) => void, onLive?: (text: st
           const r = await fetch("/api/stt", { method: "POST", body: fd });
           const d = await r.json();
           if (!r.ok) throw new Error(d.error || "Не розпізнав");
-          if (d.text) cb.current(d.text); else setError(ERRORS["no-speech"]);
+          if (d.text) void finalize(d.text); else setError(ERRORS["no-speech"]);
         } catch (e) {
           setError(e instanceof Error ? e.message : "Не розпізнав");
         } finally {
@@ -147,7 +162,7 @@ export function useDictation(onText: (chunk: string) => void, onLive?: (text: st
     } catch {
       setError(ERRORS["not-allowed"]);
     }
-  }, [liveOn]);
+  }, [liveOn, finalize]);
 
   const stopRec = useCallback(() => {
     setListening(false);
@@ -171,5 +186,5 @@ export function useDictation(onText: (chunk: string) => void, onLive?: (text: st
     if (paid) stopRec();
     else { setListening(false); try { x?.r.abort(); } catch {} }
   }, [paid, stopRec]);
-  return { listening, transcribing, supported, error, toggle, stop: stopAny, start: startAny, cancel, clearError: () => setError("") };
+  return { listening, transcribing, fixing, supported, error, toggle, stop: stopAny, start: startAny, cancel, clearError: () => setError("") };
 }

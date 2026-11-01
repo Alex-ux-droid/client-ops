@@ -9,7 +9,9 @@ import Markdown from "./Markdown";
 import { OPEN_TASK } from "./tasks";
 import VoiceTextarea from "./VoiceTextarea";
 
-type Data = { task: TaskRow; items: TaskItem[]; links: TaskLink[]; drive_url: string; calendar: "ok" | "reconnect" | "off" };
+type Data = { task: TaskRow; items: TaskItem[]; links: TaskLink[]; drive_url: string; folder: { title: string; url: string } | null; folder_urls: string[]; calendar: "ok" | "reconnect" | "off" };
+// id папки Диску з посилання — щоб не показувати ту саму папку двічі
+const fid = (u: string) => u.match(/\/folders\/([\w-]+)/)?.[1] ?? u;
 const STATUS = [{ k: "todo", l: "Треба зробити" }, { k: "doing", l: "В роботі" }, { k: "done", l: "Готово" }] as const;
 const PRIO = [{ k: "high", l: "Терміново" }, { k: "normal", l: "Звичайна" }, { k: "low", l: "Не горить" }] as const;
 
@@ -160,10 +162,13 @@ export default function TaskModal() {
               <section>
                 <div className="tm-sec-head"><b>Посилання і файли</b></div>
                 <div className="tm-links">
-                  {d.drive_url && (
-                    <a href={d.drive_url} target="_blank" rel="noreferrer" className="tm-link"><span>📁</span><b>Папка клієнта на Диску</b><em>Google Диск</em></a>
-                  )}
-                  {d.links.map((l) => {
+                  {d.folder ? (
+                    <a href={d.folder.url} target="_blank" rel="noreferrer" className="tm-link tm-folder"><span>📁</span><b>{d.folder.title}</b><em>Google Диск</em></a>
+                  ) : d.drive_url ? (
+                    <a href={d.drive_url} target="_blank" rel="noreferrer" className="tm-link tm-folder"><span>📁</span><b>Папка клієнта</b><em>Google Диск</em></a>
+                  ) : null}
+                  {d.folder && d.drive_url && <a href={d.drive_url} target="_blank" rel="noreferrer" className="tm-folder-all">уся папка клієнта →</a>}
+                  {d.links.filter((l) => { const f = fid(l.url); return f !== fid(d.drive_url || "-") && !d.folder_urls.some((u) => fid(u) === f); }).map((l) => {
                     const k = linkKind(l.url);
                     return (
                       <div key={l.id} className="tm-link">

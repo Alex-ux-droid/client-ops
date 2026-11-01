@@ -29,6 +29,7 @@ export const AUTO = [
   { key: "meta_analysis", label: "Тижневий розбір реклами від Джері", desc: "раз на тиждень на клієнта, дивиться креативи — коштує кредитів API", setting: "auto.meta_analysis" },
   { key: "backup", label: "Бекап бази на Google Диск", desc: "щоночі о 04:00, 30 копій", setting: "auto.backup" },
   { key: "tg_files", label: "Фото і файли з Telegram на Диск", desc: "копія в папку клієнта → «Telegram»", setting: "auto.tg_files" },
+  { key: "dict_fix", label: "Причісувати надиктований текст", desc: "після «стоп» ШІ ставить розділові знаки і пише назви правильно (ProVector, імена клієнтів) — ≈0.1 цента за раз; словник — нижче", setting: "auto.dict_fix" },
   { key: "live_dictation", label: "Живий текст під час диктування", desc: "бачиш, що Джері чує, поки говориш (ElevenLabs Realtime); вимкнеш — текст з'являється після «стоп»", setting: "voice.live" },
   { key: "startup_monitor", label: "Моніторинг стартапів", desc: "раз на 5 хв перевіряє сайти проєктів; ліг або піднявся — повідомлення в Telegram", setting: "auto.startup_monitor" },
   { key: "tips", label: "Поради від Джері під час роботи", desc: "час від часу біля робота — коротка порада: бізнес, реклама, продажі, переговори, терміни, факти (безкоштовно)", setting: "auto.tips" },
