@@ -1540,3 +1540,40 @@ ol.md-list li::marker { color: var(--link); font-weight: 600; }
 textarea.vt-ghost { color: transparent !important; caret-color: transparent; }
 textarea.vt-ghost::placeholder { color: transparent; }
 .tm-folder-all { align-self: flex-start; font-size: 0.8125rem; color: var(--link); padding: 0 0.25rem; }
+
+/* Джері на весь екран */
+.dock-full-btn { display: none; }
+@media (min-width: 900px) {
+  .dock-full-btn { display: inline-grid; }
+  .dock-overlay.full { padding: 0; align-items: stretch; justify-content: stretch; background: var(--bg); pointer-events: auto; }
+  .dock.full { width: 100vw; max-width: none; height: 100dvh; border-radius: 0; border: 0; box-shadow: none; padding: 1rem max(1.5rem, calc((100vw - 54rem) / 2)) 1.25rem; animation: none; background: var(--bg); }
+  .dock.full .chat-input textarea { min-height: 4.5rem; }
+}
+
+/* Меню «+» у чаті і вкладення */
+.chat-plus { position: absolute; left: 0.5rem; bottom: 0.5rem; z-index: 2; width: 2.25rem; height: 2.25rem; padding: 0; border-radius: 50%; display: grid; place-items: center; background: transparent; border: 1px solid var(--line-strong); color: var(--muted); box-shadow: none; }
+.chat-plus:hover, .chat-plus.on { color: var(--text); background: var(--bg-hover); }
+.chat-plus.on svg { transform: rotate(45deg); }
+.chat-plus svg { transition: transform .15s; }
+.chat-box textarea { padding-left: 3.25rem; }
+.chat-menu-shade { position: fixed; inset: 0; z-index: 3; }
+.chat-menu { position: absolute; left: 0; bottom: calc(100% + 0.5rem); z-index: 4; min-width: 17rem; max-width: calc(100vw - 2rem); background: var(--bg-raise); border: 1px solid var(--line-strong); border-radius: 14px; padding: 0.375rem; box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.55); display: flex; flex-direction: column; animation: cg-in 0.12s ease; }
+.chat-menu button { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.625rem; border-radius: 10px; color: var(--text); font-size: 0.9375rem; }
+.chat-menu button:hover:not(:disabled) { background: var(--bg-hover); }
+.chat-menu button:disabled { opacity: 0.45; cursor: default; }
+.chat-menu button > span:not(.chat-menu-ico) { flex: 1; display: flex; flex-direction: column; }
+.chat-menu small { font-size: 0.8125rem; color: var(--dim); }
+.chat-menu svg, .chat-menu-ico { flex: none; width: 18px; text-align: center; color: var(--muted); }
+.chat-menu hr { border: 0; border-top: 1px solid var(--line); margin: 0.25rem 0.375rem; }
+.chat-sw { flex: none; width: 2rem; height: 1.125rem; border-radius: 999px; background: var(--line-strong); position: relative; transition: background .15s; }
+.chat-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: calc(1.125rem - 4px); height: calc(1.125rem - 4px); border-radius: 50%; background: #fff; transition: transform .15s; }
+.chat-sw.on { background: var(--accent); }
+.chat-sw.on::after { transform: translateX(0.875rem); }
+@media (hover: hover) and (pointer: fine) { .chat-menu .only-touch { display: none; } }
+.chat-files { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.chat-file { position: relative; display: flex; align-items: center; gap: 0.5rem; max-width: 14rem; padding: 0.25rem 1.75rem 0.25rem 0.25rem; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--bg-input); }
+.chat-file img { width: 2.75rem; height: 2.75rem; object-fit: cover; border-radius: 7px; flex: none; }
+.chat-file-ico { width: 2.75rem; height: 2.75rem; display: grid; place-items: center; border-radius: 7px; background: var(--bg-hover); color: var(--muted); flex: none; }
+.chat-file-name { font-size: 0.8125rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-file button { all: unset; cursor: pointer; position: absolute; top: 0.125rem; right: 0.375rem; color: var(--dim); font-size: 1rem; }
+.chat-file button:hover { color: var(--bad); }

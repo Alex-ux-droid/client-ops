@@ -122,7 +122,20 @@ function contextBlock(clientId: number | null, page: string, screen = "", taskId
   return parts.join("\n\n");
 }
 
-export async function runAgent(clientId: number | null, userText: string, page = "", screen = "", taskId: number | null = null): Promise<{ reply: string; actions: ChatAction[] }> {
+// Вкладення з чату: картинки і PDF ідуть моделі як є, текстові файли — текстом
+export type Attachment = { name: string; type: string; data: string }; // data — base64
+function attachmentBlocks(files: Attachment[]): { blocks: Anthropic.Beta.BetaContentBlockParam[]; text: string } {
+  const blocks: Anthropic.Beta.BetaContentBlockParam[] = [];
+  let text = "";
+  for (const f of files) {
+    if (/^image\/(jpeg|png|gif|webp)$/.test(f.type)) blocks.push({ type: "image", source: { type: "base64", media_type: f.type as "image/jpeg", data: f.data } });
+    else if (f.type === "application/pdf") blocks.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: f.data }, title: f.name });
+    else text += `\n\n<file name="${f.name.replace(/"/g, "")}">\n${Buffer.from(f.data, "base64").toString("utf8").slice(0, 60000)}\n</file>`;
+  }
+  return { blocks, text };
+}
+
+export async function runAgent(clientId: number | null, userText: string, page = "", screen = "", taskId: number | null = null, files: Attachment[] = []): Promise<{ reply: string; actions: ChatAction[] }> {
   const key = getApiKey();
   if (!key) throw new NoKeyError("Нема ключа Anthropic API");
   const client = new Anthropic({ apiKey: key });
@@ -130,7 +143,11 @@ export async function runAgent(clientId: number | null, userText: string, page =
   const history: Anthropic.Beta.BetaMessageParam[] = listChat(clientId, HISTORY).map((m) => ({ role: m.role, content: m.content }));
   // Історія має починатися з user
   while (history.length && history[0].role !== "user") history.shift();
-  const messages: Anthropic.Beta.BetaMessageParam[] = [...history, { role: "user", content: userText }];
+  const att = files.length ? attachmentBlocks(files) : null;
+  const userContent: Anthropic.Beta.BetaMessageParam["content"] = att
+    ? [...att.blocks, { type: "text", text: `${userText || "Подивись вкладення."}${att.text}\n\n(Саша прикріпив: ${files.map((f) => f.name).join(", ")})` }]
+    : userText;
+  const messages: Anthropic.Beta.BetaMessageParam[] = [...history, { role: "user", content: userContent }];
   const cfg = agentConfig();
   const memory = agentMemory();
   const stable = [
@@ -199,7 +216,7 @@ export async function runAgent(clientId: number | null, userText: string, page =
   }
 
   if (!reply) reply = ctx.actions.length ? "Готово." : "Нема відповіді.";
-  addChat(clientId, "user", userText);
+  addChat(clientId, "user", files.length ? `${userText}\n📎 ${files.map((f) => f.name).join(", ")}`.trim() : userText);
   addChat(clientId, "assistant", reply, ctx.actions);
   // У фоні: перечитати розмову і оновити пам'ять (відповідь Саші не чекає)
   void reflect({ user: userText, reply, actions: ctx.actions.map((a) => a.text) });

@@ -7,6 +7,7 @@ import type { AssistantSeed } from "./assistant";
 import Bot from "./Bot";
 import Icon from "./Icon";
 import DictOverlay from "./DictOverlay";
+import { readChatFile, type ChatFile } from "./chatFiles";
 import { useDictation } from "./useDictation";
 import { useSpeech } from "./useSpeech";
 
@@ -64,6 +65,23 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
   const voice = useSpeech(setSpeaking);
   // Диктування: поки говориш — почуте сірим поверх поля; на «стоп» — причесаний текст іде в поле білим
   const [heard, setHeard] = useState("");
+  const [files, setFiles] = useState<ChatFile[]>([]);
+  const [menu, setMenu] = useState(false);
+  const [prefs, setPrefs] = useState<{ web: boolean; context: boolean }>({ web: true, context: true });
+  const fileIn = useRef<HTMLInputElement>(null);
+  const camIn = useRef<HTMLInputElement>(null);
+  const addFiles = async (list: FileList | File[] | null) => {
+    if (!list) return;
+    setMenu(false);
+    for (const f of Array.from(list).slice(0, 6)) {
+      try { const cf = await readChatFile(f); setFiles((x) => [...x, cf].slice(0, 6)); } catch (e) { setErr(e instanceof Error ? e.message : "Не вдалось прочитати файл"); }
+    }
+  };
+  const togglePref = (key: "web" | "context") => {
+    const on = !prefs[key];
+    setPrefs((p) => ({ ...p, [key]: on }));
+    void fetch("/api/chat/prefs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key, on }) });
+  };
   const join = (b: string, h: string) => (h ? (b && !b.endsWith(" ") && !b.endsWith("\n") ? `${b} ${h}` : b + h) : b);
   const dict = useDictation(
     (chunk) => { setHeard(""); setText((t) => join(t, chunk)); },
@@ -76,6 +94,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
     fetch(`/api/chat?clientId=${clientId ?? ""}`).then((r) => r.json()).then((d) => {
       setMsgs(d.messages ?? []);
       setHasKey(!!d.hasKey);
+      if (d.prefs) setPrefs(d.prefs);
     }).catch(() => {});
   }, [clientId, initial]);
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [msgs, busy]);
@@ -94,15 +113,17 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
   }, [seed]);
 
   async function send(message: string) {
-    if (!message.trim() || busy) return;
+    if ((!message.trim() && !files.length) || busy) return;
+    const att = files;
     if (voice.enabled) voice.prime();
     dict.stop();
     setErr("");
     setBusy(true);
-    setMsgs((m) => [...m, { role: "user", content: message, actions: [] }]);
+    setMsgs((m) => [...m, { role: "user", content: att.length ? `${message}\n📎 ${att.map((f) => f.name).join(", ")}`.trim() : message, actions: [] }]);
     setText("");
+    setFiles([]);
     try {
-      const r = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message, clientId, page, screen: compact ? screenText() : "", taskId: currentTask() }) });
+      const r = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message, clientId, page, screen: compact ? screenText() : "", taskId: currentTask(), files: att.map(({ name, type, data }) => ({ name, type, data })) }) });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Помилка");
       setMsgs((m) => [...m, { role: "assistant", content: data.reply, actions: data.actions }]);
@@ -112,6 +133,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
       setErr(e instanceof Error ? e.message : "Помилка");
       setMsgs((m) => m.slice(0, -1));
       setText(message);
+      setFiles(att);
     } finally {
       setBusy(false);
     }
@@ -166,13 +188,43 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
         </div>
       )}
       <form data-nodraft className="chat-input" onSubmit={(e) => { e.preventDefault(); send(text); }}>
-        <div className="chat-box">
+        {files.length > 0 && (
+          <div className="chat-files">
+            {files.map((f, i) => (
+              <div key={i} className="chat-file" title={f.name}>
+                {f.preview ? <img src={f.preview} alt="" /> : <span className="chat-file-ico"><Icon name="paperclip" size={16} /></span>}
+                <span className="chat-file-name">{f.name}</span>
+                <button type="button" onClick={() => setFiles((x) => x.filter((_, j) => j !== i))} aria-label="Прибрати">×</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="chat-box" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void addFiles(e.dataTransfer.files); }}>
+          <input ref={fileIn} type="file" multiple accept="image/*,application/pdf,.txt,.md,.csv,.json" hidden onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
+          <input ref={camIn} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
+          <button type="button" className={`chat-plus ${menu ? "on" : ""}`} onClick={() => setMenu((m) => !m)} aria-label="Меню: файли, налаштування" aria-expanded={menu}><Icon name="plus" size={20} /></button>
+          {menu && (
+            <>
+              <div className="chat-menu-shade" onClick={() => setMenu(false)} />
+              <div className="chat-menu" role="menu">
+                <button type="button" role="menuitem" onClick={() => fileIn.current?.click()}><Icon name="paperclip" size={18} /><span>Фото або файл<small>картинки, PDF, текст — або встав Ctrl+V</small></span></button>
+                <button type="button" role="menuitem" className="only-touch" onClick={() => camIn.current?.click()}><Icon name="camera" size={18} /><span>Зробити фото</span></button>
+                <hr />
+                <button type="button" role="menuitemcheckbox" aria-checked={prefs.web} onClick={() => togglePref("web")}><span className="chat-menu-ico">🌐</span><span>Пошук в інтернеті</span><i className={`chat-sw ${prefs.web ? "on" : ""}`} /></button>
+                <button type="button" role="menuitemcheckbox" aria-checked={prefs.context} onClick={() => togglePref("context")}><span className="chat-menu-ico">👁</span><span>Бачить задачу і рекламу<small>з кожним повідомленням</small></span><i className={`chat-sw ${prefs.context ? "on" : ""}`} /></button>
+                {voice.supported && <button type="button" role="menuitemcheckbox" aria-checked={voice.enabled} onClick={voice.toggle}><Icon name={voice.enabled ? "volume" : "mute"} size={18} /><span>Читати відповіді вголос</span><i className={`chat-sw ${voice.enabled ? "on" : ""}`} /></button>}
+                <hr />
+                <button type="button" role="menuitem" disabled={busy || !msgs.length} onClick={() => { setMenu(false); void clear(); }}><span className="chat-menu-ico">✦</span><span>Нова розмова</span></button>
+              </div>
+            </>
+          )}
           <textarea
             ref={box}
             id={compact ? "dock-text" : "chat-text"}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(text); } }}
+            onPaste={(e) => { const fl = Array.from(e.clipboardData.files); if (fl.length) { e.preventDefault(); void addFiles(fl); } }}
             placeholder={dict.transcribing ? "Розпізнаю…" : dict.listening ? "Слухаю… говори, потім натисни стоп" : "Напиши, встав переписку або натисни мікрофон"}
             aria-label="Повідомлення"
           />
@@ -188,20 +240,13 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
         {voice.enabled && !voice.hasUk && <div className="mono" style={{ color: "var(--dim)" }}>У цьому браузері нема українського голосу — читатиме з акцентом. На iPhone: Параметри → Універсальний доступ → Усний контент → Голоси → Українська.</div>}
         <div className="inline" style={{ justifyContent: "space-between" }}>
           <div className="inline">
-            <button type="button" className="ghost small" onClick={clear} disabled={busy || !msgs.length}>Нова розмова</button>
             {speaking && (
               <button type="button" className="ghost small voice-btn" onClick={voice.stopSpeaking} title="Замовкнути (голос лишається увімкненим)">
                 <span className="mic-stop dark" /> Стоп
               </button>
             )}
-            {voice.supported && (
-              <button type="button" className={`ghost small voice-btn ${voice.enabled ? "on" : ""}`} onClick={voice.toggle}
-                title={voice.enabled ? "Вимкнути голос помічника" : "Помічник читатиме відповіді вголос"} aria-pressed={voice.enabled}>
-                <Icon name={voice.enabled ? "volume" : "mute"} size={16} /> Голос
-              </button>
-            )}
           </div>
-          <button disabled={busy || dict.transcribing || dict.fixing || !text.trim()}>{busy ? "…" : "Надіслати"}</button>
+          <button disabled={busy || dict.transcribing || dict.fixing || (!text.trim() && !files.length)}>{busy ? "…" : "Надіслати"}</button>
         </div>
       </form>
     </div>
