@@ -7,6 +7,7 @@ export const GOOGLE_SCOPES = [
   "openid",
   "email",
   "https://www.googleapis.com/auth/drive.file",
+  "https://www.googleapis.com/auth/drive.readonly", // бачити й те, що Саша закинув у папки руками (писати — тільки drive.file)
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.send",
   "https://www.googleapis.com/auth/calendar.events",
@@ -28,6 +29,7 @@ export function googleStatus() {
     connectedAt: getSetting("google.connected_at") ?? "",
     error: getSetting("google.error") ?? "",
     calendar: calendarAllowed(),
+    driveAll: driveReadAll(),
   };
 }
 
@@ -249,6 +251,33 @@ export async function sendMail(input: { to: string; subject: string; body: strin
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ raw, ...(input.threadId ? { threadId: input.threadId } : {}) }),
   });
+}
+
+// Читання всього Диску (drive.readonly) додали пізніше — без перепідключення система бачить тільки створені нею файли
+export const driveReadAll = () => googleConnected() && (getSetting("google.scopes") ?? "").includes("drive.readonly");
+
+export type DriveItem = { id: string; name: string; mimeType: string; size?: string; modifiedTime: string; webViewLink?: string; folder: boolean };
+// Вміст папки (і підпапок до depth) — для Джері: що лежить у папці клієнта
+export async function listFolderTree(folder: string, depth = 2, limit = 150): Promise<(DriveItem & { path: string })[]> {
+  const out: (DriveItem & { path: string })[] = [];
+  const walk = async (id: string, path: string, d: number) => {
+    if (out.length >= limit) return;
+    const q = encodeURIComponent(`'${id}' in parents and trashed = false`);
+    const r = await api<{ files: Omit<DriveItem, "folder">[] }>(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=folder,modifiedTime desc&pageSize=200&fields=files(id,name,mimeType,size,modifiedTime,webViewLink)&supportsAllDrives=true&includeItemsFromAllDrives=true`);
+    for (const f of r.files) {
+      if (out.length >= limit) return;
+      const folder = f.mimeType === FOLDER_MIME;
+      out.push({ ...f, folder, path: path ? `${path}/${f.name}` : f.name });
+      if (folder && d > 1) await walk(f.id, path ? `${path}/${f.name}` : f.name, d - 1);
+    }
+  };
+  await walk(folder, "", depth);
+  return out;
+}
+// Метадані файлу (тип, розмір) — щоб знати, чи це картинка і чи не завелика
+export async function fileMeta(id: string): Promise<{ name: string; mimeType: string; size?: string; thumbnailLink?: string }> {
+  return api(`https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType,size,thumbnailLink&supportsAllDrives=true`);
 }
 
 // ---------- Календар ----------

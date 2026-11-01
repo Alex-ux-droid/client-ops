@@ -1,6 +1,6 @@
 // Картинки для Джері: фото з Telegram-груп клієнта і креативи Meta → блоки image (base64) у відповідь інструмента.
 // Модель бачить їх як звичайні зображення. Ліміт API — 5 МБ на картинку, тому великі пропускаємо.
-import { downloadFile, googleConnected } from "../google";
+import { downloadFile, fileMeta, googleConnected } from "../google";
 import { adsForClient } from "../repo/meta";
 import { clientMessages, getTgFile } from "../repo/telegram";
 import { fileBlob, TG_FILE_LIMIT } from "../telegram";
@@ -46,7 +46,15 @@ async function urlImage(url: string): Promise<ImageBlock> {
   return toBlock(await r.arrayBuffer(), r.headers.get("content-type") ?? undefined);
 }
 
-export async function viewImages(input: { client_id?: number | null; tg_message_ids?: number[]; last_photos?: number; meta_ad_ids?: string[] }): Promise<ToolImages> {
+async function driveImage(id: string): Promise<{ label: string; image: ImageBlock }> {
+  const m = await fileMeta(id);
+  if (!/^image\//.test(m.mimeType)) throw new Error(`«${m.name}» — це ${m.mimeType.replace("application/vnd.google-apps.", "")}, не картинка`);
+  if (Number(m.size) > MAX_BYTES) throw new Error(`«${m.name}» завелика (понад 4.5 МБ)`);
+  const r = await downloadFile(id);
+  return { label: `Диск: ${m.name}`, image: await toBlock(await r.arrayBuffer(), m.mimeType) };
+}
+
+export async function viewImages(input: { client_id?: number | null; tg_message_ids?: number[]; last_photos?: number; meta_ad_ids?: string[]; drive_file_ids?: string[] }): Promise<ToolImages> {
   const out: ToolImages["__images"] = [];
   const add = async (label: string, get: () => Promise<ImageBlock>) => {
     if (out.length >= MAX_IMAGES) return;
@@ -70,6 +78,10 @@ export async function viewImages(input: { client_id?: number | null; tg_message_
       await add(`Meta ad_id=${adId}${a ? ` «${a.name}»${a.kind === "video" ? " (обкладинка відео)" : ""}` : ""}`, async () => { if (!url) throw new Error("нема картинки креативу"); return urlImage(url); });
     }
   }
-  if (!out.length) return { __images: [], note: "Нема картинок за цим запитом. Візьми file_id з telegram_messages або ad_id з meta_ads." };
+  for (const fid of input.drive_file_ids ?? []) {
+    if (out.length >= MAX_IMAGES) break;
+    try { const d = await driveImage(fid); out.push(d); } catch (e) { out.push({ label: `Диск ${fid}`, image: null, error: e instanceof Error ? e.message : String(e) }); }
+  }
+  if (!out.length) return { __images: [], note: "Нема картинок за цим запитом. Візьми file_id з telegram_messages, ad_id з meta_ads або id файлу з drive_list." };
   return { __images: out };
 }

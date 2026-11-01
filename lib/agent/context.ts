@@ -45,6 +45,7 @@ export function clientSnapshot(clientId: number): string {
     if (an) out.push(`Останній розбір реклами (${an.created_at.slice(0, 10)}): ${an.data.summary}`);
     out.push("Лід-форми (питання, налаштування) система поки не тягне з Meta — про них питай Сашу.");
   } else out.push("Meta Ads: кабінет до клієнта не привʼязаний.");
+  if (c.drive_url) out.push("Папка клієнта на Google Диску є — що в ній лежить (і те, що Саша закинув руками), дивись drive_list, картинки звідти — view_images.");
   const tasks = listTasks("all", clientId).filter((t) => t.status !== "done").slice(0, 10);
   if (tasks.length) out.push(`Задачі в роботі:\n${tasks.map((t) => `- #${t.id} «${t.title}»${t.due_date ? ` до ${t.due_date}` : ""}${t.items_total ? ` — ${t.items_done}/${t.items_total} підзадач` : ""}`).join("\n")}`);
   return `Знімок клієнта «${c.name}» (актуальний на цю мить, з бази):\n${out.join("\n")}`;

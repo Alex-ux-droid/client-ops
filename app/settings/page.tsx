@@ -480,6 +480,11 @@ async function GoogleTab() {
                 <b>Календар:</b> доступ до Google Календаря додали пізніше. Щоб задачі ставились у календар: 1) у Google Cloud увімкни <b>Google Calendar API</b> (APIs &amp; Services → Library → Google Calendar API → Enable); 2) натисни «Перепідключити» нижче і дай дозвіл на календар.
               </div>
             )}
+            {!g.driveAll && (
+              <div className="callout" style={{ borderColor: "var(--warn)" }}>
+                <b>Диск:</b> зараз система бачить тільки файли, які створила сама. Щоб Джері бачив усе, що ти закидаєш у папки клієнтів руками (креативи, документи), натисни «Перепідключити» нижче і дай дозвіл «переглядати файли на Диску». Писати система й далі буде тільки у свої папки.
+              </div>
+            )}
             <div className="mono">Підключено {days === 0 ? "сьогодні" : `${days} дн. тому`}. Поки застосунок Google у тестовому режимі, доступ живе ~7 днів — тоді просто натисни «Перепідключити».</div>
             {g.error && <div className="mono" style={{ color: "var(--warn)" }}>{g.error}</div>}
             <div className="inline" style={{ flexWrap: "wrap" }}>
