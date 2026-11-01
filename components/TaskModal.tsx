@@ -147,7 +147,7 @@ export default function TaskModal() {
                 </div>
                 {editDetails ? (
                   <form onSubmit={(e) => { e.preventDefault(); const v = (new FormData(e.currentTarget).get("details") as string) ?? ""; void run(() => taskPatch(id, { details: v })).then(() => setEditDetails(false)); }}>
-                    <VoiceTextarea name="details" defaultValue={t!.details} rows={10} className="tm-details-edit" placeholder={"Як зробити, кроки, нюанси.\n1. Перший крок\n2. Другий\n**жирне**, посилання https://…"} autoFocus />
+                    <VoiceTextarea name="details" defaultValue={t!.details} rows={10} className="tm-details-edit" placeholder={"## Розділ\n- **Мітка:** значення\n1. Крок\n> Важливо\n```Текст для копіювання\nготовий текст\n```"} autoFocus />
                     <button disabled={busy}>Зберегти</button>
                   </form>
                 ) : t!.details ? (
