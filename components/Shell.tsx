@@ -35,6 +35,10 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
   const ptt = useHoldToTalk(() => setDock(true));
   const [botState, setBotState] = useState<"idle" | "listening" | "thinking" | "speaking">("idle");
   const [mobile, setMobile] = useState(false);
+  // Джері на весь екран (на компʼютері); вибір запамʼятовується
+  const [full, setFull] = useState(false);
+  useEffect(() => { try { setFull(localStorage.getItem("dock.full") === "1"); } catch {} }, []);
+  const toggleFull = () => setFull((f) => { try { localStorage.setItem("dock.full", f ? "0" : "1"); } catch {} return !f; });
 
   // Інші сторінки відкривають помічника подією (напр. Лабораторія: «розгорни ідею»)
   useEffect(() => {
@@ -62,7 +66,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
   }, []);
 
   // Поки відкрите вікно — сторінка ззаду не гортається (помічник на компʼютері — віконце поверх, сторінкою можна користуватись)
-  const locked = (dock && mobile) || search || add;
+  const locked = (dock && (mobile || full)) || search || add;
   useEffect(() => {
     document.documentElement.classList.toggle("locked", locked);
     return () => document.documentElement.classList.remove("locked");
@@ -137,14 +141,15 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
       )}
       {ptt.label && !dock && <div className={`ptt-toast ${ptt.state}`} role="status">{ptt.state === "listening" && <span className="ptt-dot" />}{ptt.label}</div>}
       {dock && (
-        <div className="overlay dock-overlay" onClick={() => setDock(false)}>
-          <aside className="dock" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Джері">
+        <div className={`overlay dock-overlay ${full ? "full" : ""}`} onClick={() => setDock(false)}>
+          <aside className={`dock ${full ? "full" : ""}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Джері">
             <div className="dock-head">
               <Bot size={44} state={botState} />
               <div className="grow" style={{ minWidth: 0 }}>
                 <h2>Джері</h2>
                 <div className="mono">{dockClient ? "про цього клієнта" : pageName ? `зараз: ${pageName.replace(/, сесія lab_id \d+/, "")}` : "на зв'язку"}</div>
               </div>
+              <button className="icon-btn dock-full-btn" onClick={toggleFull} aria-label={full ? "Згорнути у віконце" : "На весь екран"} title={full ? "Згорнути у віконце" : "На весь екран"}><Icon name={full ? "minimize" : "maximize"} /></button>
               <button className="icon-btn" onClick={() => setDock(false)} aria-label="Закрити"><Icon name="close" /></button>
             </div>
             <Chat key={dockClient ?? 0} clientId={dockClient} page={pageName} compact seed={seed} onState={setBotState} />
