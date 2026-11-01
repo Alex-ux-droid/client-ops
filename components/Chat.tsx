@@ -6,6 +6,7 @@ import type { ChatMessage } from "@/lib/repo/chat";
 import type { AssistantSeed } from "./assistant";
 import Bot from "./Bot";
 import Icon from "./Icon";
+import DictOverlay from "./DictOverlay";
 import { useDictation } from "./useDictation";
 import { useSpeech } from "./useSpeech";
 
@@ -54,12 +55,12 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
   const box = useRef<HTMLTextAreaElement>(null);
   const [speaking, setSpeaking] = useState(false);
   const voice = useSpeech(setSpeaking);
-  // Диктування: живий текст видно в полі, поки говориш; на «стоп» — остаточний
-  const dictBase = useRef<string | null>(null);
-  const join = (b: string, heard: string) => (heard ? (b && !b.endsWith(" ") && !b.endsWith("\n") ? `${b} ${heard}` : b + heard) : b);
+  // Диктування: поки говориш — почуте сірим поверх поля; на «стоп» — причесаний текст іде в поле білим
+  const [heard, setHeard] = useState("");
+  const join = (b: string, h: string) => (h ? (b && !b.endsWith(" ") && !b.endsWith("\n") ? `${b} ${h}` : b + h) : b);
   const dict = useDictation(
-    (chunk) => { setText((t) => join(dictBase.current ?? t, chunk)); dictBase.current = null; },
-    (heard) => setText((t) => { if (dictBase.current === null) dictBase.current = t; return join(dictBase.current, heard); }),
+    (chunk) => { setHeard(""); setText((t) => join(t, chunk)); },
+    setHeard,
   );
 
   // Без initial (плаваюча панель) — підвантажуємо розмову самі
@@ -168,10 +169,11 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
             placeholder={dict.transcribing ? "Розпізнаю…" : dict.listening ? "Слухаю… говори, потім натисни стоп" : "Напиши, встав переписку або натисни мікрофон"}
             aria-label="Повідомлення"
           />
-          <button type="button" className={`mic ${dict.listening ? "on" : ""} ${dict.transcribing ? "wait" : ""}`} onClick={() => { if (voice.enabled) voice.prime(); dict.toggle(); }} disabled={busy || dict.transcribing}
+          {(dict.listening || dict.fixing) && <DictOverlay el={box.current} base={text} heard={heard} fixing={dict.fixing} />}
+          <button type="button" className={`mic ${dict.listening ? "on" : ""} ${dict.transcribing ? "wait" : ""}`} onClick={() => { if (voice.enabled) voice.prime(); dict.toggle(); }} disabled={busy || dict.transcribing || dict.fixing}
             title={dict.supported ? (dict.listening ? "Зупинити" : "Диктувати") : "Браузер не підтримує диктування — використай мікрофон на клавіатурі"}
             aria-label="Диктувати">
-            {dict.transcribing ? <span className="mic-wait" /> : dict.listening ? <span className="mic-stop" /> : <Icon name="mic" size={22} />}
+            {dict.transcribing || dict.fixing ? <span className="mic-wait" /> : dict.listening ? <span className="mic-stop" /> : <Icon name="mic" size={22} />}
           </button>
         </div>
         {dict.error && <div className="mono" style={{ color: "var(--warn)" }}>{dict.error}</div>}
@@ -192,7 +194,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
               </button>
             )}
           </div>
-          <button disabled={busy || dict.transcribing || !text.trim()}>{busy ? "…" : "Надіслати"}</button>
+          <button disabled={busy || dict.transcribing || dict.fixing || !text.trim()}>{busy ? "…" : "Надіслати"}</button>
         </div>
       </form>
     </div>

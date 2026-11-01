@@ -1506,3 +1506,37 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
 .fin-scen-col dd.pos { color: var(--ok); } .fin-scen-col dd.neg { color: var(--bad); }
 .fin-link input[type="checkbox"] { width: auto; flex: none; margin-top: 0.2rem; accent-color: var(--accent); }
 .mk-form .inline.wide { flex-wrap: wrap; }
+
+/* Markdown: секції, списки, блоки «скопіюй», виділення, таблиці */
+.md .md-sec { font-size: 1.0625rem; font-weight: 600; color: var(--text); margin: 1.5rem 0 0.625rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.md > .md-sec:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+.md .md-sub { font-size: 0.9375rem; font-weight: 600; color: var(--text); margin: 1rem 0 0.375rem; }
+.md-list { margin: 0.25rem 0 0.5rem; padding-left: 1.25rem; color: var(--muted); display: flex; flex-direction: column; gap: 0.25rem; }
+.md-list li { line-height: 1.55; padding-left: 0.125rem; }
+ul.md-list li::marker { color: var(--accent); }
+ol.md-list li::marker { color: var(--link); font-weight: 600; }
+.md-copy { margin: 0.5rem 0 0.75rem; border: 1px solid var(--line-strong); border-left: 2px solid var(--accent); border-radius: 10px; background: rgba(61, 107, 255, 0.04); }
+.md-copy-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.375rem 0.5rem 0.375rem 0.875rem; border-bottom: 1px solid var(--line); }
+.md-copy-head span { font-size: 0.8125rem; color: var(--dim); }
+.md-copy-head button { all: unset; cursor: pointer; font-size: 0.8125rem; color: var(--link); padding: 0.25rem 0.5rem; border-radius: 6px; }
+.md-copy-head button:hover { background: var(--accent-soft); }
+.md-copy-head button.ok { color: var(--ok); }
+.md-copy-text { white-space: pre-wrap; padding: 0.75rem 0.875rem; line-height: 1.55; color: var(--text); font-size: 0.9375rem; }
+.md-note { margin: 0.5rem 0 0.75rem; padding: 0.5rem 0.875rem; border-left: 2px solid var(--warn); background: rgba(251, 191, 36, 0.05); border-radius: 0 8px 8px 0; }
+.md-note p { margin: 0.25rem 0; color: var(--text); }
+.md-table-wrap { overflow-x: auto; margin: 0.5rem 0 0.75rem; }
+.md-table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+.md-table th, .md-table td { text-align: left; padding: 0.4rem 0.625rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.md-table th { color: var(--dim); font-weight: 500; }
+.md-table td { color: var(--muted); }
+.md-hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
+@media (min-width: 900px) { .tm-box { max-width: min(64rem, calc(100vw - 4rem)); } }
+
+/* Диктування: почуте сірим поверх поля, поки не натиснув «стоп» */
+.dict-ov { position: absolute; z-index: 1; box-sizing: border-box; white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; pointer-events: none; color: var(--text); }
+.dict-heard { color: var(--dim); }
+.dict-fixing { color: var(--dim); font-size: 0.8125rem; animation: dict-pulse 1.2s ease-in-out infinite; }
+@keyframes dict-pulse { 50% { opacity: 0.4; } }
+textarea.vt-ghost { color: transparent !important; caret-color: transparent; }
+textarea.vt-ghost::placeholder { color: transparent; }
+.tm-folder-all { align-self: flex-start; font-size: 0.8125rem; color: var(--link); padding: 0 0.25rem; }

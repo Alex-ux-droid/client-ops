@@ -685,6 +685,11 @@ function Caps() {
             <small style={{ color: "var(--dim)" }}>Показані: {ts.shown} з {ts.total}, нових у запасі {ts.unseen}. Рахується тільки час, коли ти в системі.</small>
           </label>
           <div><TipNowButton /></div>
+          <label className="stack" style={{ gap: "0.375rem" }}>
+            <b>Словник для диктування</b>
+            <textarea name="voice.vocab" defaultValue={getSetting("voice.vocab") ?? ""} rows={4} placeholder={"ProVector\nВласна справа 2.0\nKeyCRM"} />
+            <small style={{ color: "var(--dim)" }}>Назви, які розпізнавання пише криво — по одній у рядку. Імена клієнтів, стартапів, інструментів і кабінетів система додає сама.</small>
+          </label>
         </div>
       </div>
       <div><SubmitButton>Зберегти</SubmitButton></div>

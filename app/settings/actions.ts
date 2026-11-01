@@ -234,6 +234,7 @@ export async function saveCapsAction(fd: FormData) {
   const { saveCaps } = await import("@/lib/agent/caps");
   saveCaps(new Set([...fd.keys()]));
   const every = Number(fd.get("tips.every"));
+  if (fd.has("voice.vocab")) { const { setSetting } = await import("@/lib/repo/settings"); setSetting("voice.vocab", String(fd.get("voice.vocab") ?? "").slice(0, 4000)); }
   if (every >= 5 && every <= 600) { const { setSetting } = await import("@/lib/repo/settings"); setSetting("tips.every", String(every)); }
   back("Збережено.", true, "caps");
 }
