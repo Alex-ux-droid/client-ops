@@ -52,6 +52,23 @@ function parseLead(raw: RawLead, form: Form | undefined): { name: string; phone:
 
 const kyiv = (iso: string) => new Date(iso).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
+// Важливе для дзвінка — окремими рядками одразу під контактом: країна, месенджер, інший номер для звʼязку
+// (у закордонних лідів месенджер часто на іншому номері). Шукаємо за назвою питання або відповіддю.
+const COUNTRY = /країн|country|страна|держав/i;
+const MESSENGER = /месенджер|messenger|viber|вайбер|whatsapp|ватсап|вотсап|telegram|телеграм|зв.язат|як .*звʼяз|як .*зв'яз|contact method/i;
+const PHONE_EXTRA = /номер|phone|телефон/i;
+const isKeyField = (f: LeadField) => COUNTRY.test(f.label) || MESSENGER.test(f.label) || (PHONE_EXTRA.test(f.label) && /\d{6,}/.test(f.value.replace(/\D/g, ""))) || /^(viber|whatsapp|telegram|вайбер|ватсап|телеграм)$/i.test(f.value.trim());
+function keyLines(l: Lead): string[] {
+  const out: string[] = [];
+  for (const f of leadFields(l)) {
+    if (COUNTRY.test(f.label)) out.push(`🌍 ${f.label}: ${f.value}`);
+    else if (MESSENGER.test(f.label) || /^(viber|whatsapp|telegram|вайбер|ватсап|телеграм)$/i.test(f.value.trim())) out.push(`💬 ${f.label}: ${f.value}`);
+    else if (PHONE_EXTRA.test(f.label) && /\d{6,}/.test(f.value.replace(/\D/g, ""))) out.push(`📱 ${f.label}: ${f.value}`);
+  }
+  if (out.length && l.phone && !/^\+?380/.test(l.phone.replace(/[\s()-]/g, ""))) out.unshift("⚠️ Номер не український — перевір месенджер нижче");
+  return out;
+}
+
 export function leadText(l: Lead, forClient = false): string {
   const c = l.client_id ? getClient(l.client_id) : undefined;
   const status = [
@@ -64,7 +81,8 @@ export function leadText(l: Lead, forClient = false): string {
     l.name && `👤 ${l.name}`,
     l.phone && `📞 ${l.phone}`,
     l.email && `✉️ ${l.email}`,
-    ...leadFields(l).map((f) => `• ${f.label}: ${f.value}`),
+    ...keyLines(l),
+    ...leadFields(l).filter((f) => !isKeyField(f)).map((f) => `• ${f.label}: ${f.value}`),
     "",
     [l.campaign_name, l.ad_name].filter(Boolean).length ? `📣 ${[l.campaign_name, l.ad_name].filter(Boolean).join(" / ")}` : `📣 ${l.form_name || "форма Meta"}`,
     `🕒 ${kyiv(l.created_time)}`,

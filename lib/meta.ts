@@ -280,7 +280,11 @@ export async function syncAll(opts: { manual?: boolean } = {}): Promise<{ ok: nu
   await refreshAccounts().catch((e) => logError("meta-accounts", e));
   let ok = 0, failed = 0;
   for (const a of listAccounts().filter((x) => x.client_id)) {
-    try { await syncAccount(a.account_id); ok++; } catch (e) { failed++; logError(`meta-sync ${a.name}`, e); }
+    try { await syncAccount(a.account_id); ok++; } catch (e) {
+      failed++;
+      // ліміт запитів Meta — не помилка, а «зачекай»: наступна синхронізація за 2 год, у журнал не пишемо
+      if (!/ліміт запитів/.test(String(e))) logError(`meta-sync ${a.name}`, e);
+    }
   }
   setSetting("meta.last_sync", new Date().toISOString());
   void weeklyAnalysis();
