@@ -5,7 +5,7 @@ import { getSetting, setSetting } from "../repo/settings";
 export const CAPS = [
   { key: "web", label: "Інтернет: пошук і читання сайтів", desc: "шукає в інтернеті і читає сторінки (GitHub, документація, сайти конкурентів); пошук ≈ 1 цент за запит", tools: [] },
   { key: "github", label: "GitHub (читання)", desc: "твої репозиторії, і приватні: файли, пошук по коду, задачі, PR, коміти — нічого не змінює", tools: ["github_repos", "github_browse", "github_search", "github_issues", "github_commits"] },
-  { key: "startups", label: "Стартапи", desc: "записувати ідеї, створювати проєкти, заповнювати фундамент, план, гіпотези, рішення, ТЗ", tools: ["idea_capture", "startup_create", "startup_update", "startup_item"] },
+  { key: "startups", label: "Стартапи", desc: "записувати ідеї, створювати проєкти, заповнювати фундамент, план, гіпотези, рішення, ТЗ", tools: ["idea_capture", "startup_create", "startup_update", "startup_item", "startup_issues"] },
   { key: "write", label: "Створювати і змінювати", desc: "клієнти, задачі, історія, гроші, ідеї, матеріали, послуги, плейбуки", tools: ["create_client", "update_client", "create_task", "update_task", "task_subtasks", "complete_task", "reopen_task", "log_work", "add_idea", "set_idea", "add_material", "add_payment", "set_payment", "set_service", "checklist", "attach_playbook", "detach_playbook", "save_playbook", "set_folder"] },
   { key: "delete", label: "Видаляти", desc: "задачі, записи, послуги, клієнтів (клієнта — тільки з точною назвою)", tools: ["delete_task", "delete_record", "delete_client", "remove_service"] },
   { key: "memory", label: "Памʼять", desc: "сам запамʼятовує і переписує, що знає про тебе і роботу", tools: ["memory_add", "memory_rewrite"] },
@@ -40,6 +40,7 @@ export const AUTO = [
   { key: "promises", label: "Обіцянки клієнтам → нагадування", desc: "написав у групі клієнта «завтра скину звіт» — система ставить задачу на цей день і пише тобі в Telegram; ≈0.1 цента за повідомлення з обіцянкою", setting: "auto.promises" },
   { key: "leads", label: "Заявки з лід-форм Meta", desc: "раз на хвилину забирає нові заявки з форм Meta в базу; у Telegram-групу клієнта — тільки для сторінок, де ти увімкнув «в групу» (Конектори → Meta)", setting: "auto.leads" },
   { key: "leads_remind", label: "Нагадування про заявку без відповіді", desc: "якщо за 15 хв ніхто в групі не натиснув «Взяли в роботу» — бот нагадує (тільки 8:00–22:00)", setting: "auto.leads_remind" },
+  { key: "startup_issues", label: "Проблеми з продуктів → мені в Telegram", desc: "коли продукт, який ми будуємо (стартап), надсилає нову помилку чи відгук користувача — коротке повідомлення тобі; самі звіти пишуться в стартап завжди", setting: "auto.startup_issues" },
   { key: "reflect", label: "Самонавчання Джері", desc: "після кожної розмови оновлює памʼять — коштує трохи кредитів", setting: "auto.reflect" },
 ] as const;
 

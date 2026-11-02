@@ -1,3 +1,4 @@
+import { knowledgeMd } from "@/lib/startupIssues";
 import { NextResponse, type NextRequest } from "next/server";
 import { money } from "@/lib/config";
 import { markdownToPdf } from "@/lib/pdf";
@@ -43,6 +44,8 @@ function projectMd(s: Startup): string {
   const ex = items.filter((x) => x.kind === "experiment");
   if (ex.length) out.push(`## Гіпотези\n${ex.map((e) => `- ${e.title}${e.data.result ? ` → ${e.data.result}` : ""}`).join("\n")}`);
   for (const r of of("release").filter((x) => x.data.prompt)) out.push(`## Промпт для Claude Code: ${r.title}\n\n${r.data.prompt}`);
+  const kn = knowledgeMd(s, 80);
+  if (kn) out.push(`## База знань (що ламалось і як виправили, інтеграції, уроки)\n${kn}`);
   if (s.spec_md) out.push(`## CLAUDE.md\n${s.spec_md}`);
   return out.join("\n\n");
 }

@@ -8,7 +8,7 @@ import TaskItem from "@/components/TaskItem";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import { fmtDate } from "@/lib/dates";
 import { getClient, listClients } from "@/lib/repo/clients";
-import { FLOW, getStartup, listItems, PILLARS, STAGES, type PillarKey, type Startup, type StartupItem } from "@/lib/repo/startups";
+import { FLOW, getStartup, listItems, PILLARS, STAGES, STARTUP_KINDS, type PillarKey, type Startup, type StartupItem } from "@/lib/repo/startups";
 import { currency, money } from "@/lib/config";
 import { calcFinance, effectiveFinance, hasFinance } from "@/lib/startupFinance";
 import FinanceCalc from "./FinanceCalc";
@@ -23,6 +23,8 @@ import {
   addItemAction, addStartupTaskAction, deleteItemAction, deleteStartupAction, saveStartupAction, updateItemAction,
 } from "../actions";
 import Monitor from "./Monitor";
+import { IssuesView, KnowledgeView } from "./views/BuildViews";
+import { openIssueCount } from "@/lib/repo/startupIssues";
 import StartupAssistant from "./StartupAssistant";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +39,8 @@ const VIEWS = [
   { k: "plan", label: "План" },
   { k: "tests", label: "Тести" },
   { k: "decisions", label: "Рішення" },
+  { k: "kb", label: "База знань" },
+  { k: "issues", label: "Проблеми" },
   { k: "notes", label: "Нотатки" },
   { k: "monitor", label: "Моніторинг" },
 ] as const;
@@ -61,6 +65,7 @@ export default async function StartupPage({ params, searchParams }: { params: Pr
   const client = s.client_id ? getClient(s.client_id) : undefined;
   const hidden = <input type="hidden" name="id" value={id} />;
   const base = `/startups/${id}`;
+  const issuesOpen = openIssueCount(id);
 
   return (
     <div className="su su-ws">
@@ -76,6 +81,7 @@ export default async function StartupPage({ params, searchParams }: { params: Pr
               <input name="name" defaultValue={s.name} placeholder="Назва" />
               <input name="one_liner" defaultValue={s.one_liner} placeholder="Одним реченням: що це і для кого" />
               <input name="north_star" defaultValue={s.north_star} placeholder="Головна метрика: напр. «10 забудовників платять $200/міс»" />
+              <select name="kind" defaultValue={s.kind} aria-label="Тип проєкту">{Object.entries(STARTUP_KINDS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
               <select name="client_id" defaultValue={s.client_id ?? ""}>
                 <option value="">— без першого клієнта —</option>
                 {listClients().filter((c) => c.status !== "archived").map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -87,8 +93,9 @@ export default async function StartupPage({ params, searchParams }: { params: Pr
         {formulaText(s.idea.formula) ? <p className="su-line">{formulaText(s.idea.formula)}</p> : s.one_liner ? <p className="su-line">{s.one_liner}</p> : <p className="su-line lab-muted">Одне речення суті — попроси Джері або «Редагувати».</p>}
         <Stages s={s} v={v} />
         <div className="su-links">
+          <span className={`tag ${s.kind === "client" ? "warn" : "accent"}`}>{s.kind === "client" ? `Рішення для клієнта${client ? `: ${client.name}` : ""}` : "Свій продукт"}</span>
           {s.north_star && <span className="tag accent">★ {s.north_star}</span>}
-          {client && <Link href={`/clients/${client.id}`} className="tag">перший клієнт: {client.name}</Link>}
+          {client && <Link href={`/clients/${client.id}`} className="tag">{s.kind === "client" ? "картка клієнта →" : `перший клієнт: ${client.name}`}</Link>}
           {s.lab_id && <Link href={`/lab/${s.lab_id}`} className="tag">з Лабораторії</Link>}
           {s.repo && <a href={`https://github.com/${s.repo}`} target="_blank" rel="noreferrer" className="tag">GitHub: {s.repo} ↗</a>}
           {s.prod_url && <a href={s.prod_url} target="_blank" rel="noreferrer" className="tag">{s.prod_url.replace(/^https?:\/\//, "")} ↗</a>}
@@ -98,7 +105,7 @@ export default async function StartupPage({ params, searchParams }: { params: Pr
       <nav className="mx-tabs su-tabs">
         {VIEWS.map((x) => (
           <Link key={x.k} href={x.k === "overview" ? base : `${base}?v=${x.k}`} scroll={false} className={x.k === v ? "on" : ""}>
-            {x.label}{PILLARS.some((p) => p.k === x.k) ? (() => { const st = stepsOf(s, items, x.k as PillarKey); return <em>{st.filter((z) => z.done).length}/{st.length}</em>; })() : x.k === "tests" && by("experiment").length ? <em>{by("experiment").length}</em> : null}
+            {x.label}{PILLARS.some((p) => p.k === x.k) ? (() => { const st = stepsOf(s, items, x.k as PillarKey); return <em>{st.filter((z) => z.done).length}/{st.length}</em>; })() : x.k === "tests" && by("experiment").length ? <em>{by("experiment").length}</em> : x.k === "kb" && by("knowledge").length ? <em>{by("knowledge").length}</em> : x.k === "issues" && issuesOpen ? <em className="su-em-bad">{issuesOpen}</em> : null}
           </Link>
         ))}
       </nav>
@@ -117,6 +124,8 @@ export default async function StartupPage({ params, searchParams }: { params: Pr
       {v === "plan" && <Plan s={s} milestones={by("milestone")} />}
       {v === "tests" && <Tests s={s} items={by("experiment")} />}
       {v === "decisions" && <Decisions s={s} items={by("decision")} />}
+      {v === "kb" && <KnowledgeView s={s} items={items} />}
+      {v === "issues" && <IssuesView s={s} />}
       {v === "notes" && <Notes s={s} items={items.filter((i) => i.kind === "note" || i.kind === "link")} />}
       {v === "monitor" && <Monitor s={s} />}
 

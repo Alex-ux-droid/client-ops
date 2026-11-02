@@ -83,8 +83,15 @@ export type Startup = {
   id: number; name: string; one_liner: string; stage: Stage; north_star: string; next_step: string;
   canvas: Partial<Record<CanvasKey, string>>; finance: Finance; idea: IdeaData; mkt: MktData; spec_md: string; spec_updated_at: string | null;
   repo: string; prod_url: string; lab_id: number | null; client_id: number | null; raw_text: string; created_at: string; updated_at: string;
+  kind: StartupKind;
 };
-export const ITEM_KINDS = ["milestone", "experiment", "decision", "question", "note", "link", "segment", "angle", "channel", "module", "infra", "release", "interview", "competitor", "version"] as const;
+// Свій продукт з нуля — чи рішення під конкретного клієнта (напр. CRM для Аква Віти)
+export const STARTUP_KINDS = { product: "Свій продукт", client: "Рішення для клієнта" } as const;
+export type StartupKind = keyof typeof STARTUP_KINDS;
+// База знань проєкту: що ламалось і як виправили, як підключали API, уроки з поля
+export const KNOWLEDGE_CATS = { fix: "Зламалось → виправили", integration: "Інтеграція / API", lesson: "Урок / правило", field: "З поля (люди, відділ продажу)" } as const;
+export type KnowledgeCat = keyof typeof KNOWLEDGE_CATS;
+export const ITEM_KINDS = ["milestone", "experiment", "decision", "question", "note", "link", "segment", "angle", "channel", "module", "infra", "release", "interview", "competitor", "version", "knowledge"] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
 export type StartupItem = { id: number; startup_id: number; kind: ItemKind; title: string; body: string; status: string; data: Record<string, string>; position: number; created_at: string; updated_at: string };
 
@@ -116,12 +123,12 @@ export function getStartup(id: number): Startup | undefined {
   return parse(db().prepare("SELECT * FROM startups WHERE id = ?").get(id) as Row | undefined);
 }
 
-export function createStartup(input: { name: string; one_liner?: string; stage?: Stage; raw_text?: string; lab_id?: number | null; client_id?: number | null; canvas?: Startup["canvas"] }): number {
-  return Number(db().prepare(`INSERT INTO startups (name, one_liner, stage, raw_text, lab_id, client_id, canvas_json) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-    .run(input.name.slice(0, 120), input.one_liner ?? "", input.stage ?? "idea", input.raw_text ?? "", input.lab_id ?? null, input.client_id ?? null, JSON.stringify(input.canvas ?? {})).lastInsertRowid);
+export function createStartup(input: { name: string; one_liner?: string; stage?: Stage; raw_text?: string; lab_id?: number | null; client_id?: number | null; canvas?: Startup["canvas"]; kind?: StartupKind }): number {
+  return Number(db().prepare(`INSERT INTO startups (name, one_liner, stage, raw_text, lab_id, client_id, canvas_json, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(input.name.slice(0, 120), input.one_liner ?? "", input.stage ?? "idea", input.raw_text ?? "", input.lab_id ?? null, input.client_id ?? null, JSON.stringify(input.canvas ?? {}), input.kind ?? (input.client_id ? "client" : "product")).lastInsertRowid);
 }
 
-const FIELDS = ["name", "one_liner", "stage", "north_star", "next_step", "spec_md", "repo", "prod_url", "client_id"] as const;
+const FIELDS = ["name", "one_liner", "stage", "north_star", "next_step", "spec_md", "repo", "prod_url", "client_id", "kind"] as const;
 export function updateStartup(id: number, patch: Partial<Pick<Startup, (typeof FIELDS)[number]>> & { canvas?: Startup["canvas"]; finance?: Partial<Record<keyof Finance, unknown>>; idea?: { formula?: Record<string, string>; stress?: Record<string, { score: number; why: string }>; verdict?: string }; mkt?: Partial<MktData> }): void {
   const keys = FIELDS.filter((k) => patch[k] !== undefined);
   const sets = keys.map((k) => `${k} = @${k}`);
