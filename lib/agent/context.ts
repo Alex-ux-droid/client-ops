@@ -4,6 +4,7 @@
 import { getClientRow } from "../repo/clients";
 import { accountsForClient, adsForClient, adsetsForClient, campaignsWithStats, getAnalysis, kyivDay, metaAlerts, totals } from "../repo/meta";
 import { getTask, listTasks, taskItems, taskLinks } from "../repo/tasks";
+import { stepsSummary } from "../taskSteps";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const cpl = (s: number, l: number) => (l ? r2(s / l) : null);
@@ -18,7 +19,8 @@ export function taskSnapshot(taskId: number): { text: string; clientId: number |
     `Задача #${t.id} «${t.title}»${t.client_name ? ` (клієнт ${t.client_name}, client_id ${t.client_id})` : ""} — статус ${t.status}${t.due_date ? `, дедлайн ${t.due_date}` : ""}${t.priority && t.priority !== "normal" ? `, пріоритет ${t.priority}` : ""}.`,
     items.length ? `Підзадачі (${done} з ${items.length} виконано, Саша відмічає сам — це актуальний стан):\n${items.map((i) => `${i.done ? "[x]" : "[ ]"} ${i.text} (item_id ${i.id})`).join("\n")}` : "Підзадач нема.",
     links.length ? `Посилання: ${links.map((l) => `${l.title || "посилання"} ${l.url}`).join("; ")}` : "",
-    t.details ? `Інструкція (скорочено):\n${t.details.slice(0, 2500)}${t.details.length > 2500 ? "…" : ""}` : "",
+    stepsSummary(t.details ?? "") ? `Кроки (вкладки) і скільки галочок відмічено в кожному:\n${stepsSummary(t.details ?? "")}` : "",
+    t.details ? `Інструкція (скорочено; «[x]» — Саша вже зробив):\n${t.details.slice(0, 3500)}${t.details.length > 3500 ? "…" : ""}` : "",
   ];
   return { text: lines.filter(Boolean).join("\n"), clientId: t.client_id ?? null };
 }

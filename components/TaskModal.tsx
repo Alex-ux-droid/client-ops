@@ -8,6 +8,7 @@ import { openAssistant } from "./assistant";
 import Markdown from "./Markdown";
 import { OPEN_TASK } from "./tasks";
 import VoiceTextarea from "./VoiceTextarea";
+import { setStepDone, splitSteps, toggleLine } from "@/lib/taskSteps";
 
 type Data = { task: TaskRow; items: TaskItem[]; links: TaskLink[]; drive_url: string; folder: { title: string; url: string } | null; folder_urls: string[]; calendar: "ok" | "reconnect" | "off" };
 // id папки Диску з посилання — щоб не показувати ту саму папку двічі
@@ -40,6 +41,9 @@ export default function TaskModal() {
   const [closing, setClosing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [calMsg, setCalMsg] = useState("");
+  const [step, setStep] = useState(0);
+  // На телефоні вкладки кроків — смужкою: активна завжди на виду
+  useEffect(() => { document.querySelector(".tm-steps .on")?.scrollIntoView({ inline: "center", block: "nearest" }); }, [step]);
   const newItem = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -60,7 +64,7 @@ export default function TaskModal() {
 
   useEffect(() => {
     if (id == null) return;
-    setD(null); setErr(""); setEditDetails(false); setClosing(false); setCalMsg("");
+    setD(null); setErr(""); setEditDetails(false); setClosing(false); setCalMsg(""); setStep(0);
     void load(id);
     document.documentElement.classList.add("locked");
     // Джері бачить, з якою задачею Саша працює (Chat читає це з кожним повідомленням)
@@ -89,14 +93,27 @@ export default function TaskModal() {
     try { await fn(); await load(id); router.refresh(); } finally { setBusy(false); }
   }
 
+  // Зберегти інструкцію одразу в стані (галочки в кроках клацаються без затримки), потім у базу
+  async function saveDetails(next: string) {
+    if (id == null || !d) return;
+    setD({ ...d, task: { ...d.task, details: next } });
+    await taskPatch(id, { details: next });
+    router.refresh();
+  }
+  const toggleCheck = (line: number) => { if (d) void saveDetails(toggleLine(d.task.details ?? "", line)); };
+
   if (id == null) return null;
   const t = d?.task;
   const done = t?.status === "done";
   const total = d?.items.length ?? 0, ok = d?.items.filter((i) => i.done).length ?? 0;
+  const flow = splitSteps(t?.details ?? "");
+  const totalAll = total + flow.steps.reduce((a, x) => a + x.total, 0);
+  const doneAll = ok + flow.steps.reduce((a, x) => a + x.done, 0);
+  const allDone = totalAll > 0 && doneAll === totalAll;
 
   return (
     <div className="tm-over" onClick={close} role="dialog" aria-modal>
-      <div className="tm-box" onClick={(e) => e.stopPropagation()}>
+      <div className={`tm-box ${d && splitSteps(d.task.details ?? "").steps.length >= 2 && !editDetails ? "tm-box-flow" : ""}`} onClick={(e) => e.stopPropagation()}>
         {!d ? (
           <div className="tm-loading">{err || "Відкриваю…"}{err && <button type="button" className="ghost small" onClick={close}>Закрити</button>}</div>
         ) : (
@@ -121,7 +138,8 @@ export default function TaskModal() {
               {t!.client_id && <Link href={`/clients/${t!.client_id}`} className="tag" onClick={close}>{t!.client_name}</Link>}
             </div>
 
-            <div className="tm-body">
+            {(() => {
+              const subtasksEl = (
               <section>
                 <div className="tm-sec-head">
                   <b>Підзадачі</b>
@@ -145,24 +163,8 @@ export default function TaskModal() {
                   <button className="small" disabled={busy}>Додати</button>
                 </form>
               </section>
-
-              <section>
-                <div className="tm-sec-head">
-                  <b>Інструкція і деталі</b>
-                  <button type="button" className="ghost small" onClick={() => setEditDetails((x) => !x)}>{editDetails ? "Скасувати" : t!.details ? "Редагувати" : "Додати"}</button>
-                </div>
-                {editDetails ? (
-                  <form onSubmit={(e) => { e.preventDefault(); const v = (new FormData(e.currentTarget).get("details") as string) ?? ""; void run(() => taskPatch(id, { details: v })).then(() => setEditDetails(false)); }}>
-                    <VoiceTextarea name="details" defaultValue={t!.details} rows={10} className="tm-details-edit" placeholder={"## Розділ\n- **Мітка:** значення\n1. Крок\n> Важливо\n```Текст для копіювання\nготовий текст\n```"} autoFocus />
-                    <button disabled={busy}>Зберегти</button>
-                  </form>
-                ) : t!.details ? (
-                  <div className="tm-details"><Markdown md={t!.details} /></div>
-                ) : (
-                  <p className="tm-empty">Нема. Тут можна тримати покрокову інструкцію — або попроси Джері написати.</p>
-                )}
-              </section>
-
+              );
+              const linksEl = (
               <section>
                 <div className="tm-sec-head"><b>Посилання і файли</b></div>
                 <div className="tm-links">
@@ -189,8 +191,105 @@ export default function TaskModal() {
                   <button className="small" disabled={busy}>Додати</button>
                 </form>
               </section>
-            </div>
-
+              );
+              // Покроковий режим: у інструкції 2+ розділи «## …» → вкладки Огляд / кроки / Фініш
+              const tabbed = flow.steps.length >= 2 && !editDetails;
+              if (!tabbed) return (
+                <div className="tm-body">
+                  {(total >= 8 || (t!.details ?? "").length > 1500) && (
+                    <div className="tm-restructure">
+                      <span>Велика задача — зручніше по кроках: кожен етап окремою вкладкою зі своїми галочками і фінішем.</span>
+                      <button type="button" className="ghost small" onClick={() => { close(); openAssistant(`Перебудуй задачу #${id} «${t!.title}» у покрокову: перепиши інструкцію (update_task details) — «## Огляд», далі «## Крок N. Назва (≈хв)» на кожну окрему роботу з діями-чекбоксами «- [ ]» по порядку (те, що вже зроблено в підзадачах, — «- [x]»), останній «## Після запуску». Нічого корисного не загуби. Потім видали підзадачі, які стали чекбоксами в кроках (task_subtasks remove).`, true); }}>Джері, розклади по кроках</button>
+                    </div>
+                  )}
+                  {total > 0 || !t!.details ? subtasksEl : null}
+              <section>
+                <div className="tm-sec-head">
+                  <b>Інструкція і деталі</b>
+                  <button type="button" className="ghost small" onClick={() => setEditDetails((x) => !x)}>{editDetails ? "Скасувати" : t!.details ? "Редагувати" : "Додати"}</button>
+                </div>
+                {editDetails ? (
+                  <form onSubmit={(e) => { e.preventDefault(); const v = (new FormData(e.currentTarget).get("details") as string) ?? ""; void run(() => taskPatch(id, { details: v })).then(() => setEditDetails(false)); }}>
+                    <VoiceTextarea name="details" defaultValue={t!.details} rows={10} className="tm-details-edit" placeholder={"## Розділ\n- **Мітка:** значення\n1. Крок\n> Важливо\n```Текст для копіювання\nготовий текст\n```"} autoFocus />
+                    <button disabled={busy}>Зберегти</button>
+                  </form>
+                ) : t!.details ? (
+                  <div className="tm-details"><Markdown md={t!.details} /></div>
+                ) : (
+                  <p className="tm-empty">Нема. Тут можна тримати покрокову інструкцію — або попроси Джері написати.</p>
+                )}
+              </section>
+                  {linksEl}
+                  {total === 0 && t!.details ? <details className="tm-more"><summary>+ Підзадачі</summary>{subtasksEl}</details> : null}
+                </div>
+              );
+              const last = flow.steps.length + 1; // 0 — огляд, 1..n — кроки, n+1 — фініш
+              const cur = Math.min(step, last);
+              const st = cur >= 1 && cur <= flow.steps.length ? flow.steps[cur - 1] : null;
+              return (
+                <div className="tm-flow">
+                  <nav className="tm-steps" aria-label="Кроки задачі">
+                    <button type="button" className={cur === 0 ? "on" : ""} onClick={() => setStep(0)}><i className="tm-dot">i</i><span>Огляд</span></button>
+                    {flow.steps.map((x, k) => {
+                      const full = x.total > 0 && x.done === x.total;
+                      return (
+                        <button key={k} type="button" className={`${cur === k + 1 ? "on" : ""} ${full ? "ok" : ""}`} onClick={() => setStep(k + 1)}>
+                          <i className="tm-dot">{full ? "✓" : k + 1}</i>
+                          <span>{x.name}{(x.time || (x.total > 0 && !full)) && <small>{[x.time, x.total > 0 && !full ? `${x.done}/${x.total}` : ""].filter(Boolean).join(" · ")}</small>}</span>
+                        </button>
+                      );
+                    })}
+                    <button type="button" className={`${cur === last ? "on" : ""} ${allDone ? "ok" : ""}`} onClick={() => setStep(last)}><i className="tm-dot">⚑</i><span>Фініш</span></button>
+                  </nav>
+                  <div className="tm-pane">
+                    {cur === 0 && (
+                      <>
+                        <div className="tm-sec-head"><b>Огляд</b><button type="button" className="ghost small" onClick={() => setEditDetails(true)}>Редагувати інструкцію</button></div>
+                        {flow.intro.md ? <div className="tm-details"><Markdown md={flow.intro.md} /></div> : null}
+                        <ol className="tm-roadmap">
+                          {flow.steps.map((x, k) => (
+                            <li key={k} className={x.total > 0 && x.done === x.total ? "ok" : ""}><button type="button" onClick={() => setStep(k + 1)}>{x.name}{x.time && <em> · {x.time}</em>}</button>{x.total > 0 && <span>{x.done}/{x.total}</span>}</li>
+                          ))}
+                        </ol>
+                        {total > 0 && subtasksEl}
+                        {linksEl}
+                        <div className="tm-step-nav"><span /><button type="button" onClick={() => setStep(1)}>Почати: {flow.steps[0].name} →</button></div>
+                      </>
+                    )}
+                    {st && (
+                      <>
+                        <div className="tm-sec-head">
+                          <b className="tm-step-title"><span className="tm-step-n">Крок {cur}</span><span>{st.name}{st.time && <em> · {st.time}</em>}</span></b>
+                          {st.total > 0 && <span>{st.done} з {st.total}</span>}
+                        </div>
+                        {st.total > 0 && <div className="tm-progress"><i style={{ width: `${(st.done / st.total) * 100}%` }} /></div>}
+                        <div className="tm-details"><Markdown md={st.md} base={st.start} onToggle={toggleCheck} /></div>
+                        <div className="tm-step-nav">
+                          <button type="button" className="ghost" onClick={() => setStep(cur - 1)}>← {cur === 1 ? "Огляд" : flow.steps[cur - 2].name}</button>
+                          <span className="grow" />
+                          {st.total > 0 && st.done < st.total && <button type="button" className="ghost" onClick={() => saveDetails(setStepDone(t!.details, st, true)).then(() => setStep(cur + 1))}>✓ Крок виконано</button>}
+                          <button type="button" onClick={() => setStep(cur + 1)}>{cur === flow.steps.length ? "Фініш" : flow.steps[cur].name} →</button>
+                        </div>
+                      </>
+                    )}
+                    {cur === last && (
+                      <>
+                        <div className="tm-sec-head"><b>Фініш</b><span>{doneAll} з {totalAll}</span></div>
+                        <div className="tm-progress"><i style={{ width: `${totalAll ? (doneAll / totalAll) * 100 : 0}%` }} /></div>
+                        <ul className="tm-finish">
+                          {flow.steps.map((x, k) => {
+                            const full = x.total === 0 || x.done === x.total;
+                            return <li key={k} className={full ? "ok" : ""}><button type="button" onClick={() => setStep(k + 1)}><i className="tm-dot">{full ? "✓" : k + 1}</i>{x.name}</button><span>{x.total ? `${x.done}/${x.total}` : "—"}</span></li>;
+                          })}
+                          {total > 0 && <li className={ok === total ? "ok" : ""}><button type="button" onClick={() => setStep(0)}><i className="tm-dot">{ok === total ? "✓" : "•"}</i>Підзадачі</button><span>{ok}/{total}</span></li>}
+                        </ul>
+                        <p className="tm-finish-note">{allDone ? "Усе відмічено — закривай зі звітом, щоб робота потрапила в історію клієнта." : "Ще не все відмічено — можна закрити й так, якщо решта неактуальна."}</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
             <div className="tm-foot">
               {!done && !closing && <button type="button" onClick={() => setClosing(true)}>✓ Закрити зі звітом</button>}
               {d.calendar === "ok" ? (
