@@ -177,3 +177,46 @@ export async function saveProposalAction(fd: FormData) {
   if (fd.has("from")) { const { setSetting } = await import("@/lib/repo/settings"); setSetting("proposal.from", str(fd, "from")); }
   back(id, "#proposal");
 }
+
+// ---- Режим «рішення»: продукти, етапи
+export async function setModeAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  const { setLabMode } = await import("@/lib/repo/lab");
+  setLabMode(id, str(fd, "mode") === "solution" ? "solution" : "choose");
+  back(id);
+}
+const prFields = (fd: FormData) => ({
+  name: str(fd, "name"), about: str(fd, "about"), ptype: str(fd, "ptype") as "ours", notes: str(fd, "notes"),
+  price_setup: price(fd, "price_setup"), price_month: price(fd, "price_month"), cost_setup: price(fd, "cost_setup"), cost_month: price(fd, "cost_month"),
+});
+export async function saveProductAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!, pid = int(fd, "product_id");
+  const r = await import("@/lib/repo/lab");
+  const f = prFields(fd);
+  if (pid) r.updateProduct(pid, f); else if (f.name) r.addProduct(id, f);
+  back(id, "#products");
+}
+export async function deleteProductAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  const { deleteProduct } = await import("@/lib/repo/lab");
+  deleteProduct(int(fd, "product_id")!);
+  back(id, "#products");
+}
+export async function saveStageAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!, sid = int(fd, "stage_id");
+  const r = await import("@/lib/repo/lab");
+  const f = { title: str(fd, "title"), steps_md: String(fd.get("steps_md") ?? ""), result: str(fd, "result"), duration: str(fd, "duration"), product_id: int(fd, "product_id") };
+  if (sid) r.updateStage(sid, f); else if (f.title) r.addStage(id, f);
+  back(id, "#stages");
+}
+export async function deleteStageAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  const { deleteStage } = await import("@/lib/repo/lab");
+  deleteStage(int(fd, "stage_id")!);
+  back(id, "#stages");
+}

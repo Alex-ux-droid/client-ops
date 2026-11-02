@@ -21,7 +21,8 @@ import AskAssistant from "@/components/AskAssistant";
 import { getSetting } from "@/lib/repo/settings";
 import { PROPOSAL } from "@/lib/repo/lab";
 import PromptButton from "./PromptButton";
-import { addScenarioAction, chooseScenarioAction, deleteScenarioAction, saveProposalAction, saveScenarioAction } from "../actions";
+import SolutionView from "./SolutionView";
+import { addScenarioAction, chooseScenarioAction, deleteScenarioAction, saveProposalAction, saveScenarioAction, setModeAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -43,54 +44,9 @@ export default async function LabSessionPage({ params, searchParams }: { params:
   const hidden = <input type="hidden" name="id" value={id} />;
   const startup = startupForLab(id);
 
-  return (
-    <div className="lab">
-      <div className="head">
-        <div style={{ minWidth: 0 }}>
-          <Link href="/lab" className="h-link">Лабораторія</Link>
-          <h1>{l.title}</h1>
-          <div className="meta">
-            {l.category !== "other" && <span className="tag accent">{cat.label}</span>}
-            {client && <Link href={`/clients/${client.id}`} className="tag">{client.name}</Link>}
-            <span className={`tag ${done ? "ok" : "warn"}`}>{done ? `Завершено ${fmtDate(l.done_at)}` : "В роботі"}</span>
-          </div>
-        </div>
-        <div className="inline" style={{ flexWrap: "wrap" }}>
-          <PromptButton labId={id} />
-          {startup
-            ? <Link href={`/startups/${startup.id}`} className="btn ghost">Стартап: {startup.name} →</Link>
-            : <form action={labToStartupAction}><input type="hidden" name="lab_id" value={id} /><SubmitButton className="ghost" pendingText="Переношу…">Будуємо самі → у Стартапи</SubmitButton></form>}
-          {done && <form action={reopenLabAction}>{hidden}<button className="ghost">Відкрити знову</button></form>}
-        </div>
-      </div>
-
-      <Suspense><LabAssistant id={id} /></Suspense>
-
-      {/* Що вирішуємо — текст як є; клієнт — одним рядком */}
-      <section className="card lab-brief">
-        <div className="lab-brief-head">
-          <span className="lab-kicker">Що вирішуємо</span>
-          {client
-            ? <span className="lab-client">для <Link href={`/clients/${client.id}`}>{client.name}</Link>{services.length ? ` · вже є: ${services.map((s) => `${SERVICES[s.type].short}${s.tool_name ? ` ${s.tool_name}` : ""}`).join(", ")}` : ""}</span>
-            : <span className="lab-client">без клієнта</span>}
-        </div>
-        {l.brief ? <div className="lab-brief-text"><Markdown md={l.brief} /></div> : <p className="lab-muted">Опиши задачу — Джері підбере варіанти.</p>}
-        <details className="lab-edit">
-          <summary>Змінити задачу або клієнта</summary>
-          <form action={saveLabTextAction} className="stack" style={{ marginTop: "0.75rem" }}>
-            {hidden}
-            <VoiceTextarea name="brief" defaultValue={l.brief} placeholder="Задачі, скільки людей, звідки ліди, бюджет, обмеження, що вже пробували" style={{ minHeight: "8rem" }} />
-            <div className="inline" style={{ flexWrap: "wrap" }}>
-              <select name="client_id" defaultValue={l.client_id ?? ""} aria-label="Клієнт" style={{ maxWidth: "18rem" }}>
-                <option value="">— без клієнта —</option>
-                {listClients().filter((c) => c.status !== "archived" || c.id === l.client_id).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <SubmitButton className="ghost">Зберегти</SubmitButton>
-            </div>
-          </form>
-        </details>
-      </section>
-
+  const chosenSc = l.scenarios.find((x) => x.id === l.chosen_scenario_id);
+  const chooseBlocks = (
+    <>
       <section id="options" className="lab-section">
         <div className="lab-section-head">
           <div>
@@ -331,6 +287,77 @@ export default async function LabSessionPage({ params, searchParams }: { params:
           );
         })()}
       </section>
+
+    </>
+  );
+
+  return (
+    <div className="lab">
+      <div className="head">
+        <div style={{ minWidth: 0 }}>
+          <Link href="/lab" className="h-link">Лабораторія</Link>
+          <h1>{l.title}</h1>
+          <div className="meta">
+            {l.category !== "other" && <span className="tag accent">{cat.label}</span>}
+            {client && <Link href={`/clients/${client.id}`} className="tag">{client.name}</Link>}
+            <span className={`tag ${done ? "ok" : "warn"}`}>{done ? `Завершено ${fmtDate(l.done_at)}` : "В роботі"}</span>
+          </div>
+        </div>
+        <div className="inline" style={{ flexWrap: "wrap" }}>
+          <PromptButton labId={id} />
+          {startup
+            ? <Link href={`/startups/${startup.id}`} className="btn ghost">Стартап: {startup.name} →</Link>
+            : <form action={labToStartupAction}><input type="hidden" name="lab_id" value={id} /><SubmitButton className="ghost" pendingText="Переношу…">Будуємо самі → у Стартапи</SubmitButton></form>}
+          {done && <form action={reopenLabAction}>{hidden}<button className="ghost">Відкрити знову</button></form>}
+        </div>
+      </div>
+
+      <Suspense><LabAssistant id={id} /></Suspense>
+
+      {/* Що вирішуємо — текст як є; клієнт — одним рядком */}
+      <section className="card lab-brief">
+        <div className="lab-brief-head">
+          <span className="lab-kicker">Що вирішуємо</span>
+          {client
+            ? <span className="lab-client">для <Link href={`/clients/${client.id}`}>{client.name}</Link>{services.length ? ` · вже є: ${services.map((s) => `${SERVICES[s.type].short}${s.tool_name ? ` ${s.tool_name}` : ""}`).join(", ")}` : ""}</span>
+            : <span className="lab-client">без клієнта</span>}
+        </div>
+        {l.brief ? <div className="lab-brief-text"><Markdown md={l.brief} /></div> : <p className="lab-muted">Опиши задачу — Джері підбере варіанти.</p>}
+        <details className="lab-edit">
+          <summary>Змінити задачу або клієнта</summary>
+          <form action={saveLabTextAction} className="stack" style={{ marginTop: "0.75rem" }}>
+            {hidden}
+            <VoiceTextarea name="brief" defaultValue={l.brief} placeholder="Задачі, скільки людей, звідки ліди, бюджет, обмеження, що вже пробували" style={{ minHeight: "8rem" }} />
+            <div className="inline" style={{ flexWrap: "wrap" }}>
+              <select name="client_id" defaultValue={l.client_id ?? ""} aria-label="Клієнт" style={{ maxWidth: "18rem" }}>
+                <option value="">— без клієнта —</option>
+                {listClients().filter((c) => c.status !== "archived" || c.id === l.client_id).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <SubmitButton className="ghost">Зберегти</SubmitButton>
+            </div>
+          </form>
+        </details>
+      </section>
+
+      {/* Режим: вибір рішення → робота над обраним */}
+      {l.mode === "solution" ? (
+        <div className="lab-mode">
+          <div><b>Працюємо над рішенням: {chosenSc?.title ?? "обране рішення"}</b><br /><span>Уся сесія — про нього: продукти, етапи, фінанси, пропозиція. Як обирали — згорнуто нижче.</span></div>
+          <form action={setModeAction}>{hidden}<input type="hidden" name="mode" value="choose" /><button className="ghost small">← Повернутись до вибору</button></form>
+        </div>
+      ) : chosenSc ? (
+        <div className="lab-mode choose">
+          <div><b>Обрано: {chosenSc.title}</b><br /><span>Перейди в роботу над рішенням — сесія перебудується під нього: продукти, покрокова структура, фінанси.</span></div>
+          <form action={setModeAction}>{hidden}<input type="hidden" name="mode" value="solution" /><SubmitButton>Працюємо над рішенням →</SubmitButton></form>
+        </div>
+      ) : null}
+
+      {l.mode === "solution" ? (
+        <>
+          <SolutionView l={l} />
+          <details className="card lab-how"><summary><b>Як обирали</b> <span className="lab-muted">— варіанти, порівняння, сценарії</span></summary>{chooseBlocks}</details>
+        </>
+      ) : chooseBlocks}
 
       {/* Пропозиція клієнту: 5 розділів → PDF A4 */}
       <section id="proposal" className="lab-section">
