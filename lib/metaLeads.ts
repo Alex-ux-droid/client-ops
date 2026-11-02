@@ -5,7 +5,8 @@ import { autoOn } from "./agent/caps";
 import { logError } from "./log";
 import { metaAll, metaGet, metaToken } from "./meta";
 import { getClient } from "./repo/clients";
-import { clientByAd, getLead, getPage, insertLead, leadFields, leadsToRemind, listPages, setLead, setPage, upsertForm, upsertPage, type Lead, type LeadField } from "./repo/leads";
+import { leadBotToken } from "./leadBot";
+import { addDelivery, botUsers, clientByAd, deliveries, getLead, getPage, getRoute, setBotUserActive, insertLead, leadFields, leadsToRemind, listPages, setLead, setPage, upsertForm, upsertPage, type Lead, type LeadField } from "./repo/leads";
 import { getSetting, setSetting } from "./repo/settings";
 import { chatsForClient } from "./repo/telegram";
 
@@ -51,14 +52,14 @@ function parseLead(raw: RawLead, form: Form | undefined): { name: string; phone:
 
 const kyiv = (iso: string) => new Date(iso).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
-export function leadText(l: Lead): string {
+export function leadText(l: Lead, forClient = false): string {
   const c = l.client_id ? getClient(l.client_id) : undefined;
   const status = [
     l.taken_at ? `✅ Взяли в роботу${l.taken_by ? ` — ${l.taken_by}` : ""}` : "",
     l.quality === "good" ? `👍 Якісна${l.quality_by ? ` (${l.quality_by})` : ""}` : l.quality === "bad" ? `👎 Сміття${l.quality_by ? ` (${l.quality_by})` : ""}` : "",
   ].filter(Boolean);
   return [
-    `🔥 Нова заявка${c ? ` · ${c.name}` : ""}`,
+    `🔥 Нова заявка${c && !forClient ? ` · ${c.name}` : ""}`,
     "",
     l.name && `👤 ${l.name}`,
     l.phone && `📞 ${l.phone}`,
@@ -84,22 +85,36 @@ export function leadKeyboard(l: Lead) {
 async function notify(id: number): Promise<void> {
   const l = getLead(id);
   if (!l) return;
-  const { tg, tgOwner } = await import("./telegram");
+  const { tg, tgCall, tgOwner } = await import("./telegram");
   const page = getPage(l.page_id);
-  const groups = l.client_id && page?.leads_on ? chatsForClient(l.client_id).filter((c) => c.active) : [];
   type Sent = { message_id: number };
-  let first: { chat: number; msg: number } | null = null;
-  for (const g of groups) {
-    const r = await tg<Sent>("sendMessage", { chat_id: g.chat_id, text: leadText(l), reply_markup: leadKeyboard(l) }).catch((e) => { logError("leads-tg", e); return null; });
-    if (r && !first) first = { chat: g.chat_id, msg: r.message_id };
+  const route = l.client_id ? getRoute(l.client_id) : null;
+  let delivered = 0;
+  let firstGroup: { chat: number; msg: number } | null = null;
+  if (l.client_id && page?.leads_on && route) {
+    // 1) наша Telegram-група клієнта (бот Джері)
+    if (route.to_group) for (const g of chatsForClient(l.client_id).filter((c) => c.active)) {
+      const r = await tg<Sent>("sendMessage", { chat_id: g.chat_id, text: leadText(l), reply_markup: leadKeyboard(l) }).catch((e) => { logError("leads-tg", e); return null; });
+      if (r) { addDelivery(l.id, "main", g.chat_id, r.message_id); delivered++; if (!firstGroup) firstGroup = { chat: g.chat_id, msg: r.message_id }; }
+    }
+    // 2) власний бот клієнта — кожному, хто підписався запрошенням
+    const token = route.to_bot ? leadBotToken(l.client_id) : null;
+    if (token) for (const u of botUsers(l.client_id)) {
+      const r = await tgCall<Sent>(token, "sendMessage", { chat_id: u.tg_user_id, text: leadText(l, true), reply_markup: leadKeyboard(l) }).catch((e) => {
+        if (/blocked|deactivated|chat not found/i.test(String(e))) setBotUserActive(l.client_id!, u.tg_user_id, false);
+        else logError("leads-bot", e);
+        return null;
+      });
+      if (r) { addDelivery(l.id, "client", u.tg_user_id, r.message_id); delivered++; }
+    }
   }
   const owner = tgOwner();
   const copy = getSetting("leads.copy_owner") === "on";
-  if (owner && (copy || (!first && page?.leads_on))) {
-    const why = !l.client_id ? "\n\n⚠️ Не знаю, чий це клієнт — привʼяжи сторінку в Налаштування → Конектори → Meta." : !groups.length && page?.leads_on ? "\n\n⚠️ У клієнта нема Telegram-групи з ботом — тому шлю тобі." : "";
+  if (owner && (copy || (!delivered && page?.leads_on))) {
+    const why = !l.client_id ? "\n\n⚠️ Не знаю, чий це клієнт — привʼяжи сторінку в Налаштування → Конектори → Meta." : !delivered && page?.leads_on ? "\n\n⚠️ Заявку нікуди не доставлено (нема групи з ботом і нема підписаних у боті клієнта) — тому шлю тобі." : "";
     await tg("sendMessage", { chat_id: owner, text: leadText(l) + why }).catch((e) => logError("leads-tg", e));
   }
-  setLead(id, { notified_at: new Date().toISOString().slice(0, 19).replace("T", " "), ...(first ? { tg_chat_id: first.chat, tg_message_id: first.msg } : {}) });
+  setLead(id, { notified_at: new Date().toISOString().slice(0, 19).replace("T", " "), ...(firstGroup ? { tg_chat_id: firstGroup.chat, tg_message_id: firstGroup.msg } : {}) });
 }
 
 export async function syncLeads(opts: { manual?: boolean } = {}): Promise<{ added: number; error?: string }> {
@@ -161,20 +176,29 @@ export async function syncLeads(opts: { manual?: boolean } = {}): Promise<{ adde
   }
 }
 
-// Кнопки під заявкою в Telegram
-export async function leadCallback(q: { id: string; data?: string; from?: { first_name?: string; last_name?: string; username?: string }; message?: { chat: { id: number }; message_id: number } }): Promise<void> {
-  const { tg } = await import("./telegram");
+// Кнопки під заявкою в Telegram (наша група або бот клієнта) — оновлюємо всі копії заявки
+export async function leadCallback(q: { id: string; data?: string; from?: { first_name?: string; last_name?: string; username?: string }; message?: { chat: { id: number }; message_id: number } }, via: "main" | "client" = "main"): Promise<void> {
+  const { tgCall, tgToken } = await import("./telegram");
   const m = q.data?.match(/^ld:(\d+):([tgb])$/);
   const l = m ? getLead(Number(m[1])) : undefined;
-  if (!m || !l || !q.message || l.tg_chat_id !== q.message.chat.id) { await tg("answerCallbackQuery", { callback_query_id: q.id }).catch(() => {}); return; }
+  const tokenOf = (v: "main" | "client") => (v === "main" ? tgToken() : l?.client_id ? leadBotToken(l.client_id) : null);
+  const here = tokenOf(via);
+  const answer = (text?: string) => here ? tgCall(here, "answerCallbackQuery", { callback_query_id: q.id, ...(text ? { text } : {}) }).catch(() => {}) : null;
+  const ds = l ? deliveries(l.id) : [];
+  const own = q.message && (ds.some((d) => d.via === via && d.chat_id === q.message!.chat.id) || (via === "main" && l?.tg_chat_id === q.message.chat.id));
+  if (!m || !l || !own) { await answer(); return; }
   const who = [q.from?.first_name, q.from?.last_name].filter(Boolean).join(" ") || q.from?.username || "";
   const now = new Date().toISOString().slice(0, 19).replace("T", " ");
   if (m[2] === "t" && !l.taken_at) setLead(l.id, { taken_at: now, taken_by: who });
   if (m[2] === "g") setLead(l.id, { quality: l.quality === "good" ? "" : "good", quality_by: l.quality === "good" ? "" : who, ...(l.taken_at ? {} : { taken_at: now, taken_by: who }) });
   if (m[2] === "b") setLead(l.id, { quality: l.quality === "bad" ? "" : "bad", quality_by: l.quality === "bad" ? "" : who, ...(l.taken_at ? {} : { taken_at: now, taken_by: who }) });
   const u = getLead(l.id)!;
-  await tg("editMessageText", { chat_id: q.message.chat.id, message_id: q.message.message_id, text: leadText(u), reply_markup: leadKeyboard(u) }).catch(() => {});
-  await tg("answerCallbackQuery", { callback_query_id: q.id, text: m[2] === "t" ? "Записав: взяли в роботу" : "Оцінку записав" }).catch(() => {});
+  const all = ds.length ? ds : [{ via: "main" as const, chat_id: q.message!.chat.id, message_id: q.message!.message_id }];
+  for (const d of all) {
+    const tok = tokenOf(d.via);
+    if (tok) await tgCall(tok, "editMessageText", { chat_id: d.chat_id, message_id: d.message_id, text: leadText(u, d.via === "client"), reply_markup: leadKeyboard(u) }).catch(() => {});
+  }
+  await answer(m[2] === "t" ? "Записав: взяли в роботу" : "Оцінку записав");
 }
 
 // Нагадування: на заявку 15 хв ніхто не відреагував (тільки 8:00–22:00 за Києвом)
@@ -182,10 +206,14 @@ export async function leadsRemindTick(): Promise<void> {
   if (!autoOn("leads_remind")) return;
   const h = Number(new Date().toLocaleString("en-GB", { timeZone: "Europe/Kyiv", hour: "2-digit", hour12: false }));
   if (h < 8 || h >= 22) return;
-  const { tg } = await import("./telegram");
+  const { tgCall, tgToken } = await import("./telegram");
   for (const l of leadsToRemind()) {
     setLead(l.id, { reminded_at: new Date().toISOString().slice(0, 19).replace("T", " ") });
-    await tg("sendMessage", { chat_id: l.tg_chat_id, reply_to_message_id: l.tg_message_id, text: `⏰ На заявку${l.name ? ` від ${l.name}` : ""} ще ніхто не відповів. Чим швидше дзвінок — тим вищий шанс продажу. Хто набере? Натисніть «Взяли в роботу».` }).catch((e) => logError("leads-remind", e));
+    const text = `⏰ На заявку${l.name ? ` від ${l.name}` : ""} ще ніхто не відповів. Чим швидше дзвінок — тим вищий шанс продажу. Хто набере? Натисніть «Взяли в роботу».`;
+    for (const d of deliveries(l.id)) {
+      const tok = d.via === "main" ? tgToken() : l.client_id ? leadBotToken(l.client_id) : null;
+      if (tok) await tgCall(tok, "sendMessage", { chat_id: d.chat_id, reply_to_message_id: d.message_id, text }).catch((e) => logError("leads-remind", e));
+    }
   }
 }
 

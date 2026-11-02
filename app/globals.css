@@ -1725,3 +1725,8 @@ textarea.vt-ghost::placeholder { color: transparent; }
 .ld-rate { display: flex; gap: 0.25rem; align-items: start; }
 .ld-rate button { padding: 0.25rem 0.5rem; font-size: 0.8125rem; }
 .ld-rate button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.lb-card summary { cursor: pointer; }
+.lb-bot { border-top: 1px solid var(--line); padding-top: 0.875rem; }
+.lb-invite { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.lb-invite code { flex: 1; min-width: 0; overflow-wrap: anywhere; padding: 0.5rem 0.75rem; border-radius: 10px; background: rgba(255, 255, 255, 0.05); font-size: 0.875rem; }
+.lb-users { display: flex; flex-wrap: wrap; gap: 0.375rem; }
