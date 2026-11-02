@@ -9,6 +9,7 @@ import { money } from "../config";
 import { ymd } from "../dates";
 import { getComm } from "../repo/comm";
 import { leadStats } from "../repo/leads";
+import { listChanges } from "../repo/creatives";
 import { listPayments } from "../repo/payments";
 
 // Гроші клієнта: абонплата, борги (прострочені), очікувані, останні отримані — щоб Джері міг написати клієнту про заборгованість
@@ -77,6 +78,8 @@ export function clientSnapshot(clientId: number): string {
     else out.push("Заявок з лід-форм за 7 днів у системі нема (або сторінка не підключена — Налаштування → Конектори → Meta → «Заявки з лід-форм»).");
   } else out.push("Meta Ads: кабінет до клієнта не привʼязаний.");
   if (c.drive_url) out.push("Папка клієнта на Google Диску є — що в ній лежить (і те, що Саша закинув руками), дивись drive_list, картинки звідти — view_images.");
+  const changes = listChanges(clientId, 8);
+  if (changes.length) out.push(`Журнал змін реклами (останні):\n${changes.map((x) => `- ${x.at}: ${x.what}${x.expect ? ` (чекали: ${x.expect})` : ""}${x.result ? ` → вийшло: ${x.result}` : " → результат ще не записано"} [change_id ${x.id}]`).join("\n")}`);
   out.push(moneySnapshot(clientId));
   const comm = getComm(clientId);
   if (comm?.profile) out.push(`Як спілкуватись з клієнтом (профіль${comm.source === "manual" ? ", правив Саша" : " з переписки"}):\n${comm.profile}`);

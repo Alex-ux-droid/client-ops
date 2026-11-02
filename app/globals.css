@@ -1786,3 +1786,30 @@ textarea.vt-ghost::placeholder { color: transparent; }
 .cg-prompt.lose { opacity: 0.75; }
 .cg-change { display: flex; flex-direction: column; gap: 0.375rem; }
 .cg-change input[name=result] { flex: 1; min-width: 12rem; }
+
+/* Звіт для клієнта /r/<токен> */
+.rp { max-width: 56rem; margin: 0 auto; padding: 2.5rem 1rem 3rem; display: flex; flex-direction: column; gap: 1rem; }
+.rp-head h1 { margin: 0.25rem 0; font-size: clamp(1.75rem, 5vw, 2.5rem); }
+.rp-from { color: var(--link); font-size: 0.875rem; }
+.rp-sub, .rp-note, .rp-foot { color: var(--muted); font-size: 0.875rem; }
+.rp-foot { text-align: center; margin-top: 1rem; }
+.rp-kpis { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); }
+.rp-kpi, .rp-card { background: var(--bg-raise); border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.125rem; }
+.rp-kpi { display: flex; flex-direction: column; gap: 0.25rem; }
+.rp-kpi span { color: var(--muted); font-size: 0.875rem; }
+.rp-kpi b { font-size: 1.75rem; font-variant-numeric: tabular-nums; }
+.rp-kpi small { color: var(--dim); font-size: 0.8125rem; }
+.rp-delta { font-size: 0.8125rem; color: var(--muted); }
+.rp-delta.good { color: var(--ok); } .rp-delta.bad { color: var(--warn); }
+.rp-card h2 { margin: 0 0 0.75rem; font-size: 1.125rem; }
+.rp-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; text-align: center; }
+.rp-row b { display: block; font-size: 1.5rem; } .rp-row span { color: var(--muted); font-size: 0.8125rem; }
+.rp-ads { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 8.5rem), 1fr)); }
+.rp-ads figure { margin: 0; display: flex; flex-direction: column; gap: 0.375rem; }
+.rp-ads img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-input); }
+.rp-ads figcaption { font-size: 0.8125rem; color: var(--muted); }
+.rp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.rp-list li { display: grid; grid-template-columns: 3.5rem 1fr; gap: 0.5rem; font-size: 0.9375rem; }
+.rp-list span { color: var(--dim); font-variant-numeric: tabular-nums; }
+.rp-list em { color: var(--ok); font-style: normal; }
+.rl-card summary { cursor: pointer; }
