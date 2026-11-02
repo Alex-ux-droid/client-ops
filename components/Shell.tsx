@@ -74,7 +74,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
     return () => document.documentElement.classList.remove("locked");
   }, [locked]);
 
-  if (path === "/login") return <>{children}</>;
+  if (path === "/login" || path.startsWith("/r/")) return <>{children}</>;
   const clientMatch = path.match(/^\/clients\/(\d+)/);
   const dockClient = clientMatch ? Number(clientMatch[1]) : null;
   const labMatch = path.match(/^\/lab\/(\d+)/);

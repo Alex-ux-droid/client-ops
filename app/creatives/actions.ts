@@ -52,3 +52,13 @@ export async function changeAction(fd: FormData) {
   if (what) addChange({ client_id: cid, what, why: str(fd, "why"), expect: str(fd, "expect"), at: str(fd, "at") || undefined });
   back(cid, "analysis");
 }
+
+// Посилання на звіт для клієнта: увімкнути / вимкнути / нове (старе перестає працювати)
+export async function reportLinkAction(fd: FormData) {
+  await requireUser();
+  const cid = Number(fd.get("client_id"));
+  const { setReportLink } = await import("@/lib/clientReport");
+  const op = str(fd, "op");
+  setReportLink(cid, op !== "off", op === "renew");
+  revalidatePath(`/clients/${cid}`);
+}

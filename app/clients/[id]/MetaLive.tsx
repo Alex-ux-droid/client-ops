@@ -13,7 +13,9 @@ import CreativeGallery, { type GalleryItem } from "./CreativeGallery";
 import CreativeGen from "./CreativeGen";
 import { CopyText } from "@/app/startups/[id]/CopyText";
 import VoiceTextarea from "@/components/VoiceTextarea";
-import { brandAction, changeAction, promptUpdateAction } from "@/app/creatives/actions";
+import { brandAction, changeAction, promptUpdateAction, reportLinkAction } from "@/app/creatives/actions";
+import { reportToken } from "@/lib/clientReport";
+import { headers } from "next/headers";
 import { brandOf, FORMATS, promptStats } from "@/lib/creativeLab";
 import { adIdsOf, listChanges, listPrompts } from "@/lib/repo/creatives";
 import { leadBotDisconnectAction, leadBotInviteAction, leadBotUserAction, leadRouteAction, rateLeadAction } from "@/app/leads/actions";
@@ -71,6 +73,7 @@ export default function MetaLive({ clientId, view = "overview", err }: { clientI
           <b>{a.name}:</b> {a.account_status && a.account_status !== 1 ? ACCOUNT_STATUS[a.account_status] ?? "проблема з кабінетом" : ""}{a.last_error ? ` ${a.last_error}` : ""}
         </div>
       ))}
+      <ReportLink clientId={clientId} />
       <nav className="mx-tabs">
         {VIEWS.map((x) => (
           <Link key={x.k} href={x.k === "overview" ? base : `${base}&mv=${x.k}`} scroll={false} className={x.k === v ? "on" : ""}>{x.label}</Link>
@@ -463,6 +466,30 @@ function CreativePrompts({ clientId, m, ads }: { clientId: number; m: Fmt; ads: 
         );
       })}
     </section>
+  );
+}
+
+// Посилання на звіт для клієнта (сторінка без входу з цифрами, заявками, креативами і «що зробили»)
+async function ReportLink({ clientId }: { clientId: number }) {
+  const token = reportToken(clientId);
+  const h = await headers();
+  const url = token ? `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host") ?? ""}/r/${token}` : "";
+  return (
+    <details className="card rl-card">
+      <summary><b>Звіт для клієнта</b> <span className="mono">{token ? "посилання увімкнене" : "вимкнено"}</span></summary>
+      <div className="stack" style={{ gap: "0.5rem", marginTop: "0.75rem" }}>
+        <div className="mono">Сторінка для клієнта без входу: заявки і ціна заявки (тиждень до тижня), графік, якість заявок, найкращі креативи, «що ми зробили» (журнал змін і історія робіт). Без наших витрат і нотаток.</div>
+        {token ? (
+          <>
+            <div className="lb-invite"><code>{url}</code><CopyText text={url} label="Копіювати" /><a href={url} target="_blank" rel="noreferrer" className="btn ghost small">Відкрити</a></div>
+            <div className="inline">
+              <form action={reportLinkAction}><input type="hidden" name="client_id" value={clientId} /><input type="hidden" name="op" value="renew" /><button className="ghost small" title="Старе посилання перестане працювати">Нове посилання</button></form>
+              <form action={reportLinkAction}><input type="hidden" name="client_id" value={clientId} /><input type="hidden" name="op" value="off" /><button className="ghost small danger-text">Вимкнути</button></form>
+            </div>
+          </>
+        ) : <form action={reportLinkAction}><input type="hidden" name="client_id" value={clientId} /><input type="hidden" name="op" value="on" /><button className="small">Увімкнути посилання</button></form>}
+      </div>
+    </details>
   );
 }
 
