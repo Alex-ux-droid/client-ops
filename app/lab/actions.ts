@@ -131,3 +131,49 @@ export async function deleteLabAction(fd: FormData) {
   revalidatePath("/lab");
   redirect("/lab");
 }
+
+// ---- Сценарії і пропозиція клієнту
+const scFields = (fd: FormData) => ({
+  title: str(fd, "title"), summary: str(fd, "summary"), steps_md: String(fd.get("steps_md") ?? ""), timeline: str(fd, "timeline"),
+  price_setup: price(fd, "price_setup"), price_month: price(fd, "price_month"), pros: str(fd, "pros"), cons: str(fd, "cons"),
+});
+export async function addScenarioAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  const f = scFields(fd);
+  if (!f.title) return;
+  const { addScenario } = await import("@/lib/repo/lab");
+  const sid = addScenario(id, f);
+  revalidatePath(`/lab/${id}`); redirect(`/lab/${id}?sc=${sid}#scenarios`);
+}
+export async function saveScenarioAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!, sid = int(fd, "scenario_id")!;
+  const { updateScenario } = await import("@/lib/repo/lab");
+  updateScenario(sid, scFields(fd));
+  revalidatePath(`/lab/${id}`); redirect(`/lab/${id}?sc=${sid}#scenarios`);
+}
+export async function deleteScenarioAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  const { deleteScenario } = await import("@/lib/repo/lab");
+  deleteScenario(int(fd, "scenario_id")!);
+  back(id, "#scenarios");
+}
+export async function chooseScenarioAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!, sid = int(fd, "scenario_id");
+  const { setChosenScenario } = await import("@/lib/repo/lab");
+  setChosenScenario(id, sid);
+  revalidatePath(`/lab/${id}`); redirect(`/lab/${id}${sid ? `?sc=${sid}` : ""}#scenarios`);
+}
+export async function saveProposalAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  const { saveProposal, PROPOSAL } = await import("@/lib/repo/lab");
+  const patch: Record<string, string> = {};
+  for (const k of ["title", "subtitle", ...PROPOSAL.map((x) => x.k)]) if (fd.has(`p_${k}`)) patch[k] = String(fd.get(`p_${k}`) ?? "");
+  saveProposal(id, patch);
+  if (fd.has("from")) { const { setSetting } = await import("@/lib/repo/settings"); setSetting("proposal.from", str(fd, "from")); }
+  back(id, "#proposal");
+}

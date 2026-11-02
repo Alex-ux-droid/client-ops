@@ -37,8 +37,9 @@ function table(doc: Doc, rows: string[][]) {
   doc.moveDown(0.6);
 }
 
-export async function markdownToPdf(title: string, md: string): Promise<Buffer> {
-  const doc = new PDFDocument({ size: "A4", margins: { top: 56, bottom: 56, left: 54, right: 54 }, info: { Title: title, Author: "Client Ops · Джері" }, bufferPages: true });
+// kicker — дрібний підпис над заголовком (для документів клієнту — не «Client Ops», а від кого)
+export async function markdownToPdf(title: string, md: string, opts: { kicker?: string } = {}): Promise<Buffer> {
+  const doc = new PDFDocument({ size: "A4", margins: { top: 56, bottom: 56, left: 54, right: 54 }, info: { Title: title, Author: opts.kicker || "Client Ops · Джері" }, bufferPages: true });
   doc.registerFont("R", FONT("Onest-Regular.ttf"));
   doc.registerFont("S", FONT("Onest-SemiBold.ttf"));
   doc.registerFont("B", FONT("Onest-Bold.ttf"));
@@ -48,7 +49,7 @@ export async function markdownToPdf(title: string, md: string): Promise<Buffer> 
 
   // Шапка: дрібно «Client Ops · дата», великий заголовок, синя риска
   const date = new Date().toLocaleDateString("uk-UA", { timeZone: "Europe/Kyiv", day: "numeric", month: "long", year: "numeric" });
-  doc.font("S").fontSize(8.5).fillColor(MUTED).text(`CLIENT OPS · ${date}`, { characterSpacing: 0.6 });
+  doc.font("S").fontSize(8.5).fillColor(MUTED).text(`${(opts.kicker ?? "Client Ops").toUpperCase()} · ${date}`, { characterSpacing: 0.6 });
   doc.moveDown(0.4);
   doc.font("B").fontSize(22).fillColor(TEXT).text(title, { lineGap: 2 });
   doc.moveDown(0.3);
@@ -118,7 +119,7 @@ export async function markdownToPdf(title: string, md: string): Promise<Buffer> 
     doc.switchToPage(p);
     doc.page.margins.bottom = 0; // інакше підпис унизу створює нову сторінку
     const y = doc.page.height - 36;
-    doc.font("R").fontSize(8).fillColor(MUTED).text(`Client Ops · ${p + 1}/${range.count}`, doc.page.margins.left, y, { width: doc.page.width - doc.page.margins.left - doc.page.margins.right, align: "right", lineBreak: false });
+    doc.font("R").fontSize(8).fillColor(MUTED).text(`${opts.kicker ? "" : "Client Ops · "}${p + 1}/${range.count}`, doc.page.margins.left, y, { width: doc.page.width - doc.page.margins.left - doc.page.margins.right, align: "right", lineBreak: false });
   }
   doc.end();
   return done;

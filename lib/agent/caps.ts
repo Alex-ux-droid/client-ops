@@ -14,14 +14,14 @@ export const CAPS = [
   { key: "groups", label: "Писати в групи клієнтів", desc: "повідомлення і файли (звіти, PDF) у Telegram-групу клієнта — тільки коли ти прямо попросив", tools: ["telegram_group_send"] },
   { key: "vision", label: "Дивитись картинки", desc: "фото з Telegram-груп клієнтів і креативи Meta — бачить і оцінює сам; кожна картинка коштує токенів", tools: ["view_images"] },
   { key: "mail", label: "Пошта (читання)", desc: "шукати і читати листи в Gmail; надсилати листи Джері не може", tools: ["mail_search", "mail_read"] },
-  { key: "drive", label: "Google Диск", desc: "бачити все в папках клієнтів (і те, що ти закинув руками), створювати папки і класти туди файли: фото з Telegram-груп, креативи Meta", tools: ["drive_create_folders", "drive_save_files", "drive_list"] },
+  { key: "drive", label: "Google Диск", desc: "бачити все в папках клієнтів (і те, що ти закинув руками), створювати папки і класти туди файли: фото з Telegram-груп, креативи Meta", tools: ["drive_create_folders", "drive_save_files", "drive_list", "drive_rename"] },
   { key: "calendar", label: "Google Календар", desc: "ставити задачі в календар", tools: ["task_to_calendar"] },
   { key: "links", label: "Привʼязувати кабінети і групи", desc: "рекламний кабінет Meta і Telegram-групу до клієнта", tools: ["meta_link", "telegram_link"] },
   { key: "journal", label: "Журнал системи", desc: "записувати запити на доробку і глюки", tools: ["journal_add"] },
   { key: "kb", label: "База знань (запис)", desc: "зберігати інструкції", tools: ["kb_save"] },
   { key: "access", label: "Доступи клієнтів", desc: "додавати і змінювати записи «де лежить доступ» (сервіс, логін, назва в Bitwarden, 2FA) — паролів не бачить і не зберігає", tools: ["access_save"] },
   { key: "tips", label: "Поради дня (запис)", desc: "записує в базу порад корисне, що виникло в розмові", tools: ["tip_add"] },
-  { key: "lab", label: "Лабораторія", desc: "вести сесії вибору інструментів", tools: ["lab_create", "lab_update", "lab_add_option", "lab_update_option", "lab_add_criterion", "lab_set_scores", "lab_finish"] },
+  { key: "lab", label: "Лабораторія", desc: "вести сесії вибору інструментів", tools: ["lab_create", "lab_update", "lab_add_option", "lab_update_option", "lab_add_criterion", "lab_set_scores", "lab_finish", "lab_scenario", "lab_proposal"] },
 ] as const;
 
 export const AUTO = [

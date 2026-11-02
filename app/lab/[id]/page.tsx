@@ -17,14 +17,20 @@ import VoiceTextarea from "@/components/VoiceTextarea";
 import { labToStartupAction } from "@/app/startups/actions";
 import { startupForLab } from "@/lib/repo/startups";
 import Markdown from "@/components/Markdown";
+import AskAssistant from "@/components/AskAssistant";
+import { getSetting } from "@/lib/repo/settings";
+import { PROPOSAL } from "@/lib/repo/lab";
+import PromptButton from "./PromptButton";
+import { addScenarioAction, chooseScenarioAction, deleteScenarioAction, saveProposalAction, saveScenarioAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
 const WEIGHTS = [{ v: 1, l: "×1 неважливо" }, { v: 2, l: "×2 важливо" }, { v: 3, l: "×3 критично" }];
 const HAS_SERVICE = ["crm", "telephony", "site"];
 
-export default async function LabSessionPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function LabSessionPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ sc?: string }> }) {
   const id = Number((await params).id);
+  const scParam = Number((await searchParams).sc);
   const l = getLab(id);
   if (!l) notFound();
   const client = l.client_id ? getClientRow(l.client_id) : undefined;
@@ -50,6 +56,7 @@ export default async function LabSessionPage({ params }: { params: Promise<{ id:
           </div>
         </div>
         <div className="inline" style={{ flexWrap: "wrap" }}>
+          <PromptButton labId={id} />
           {startup
             ? <Link href={`/startups/${startup.id}`} className="btn ghost">Стартап: {startup.name} →</Link>
             : <form action={labToStartupAction}><input type="hidden" name="lab_id" value={id} /><SubmitButton className="ghost" pendingText="Переношу…">Будуємо самі → у Стартапи</SubmitButton></form>}
@@ -257,6 +264,109 @@ export default async function LabSessionPage({ params }: { params: Promise<{ id:
         </details>
       </section>
 
+      {/* Сценарії: покрокові варіанти рішення, вкладками */}
+      <section id="scenarios" className="lab-section">
+        <div className="lab-section-head">
+          <div>
+            <h2>Сценарії</h2>
+            <div className="lab-muted">Покрокові варіанти рішення з термінами і ціною. Обраний іде в пропозицію клієнту.</div>
+          </div>
+          <div className="inline" style={{ flexWrap: "wrap" }}>
+            <AskAssistant text={`Лабораторія lab_id ${id}: склади 3 повні сценарії рішення (швидкий старт / оптимальний / максимальний) через lab_scenario — для кожного: назва, суть 1–2 речення, кроки по порядку (markdown, 1. 2. 3.), терміни, ціна впровадження і на місяць (якщо не знаєш — лиши порожнім, не вигадуй), плюси і мінуси. Якщо в «Штурмі» вже є сценарії — перенеси їх звідти, нічого не загубивши.`}>Джері, склади сценарії</AskAssistant>
+            {l.scenarios.length > 0 && <PromptButton labId={id} kind="scenarios" label="Промпт сценаріїв" />}
+          </div>
+        </div>
+        {(() => {
+          const cur = l.scenarios.find((x) => x.id === scParam) ?? l.scenarios.find((x) => x.id === l.chosen_scenario_id) ?? l.scenarios[0];
+          return (
+            <>
+              {l.scenarios.length > 0 && (
+                <nav className="sc-tabs">
+                  {l.scenarios.map((x, i) => (
+                    <Link key={x.id} href={`/lab/${id}?sc=${x.id}#scenarios`} scroll={false} className={cur?.id === x.id ? "on" : ""}>
+                      {i + 1}. {x.title}{l.chosen_scenario_id === x.id && <span className="tag ok">обрано</span>}
+                    </Link>
+                  ))}
+                </nav>
+              )}
+              {cur ? (
+                <article className={`card sc-card ${l.chosen_scenario_id === cur.id ? "chosen" : ""}`}>
+                  <div className="sc-top">
+                    <div style={{ minWidth: 0 }}><h3>{cur.title}</h3>{cur.summary && <p className="sc-sum">{cur.summary}</p>}</div>
+                    <form action={chooseScenarioAction}>{hidden}<input type="hidden" name="scenario_id" value={l.chosen_scenario_id === cur.id ? "" : cur.id} />
+                      <button className={l.chosen_scenario_id === cur.id ? "ghost small" : "small"}>{l.chosen_scenario_id === cur.id ? "Скасувати вибір" : "Обрати для пропозиції"}</button>
+                    </form>
+                  </div>
+                  <div className="sc-facts">
+                    {cur.timeline && <span>Терміни: <b>{cur.timeline}</b></span>}
+                    <span>Впровадження: <b>{cur.price_setup != null ? money(cur.price_setup) : "—"}</b></span>
+                    <span>На місяць: <b>{cur.price_month != null ? money(cur.price_month) : "—"}</b></span>
+                  </div>
+                  {cur.steps_md && <div className="tm-details"><Markdown md={cur.steps_md} /></div>}
+                  {(cur.pros || cur.cons) && (
+                    <div className="lab-pc">
+                      {cur.pros && <ul className="pros">{cur.pros.split(/\n+/).filter(Boolean).map((x) => <li key={x}>{x.replace(/^[-•+]\s*/, "")}</li>)}</ul>}
+                      {cur.cons && <ul className="cons">{cur.cons.split(/\n+/).filter(Boolean).map((x) => <li key={x}>{x.replace(/^[-•+]\s*/, "")}</li>)}</ul>}
+                    </div>
+                  )}
+                  <details className="lab-edit">
+                    <summary>Редагувати сценарій</summary>
+                    <form action={saveScenarioAction} className="stack" style={{ marginTop: "0.75rem" }}>
+                      {hidden}<input type="hidden" name="scenario_id" value={cur.id} />
+                      <ScenarioFields s={cur} />
+                      <div className="inline"><SubmitButton className="small" /><span className="grow" /><button formAction={deleteScenarioAction} className="ghost small danger-text">Прибрати сценарій</button></div>
+                    </form>
+                  </details>
+                </article>
+              ) : <div className="empty card">Сценаріїв ще нема. Натисни «Джері, склади сценарії» — або додай свій нижче.</div>}
+              <details className="card">
+                <summary><b>+ Сценарій</b></summary>
+                <form action={addScenarioAction} className="stack" style={{ marginTop: "0.75rem" }}>
+                  {hidden}
+                  <ScenarioFields />
+                  <div><SubmitButton className="small">Додати</SubmitButton></div>
+                </form>
+              </details>
+            </>
+          );
+        })()}
+      </section>
+
+      {/* Пропозиція клієнту: 5 розділів → PDF A4 */}
+      <section id="proposal" className="lab-section">
+        <div className="lab-section-head">
+          <div>
+            <h2>Пропозиція клієнту</h2>
+            <div className="lab-muted">Документ A4 для клієнта: проблема → чому це болить саме їм → що дамо → ціна і підтримка → бонуси на підтримці.</div>
+          </div>
+          <div className="inline" style={{ flexWrap: "wrap" }}>
+            <AskAssistant text={`Лабораторія lab_id ${id}: склади пропозицію клієнту через lab_proposal (title, subtitle, problem, why, offer, price, bonuses). Основа — ${l.chosen_scenario_id ? "обраний сценарій" : "найкращий сценарій (або варіант-лідер)"}, задача клієнта і порівняння. Пиши для власника бізнесу: просто, вигоди замість техніки, конкретно про його бізнес. «Що ми дамо» і «Бонуси» — списками. Ціни — тільки ті, що є в даних або які я вписав; інакше [уточнити]. Не вигадуй цифр.`}>Джері, склади пропозицію</AskAssistant>
+            <a href={`/api/lab/${id}/proposal`} target="_blank" rel="noreferrer" className="btn ghost small">PDF A4</a>
+            <a href={`/api/lab/${id}/proposal?format=md`} className="btn ghost small">.md</a>
+            <PromptButton labId={id} kind="proposal" label="Промпт презентації" />
+          </div>
+        </div>
+        <form action={saveProposalAction} className="card pp-grid">
+          {hidden}
+          <div className="form-grid">
+            <div className="field"><label>Заголовок</label><input name="p_title" defaultValue={l.proposal.title ?? ""} placeholder={`Пропозиція для ${l.client_name ?? "клієнта"}`} /></div>
+            <div className="field"><label>Підзаголовок</label><input name="p_subtitle" defaultValue={l.proposal.subtitle ?? ""} placeholder="Напр.: CRM і телефонія для відділу продажу за 2 тижні" /></div>
+            <div className="field"><label>Від кого (над заголовком у PDF)</label><input name="from" defaultValue={getSetting("proposal.from") ?? ""} placeholder="Олександр Бенца · alexbentsa.com" /></div>
+          </div>
+          {PROPOSAL.map((x, i) => (
+            <div key={x.k} className="pp-sec">
+              <span className="pp-n">{i + 1}</span>
+              <div>
+                <label htmlFor={`p_${x.k}`}>{x.label}</label>
+                <small>{x.q}</small>
+                <VoiceTextarea id={`p_${x.k}`} name={`p_${x.k}`} defaultValue={l.proposal[x.k] ?? ""} style={{ minHeight: x.k === "offer" || x.k === "bonuses" ? "8rem" : "5rem" }} placeholder={x.k === "offer" || x.k === "bonuses" ? "- пункт\n- пункт" : ""} />
+              </div>
+            </div>
+          ))}
+          <div><SubmitButton>Зберегти пропозицію</SubmitButton></div>
+        </form>
+      </section>
+
       <section className="lab-section">
         <form action={saveLabTextAction} className="card stack">
           {hidden}
@@ -299,5 +409,24 @@ export default async function LabSessionPage({ params }: { params: Promise<{ id:
         <form action={deleteLabAction} style={{ marginTop: "0.75rem" }}>{hidden}<button className="ghost small">Так, видалити</button></form>
       </details>
     </div>
+  );
+}
+
+function ScenarioFields({ s }: { s?: { title: string; summary: string; steps_md: string; timeline: string; price_setup: number | null; price_month: number | null; pros: string; cons: string } }) {
+  return (
+    <>
+      <div className="field"><label>Назва</label><input name="title" required defaultValue={s?.title} placeholder="Напр.: Своя CRM поетапно" /></div>
+      <div className="field"><label>Суть</label><input name="summary" defaultValue={s?.summary} placeholder="1–2 речення: що це і що отримає клієнт" /></div>
+      <div className="field"><label>Кроки</label><VoiceTextarea name="steps_md" defaultValue={s?.steps_md} style={{ minHeight: "8rem" }} placeholder={"1. Бот для лідів — 3 дні\n2. Ядро CRM — 2 тижні\n3. Телефонія"} /></div>
+      <div className="form-grid">
+        <div className="field"><label>Терміни</label><input name="timeline" defaultValue={s?.timeline} placeholder="2–3 тижні" /></div>
+        <div className="field"><label>Впровадження</label><input name="price_setup" inputMode="decimal" defaultValue={s?.price_setup ?? ""} /></div>
+        <div className="field"><label>На місяць</label><input name="price_month" inputMode="decimal" defaultValue={s?.price_month ?? ""} /></div>
+      </div>
+      <div className="form-grid">
+        <div className="field"><label>Плюси (з нового рядка)</label><VoiceTextarea name="pros" defaultValue={s?.pros} /></div>
+        <div className="field"><label>Мінуси (з нового рядка)</label><VoiceTextarea name="cons" defaultValue={s?.cons} /></div>
+      </div>
+    </>
   );
 }

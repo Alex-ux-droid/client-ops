@@ -30,6 +30,7 @@ const TEMPLATES: Record<LabCategory, [string, number][]> = {
 export type LabSession = {
   id: number; client_id: number | null; client_name: string | null; title: string; category: LabCategory; status: "open" | "done";
   brief: string; notes: string; conclusion: string; chosen_option_id: number | null; created_at: string; done_at: string | null;
+  proposal_json: string; chosen_scenario_id: number | null;
   options_count?: number;
 };
 export type LabCriterion = { id: number; session_id: number; name: string; weight: number };
@@ -37,7 +38,23 @@ export type LabOption = {
   id: number; session_id: number; name: string; tool_id: number | null; link: string;
   price_month: number | null; price_setup: number | null; pros: string; cons: string; notes: string; about: string;
 };
+// Сценарій — покроковий варіант рішення з ціною і термінами
+export type LabScenario = { id: number; session_id: number; title: string; summary: string; steps_md: string; timeline: string; price_setup: number | null; price_month: number | null; pros: string; cons: string; position: number };
+// Пропозиція клієнту (A4): 5 розділів
+export const PROPOSAL = [
+  { k: "problem", label: "Проблема", q: "Яку проблему вирішуємо — коротко і зрозуміло клієнту" },
+  { k: "why", label: "Чому це проблема саме у вас", q: "Що клієнт втрачає без рішення: гроші, ліди, час, контроль. Конкретно про його бізнес, з цифрами, якщо є" },
+  { k: "offer", label: "Що ми дамо", q: "Перелік: що отримає клієнт, по пунктах — результат, а не технічні деталі" },
+  { k: "price", label: "Ціна і підтримка", q: "Скільки коштує впровадження, щомісячна підтримка, що в неї входить, терміни" },
+  { k: "bonuses", label: "Бонуси на підтримці", q: "Що додатково отримає, якщо лишиться на підтримці: плюшки, пріоритет, щомісячні звіти тощо" },
+] as const;
+export type ProposalKey = (typeof PROPOSAL)[number]["k"];
+export type Proposal = Partial<Record<ProposalKey | "title" | "subtitle", string>>;
+export const parseProposal = (j: string | null | undefined): Proposal => { try { return JSON.parse(j || "{}") as Proposal; } catch { return {}; } };
+
 export type LabFull = LabSession & {
+  scenarios: LabScenario[];
+  proposal: Proposal;
   criteria: LabCriterion[];
   options: (LabOption & { scores: Record<number, number>; total: number | null })[];
 };
@@ -75,7 +92,8 @@ export function getLab(id: number): LabFull | undefined {
     const scores = Object.fromEntries(rows.filter((r) => r.option_id === o.id).map((r) => [r.criterion_id, r.score]));
     return { ...o, scores, total: total(scores, criteria) };
   });
-  return { ...s, criteria, options };
+  const scenarios = db().prepare("SELECT * FROM lab_scenarios WHERE session_id = ? ORDER BY position, id").all(id) as LabScenario[];
+  return { ...s, criteria, options, scenarios, proposal: parseProposal(s.proposal_json) };
 }
 
 export function createLab(input: { client_id: number | null; title: string; category: LabCategory; brief?: string }): number {
@@ -93,6 +111,34 @@ export function updateLab(id: number, patch: Partial<Pick<LabSession, "client_id
   const keys = (["client_id", "title", "category", "brief", "notes", "conclusion", "chosen_option_id"] as const).filter((k) => patch[k] !== undefined);
   if (!keys.length) return;
   db().prepare(`UPDATE lab_sessions SET ${keys.map((k) => `${k} = @${k}`).join(", ")} WHERE id = @id`).run({ ...patch, id });
+}
+
+export function setChosenScenario(id: number, scenarioId: number | null): void {
+  db().prepare("UPDATE lab_sessions SET chosen_scenario_id = ? WHERE id = ?").run(scenarioId, id);
+}
+export function saveProposal(id: number, patch: Proposal): void {
+  const cur = parseProposal((db().prepare("SELECT proposal_json FROM lab_sessions WHERE id = ?").get(id) as { proposal_json: string } | undefined)?.proposal_json);
+  const next: Proposal = { ...cur };
+  for (const [k, v] of Object.entries(patch)) if (typeof v === "string") (next as Record<string, string>)[k] = v.slice(0, 8000);
+  db().prepare("UPDATE lab_sessions SET proposal_json = ? WHERE id = ?").run(JSON.stringify(next), id);
+}
+const SC_FIELDS = ["title", "summary", "steps_md", "timeline", "price_setup", "price_month", "pros", "cons"] as const;
+type ScInput = Partial<Pick<LabScenario, (typeof SC_FIELDS)[number]>>;
+export function addScenario(sessionId: number, input: ScInput & { title: string }): number {
+  const pos = (db().prepare("SELECT COALESCE(MAX(position), 0) p FROM lab_scenarios WHERE session_id = ?").get(sessionId) as { p: number }).p + 1;
+  return Number(db().prepare(`INSERT INTO lab_scenarios (session_id, title, summary, steps_md, timeline, price_setup, price_month, pros, cons, position)
+    VALUES (@session_id, @title, @summary, @steps_md, @timeline, @price_setup, @price_month, @pros, @cons, @position)`)
+    .run({ session_id: sessionId, title: input.title.slice(0, 160), summary: input.summary ?? "", steps_md: input.steps_md ?? "", timeline: input.timeline ?? "", price_setup: input.price_setup ?? null, price_month: input.price_month ?? null, pros: input.pros ?? "", cons: input.cons ?? "", position: pos }).lastInsertRowid);
+}
+export function updateScenario(id: number, patch: ScInput): void {
+  const keys = SC_FIELDS.filter((k) => patch[k] !== undefined);
+  if (!keys.length) return;
+  db().prepare(`UPDATE lab_scenarios SET ${keys.map((k) => `${k} = @${k}`).join(", ")} WHERE id = @id`).run({ ...patch, id });
+}
+export const getScenario = (id: number) => db().prepare("SELECT * FROM lab_scenarios WHERE id = ?").get(id) as LabScenario | undefined;
+export function deleteScenario(id: number): void {
+  db().prepare("UPDATE lab_sessions SET chosen_scenario_id = NULL WHERE chosen_scenario_id = ?").run(id);
+  db().prepare("DELETE FROM lab_scenarios WHERE id = ?").run(id);
 }
 
 export function setLabStatus(id: number, status: "open" | "done"): void {

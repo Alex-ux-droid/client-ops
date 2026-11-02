@@ -258,3 +258,12 @@ export async function disconnectGithubAction() {
   disconnectGithub();
   back("GitHub відключено.", true, "connectors&c=github");
 }
+
+// Повний доступ до Google Диску (scope drive) — вмикається тут, діє після перепідключення
+export async function driveFullAction(fd: FormData) {
+  await requireUser();
+  const { setSetting } = await import("@/lib/repo/settings");
+  const on = String(fd.get("on")) === "on";
+  setSetting("google.drive_full", on ? "on" : "off");
+  back(on ? "Увімкнено. Натисни «Перепідключити» — Google попросить дозвіл на повний доступ до Диску." : "Вимкнено. Щоб прибрати дозвіл у Google зовсім — перепідключи.", true, "connectors&c=google");
+}
