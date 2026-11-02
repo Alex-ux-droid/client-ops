@@ -1,4 +1,5 @@
 import Link from "next/link";
+import TabsScroll from "./TabsScroll";
 import { notFound } from "next/navigation";
 import { saveNextStep } from "@/app/actions";
 import { money } from "@/lib/config";
@@ -88,6 +89,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
           </Link>
         ))}
       </nav>
+      <TabsScroll tab={tab} />
       {tab !== "overview" && <h1 className="desk-only section-title">{tabs.find((t) => t.k === tab)?.label}</h1>}
 
       {tab === "overview" && <Overview c={c} services={services} paidTotal={paidTotal} isNew={sp.new === "1"} cplText={cplText} />}

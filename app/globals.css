@@ -707,7 +707,7 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
 .hub-compact-name { display: flex; flex-direction: column; min-width: 0; color: var(--text); }
 .hub-compact-name b { font-size: 1.25rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-compact-name:hover b { color: var(--link); }
-.hub-tabs { position: sticky; top: calc(3.75rem + env(safe-area-inset-top)); z-index: 5; background: var(--bg); }
+.hub-tabs { position: sticky; top: var(--topbar-h, calc(3.75rem + env(safe-area-inset-top))); z-index: 9; background: var(--bg); margin-left: -1rem; margin-right: -1rem; padding: 0 1rem; transform: translateZ(0); }
 @media (min-width: 900px) { .hub-tabs { top: 0; } }
 .steps { margin: 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; color: var(--muted); line-height: 1.5; }
 .steps b { color: var(--text); }
