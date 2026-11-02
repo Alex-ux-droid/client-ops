@@ -1,7 +1,7 @@
 "use client";
 // Вікно «Повідомлення клієнту»: шаблон → (що сказати) → чернетка від Джері → правка → копіювати / надіслати в групу від бота.
 import { useEffect, useRef, useState } from "react";
-import { msgDraftAction, msgSendAction, msgSetupAction } from "@/app/messages/actions";
+import { commProfileBuildAction, commProfileSaveAction, msgDraftAction, msgPromisesAction, msgPromisesSaveAction, msgSendAction, msgSetupAction } from "@/app/messages/actions";
 import { OPEN_CLIENT_MSG, type ClientMsgTarget } from "./tasks";
 import VoiceTextarea from "./VoiceTextarea";
 
@@ -15,12 +15,18 @@ export default function ClientMessage() {
   const [busy, setBusy] = useState<"" | "draft" | "send">("");
   const [msg, setMsg] = useState("");
   const note = useRef<HTMLTextAreaElement>(null);
+  const [profile, setProfile] = useState("");
+  const [profBusy, setProfBusy] = useState(false);
+  const [profMsg, setProfMsg] = useState("");
+  type P = { what: string; due: string | null; on: boolean };
+  const [promises, setPromises] = useState<P[] | null>(null);
+  const [promMsg, setPromMsg] = useState("");
 
   useEffect(() => {
     const on = (e: Event) => {
       const t = (e as CustomEvent<ClientMsgTarget>).detail;
-      setTarget(t); setSetup(null); setTpl(null); setText(""); setMsg("");
-      void msgSetupAction(t.clientId).then((s) => { setSetup(s); setTpl(s.templates[0]?.id ?? null); });
+      setTarget(t); setSetup(null); setTpl(null); setText(""); setMsg(""); setProfile(""); setProfMsg(""); setPromises(null); setPromMsg("");
+      void msgSetupAction(t.clientId).then((s) => { setSetup(s); setTpl(s.templates[0]?.id ?? null); setProfile(s.profile); });
     };
     window.addEventListener(OPEN_CLIENT_MSG, on);
     return () => window.removeEventListener(OPEN_CLIENT_MSG, on);
@@ -45,6 +51,29 @@ export default function ClientMessage() {
   }
   async function copy() {
     try { await navigator.clipboard.writeText(text); setMsg("Скопійовано ✓"); } catch { setMsg("Не вдалось скопіювати — виділи текст вручну"); }
+    void findPromises();
+  }
+  async function findPromises() {
+    setPromMsg(""); setPromises(null);
+    const r = await msgPromisesAction(text);
+    setPromises(r.map((x) => ({ ...x, on: true })));
+  }
+  async function savePromises() {
+    if (!target || !promises) return;
+    const r = await msgPromisesSaveAction(target.clientId, promises.filter((p) => p.on).map(({ what, due }) => ({ what, due })), text);
+    setPromises(null); setPromMsg(r.count ? `Поставив ${r.count} нагадування в задачі ✓` : "Нічого не поставлено");
+  }
+  async function buildProfile() {
+    if (!target) return;
+    setProfBusy(true); setProfMsg("");
+    const r = await commProfileBuildAction(target.clientId);
+    setProfBusy(false);
+    if (r.ok) { setProfile(r.profile); setProfMsg("Склав з переписки ✓"); } else setProfMsg(r.error);
+  }
+  async function saveProfile() {
+    if (!target) return;
+    await commProfileSaveAction(target.clientId, profile);
+    setProfMsg("Збережено — автоматика його більше не перезапише ✓");
   }
   async function send(chatId: number, title: string) {
     if (!target || !confirm(`Надіслати в групу «${title}» від бота?`)) return;
@@ -52,6 +81,7 @@ export default function ClientMessage() {
     const r = await msgSendAction(target.clientId, chatId, text);
     setBusy("");
     setMsg(r.ok ? `Надіслано в «${title}» ✓` : r.error ?? "Не вдалось");
+    if (r.ok) void findPromises();
   }
 
   return (
@@ -68,6 +98,16 @@ export default function ClientMessage() {
           <p className="mono">Вимкнено: Налаштування → Можливості → «Повідомлення клієнтам».</p>
         ) : (
           <div className="cm-body">
+            <details className="cm-prof">
+              <summary>Як спілкуємось з клієнтом <span className="mono">{profile ? (setup.profileSource === "manual" ? "· правив ти" : "· з переписки") : setup.texts >= 8 ? "· складеться сам при першій чернетці" : "· ще нема"}</span></summary>
+              <textarea value={profile} onChange={(e) => setProfile(e.target.value)} rows={7} placeholder={"Звертання: Миколо, на «ви»\nХто вирішує: …\nТон і довжина: …\nЩо цікавить: …\nЧого уникати: …"} aria-label="Профіль спілкування" />
+              <div className="cm-row">
+                <button type="button" className="ghost small" onClick={saveProfile}>Зберегти</button>
+                <button type="button" className="ghost small" disabled={profBusy || setup.texts < 8} onClick={buildProfile} title={setup.texts < 8 ? "Замало переписки в групі" : "Перечитати переписку і скласти заново"}>{profBusy ? "Читаю переписку…" : "Скласти з переписки"}</button>
+                <span className="mono">{setup.texts} повідомлень у групі</span>
+              </div>
+              {profMsg && <div className="mono cm-msg">{profMsg}</div>}
+            </details>
             <div className="cm-label">Про що пишемо</div>
             <div className="cm-tpls">
               {setup.templates.map((t) => <button key={t.id} type="button" className={`cm-tpl ${tpl === t.id ? "on" : ""}`} title={t.when_hint} onClick={() => setTpl(t.id)}>{t.title}</button>)}
@@ -91,6 +131,20 @@ export default function ClientMessage() {
               </>
             )}
             {msg && <div className="mono cm-msg">{msg}</div>}
+            {promises && promises.length > 0 && (
+              <div className="cm-prom">
+                <b>У тексті є обіцянки — поставити нагадування?</b>
+                {promises.map((p, i) => (
+                  <div key={i} className="cm-prom-row">
+                    <input type="checkbox" checked={p.on} onChange={(e) => setPromises(promises.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} aria-label="Поставити" />
+                    <input value={p.what} onChange={(e) => setPromises(promises.map((x, j) => (j === i ? { ...x, what: e.target.value } : x)))} aria-label="Що" />
+                    <input type="date" value={p.due ?? ""} onChange={(e) => setPromises(promises.map((x, j) => (j === i ? { ...x, due: e.target.value || null } : x)))} aria-label="До" />
+                  </div>
+                ))}
+                <div className="cm-row"><button type="button" className="small" onClick={savePromises}>Поставити в задачі</button><button type="button" className="ghost small" onClick={() => setPromises(null)}>Не треба</button></div>
+              </div>
+            )}
+            {promMsg && <div className="mono cm-msg">{promMsg}</div>}
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { agentConfig } from "./agent/config";
 import { clientSnapshot, taskSnapshot } from "./agent/context";
+import { commProfileFor } from "./commProfile";
 import { logError } from "./log";
 import { getClientRow } from "./repo/clients";
 import { getMsgTemplate, type MsgTemplate } from "./repo/msgTemplates";
@@ -40,6 +41,7 @@ export async function draftClientMessage(o: { clientId: number; taskId?: number 
   if (!c) return { ok: false, error: "Клієнта нема" };
   const task = o.taskId ? taskSnapshot(o.taskId) : null;
   const chat = tone(o.clientId);
+  const profile = await commProfileFor(o.clientId);
   const system = `Ти пишеш повідомлення клієнту від імені Саші (маркетолог/інтегратор: реклама Meta, сайти, відділи продажу). Мова — українська.
 ${templateGuide(t)}
 
@@ -47,6 +49,7 @@ ${templateGuide(t)}
   const user = [
     `Клієнт: ${c.name}${c.owner_name ? `, власник/контакт: ${c.owner_name}` : ""}${c.niche ? `, ніша: ${c.niche}` : ""}`,
     task ? `Задача, по якій пишемо (галочки [x] — зроблено, [ ] — ще ні; про незроблене не пиши як про зроблене):\n${task.text}` : "",
+    profile ? `ПРОФІЛЬ СПІЛКУВАННЯ з цим клієнтом (звертання і тон бери звідси):\n${profile}` : "",
     clientSnapshot(o.clientId),
     chat ? `Останні повідомлення в групі з клієнтом (щоб попасти в тон і звертання; не повторюй те, що вже писали):\n${chat}` : "Переписки з клієнтом у системі нема — тон нейтрально-дружній, на «ви».",
     o.note?.trim() ? `Що Саша хоче сказати / уточнення (головне, має бути в тексті):\n${o.note.trim()}` : "",
