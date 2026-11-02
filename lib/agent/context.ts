@@ -8,6 +8,7 @@ import { stepsSummary } from "../taskSteps";
 import { money } from "../config";
 import { ymd } from "../dates";
 import { getComm } from "../repo/comm";
+import { leadStats } from "../repo/leads";
 import { listPayments } from "../repo/payments";
 
 // Гроші клієнта: абонплата, борги (прострочені), очікувані, останні отримані — щоб Джері міг написати клієнту про заборгованість
@@ -71,7 +72,9 @@ export function clientSnapshot(clientId: number): string {
     if (al.length) out.push(`Тривоги: ${al.map((x) => x.text).join("; ")}`);
     const an = getAnalysis(clientId);
     if (an) out.push(`Останній розбір реклами (${an.created_at.slice(0, 10)}): ${an.data.summary}`);
-    out.push("Лід-форми (питання, налаштування) система поки не тягне з Meta — про них питай Сашу.");
+    const ls = leadStats(clientId, 7);
+    if (ls.total) out.push(`Заявки з лід-форм за 7 днів: ${ls.total}, взяли в роботу ${ls.taken}, якісних ${ls.good}, сміття ${ls.bad}, без оцінки ${ls.unrated} (деталі — інструмент leads).`);
+    else out.push("Заявок з лід-форм за 7 днів у системі нема (або сторінка не підключена — Налаштування → Конектори → Meta → «Заявки з лід-форм»).");
   } else out.push("Meta Ads: кабінет до клієнта не привʼязаний.");
   if (c.drive_url) out.push("Папка клієнта на Google Диску є — що в ній лежить (і те, що Саша закинув руками), дивись drive_list, картинки звідти — view_images.");
   out.push(moneySnapshot(clientId));

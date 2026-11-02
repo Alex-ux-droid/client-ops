@@ -33,6 +33,10 @@ import { currency, CURRENCIES } from "@/lib/config";
 import { getApiKey, hasAgentToken, maskKey } from "@/lib/secrets";
 import { systemInfo } from "@/lib/system";
 import VoiceTextarea from "@/components/VoiceTextarea";
+import LeadsSync from "@/components/LeadsSync";
+import { listPages } from "@/lib/repo/leads";
+import { missingLeadPerms } from "@/lib/metaLeads";
+import { leadsCopyOwnerAction, savePageAction } from "@/app/leads/actions";
 import { MSG_RULES_DEFAULT } from "@/lib/clientMessage";
 import { listMsgTemplates, type MsgTemplate } from "@/lib/repo/msgTemplates";
 import { deleteMsgTemplateAction, saveMsgRulesAction, saveMsgTemplateAction } from "@/app/messages/actions";
@@ -226,6 +230,47 @@ function Connectors() {
   );
 }
 
+async function LeadsCard({ clients }: { clients: { id: number; name: string }[] }) {
+  const pages = listPages();
+  const missing = await missingLeadPerms();
+  const err = getSetting("leads.last_error");
+  const last = getSetting("leads.last_sync");
+  return (
+    <div className="card stack" style={{ gridColumn: "1 / -1" }}>
+      <h2>Заявки з лід-форм</h2>
+      <div className="mono">Раз на хвилину система забирає нові заявки з форм Meta. Для сторінки з увімкненим «в групу» бот кидає заявку в Telegram-групу клієнта з кнопками «Взяли в роботу / Якісна / Сміття». Клієнта визначає за рекламним кабінетом, а якщо заявка не з реклами — за сторінкою.</div>
+      {missing && missing.length > 0 && (
+        <div className="callout" style={{ borderColor: "var(--warn)" }}>
+          <b>Токену бракує дозволів: {missing.join(", ")}.</b> Згенеруй новий маркер у Graph API Explorer: ті самі дозволи (ads_read) плюс ці, «Продовжити маркер» → встав у «Оновити токен» вище. Якщо сторінка в Business Manager — там же в «Доступ до лідів» (Leads Access) дай доступ собі.
+        </div>
+      )}
+      {err && <div className="callout" style={{ borderColor: "var(--warn)" }}>{err}</div>}
+      <div className="mono">{last ? `Востаннє перевірено ${new Date(last).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : "Ще не перевіряли"} · Перша перевірка сторінки тягне заявки за 30 днів у базу без надсилання.</div>
+      <LeadsSync />
+      {pages.length === 0 && <div className="empty">Сторінок ще не видно — натисни «Перевірити заявки зараз».</div>}
+      {pages.map((p) => (
+        <form key={p.page_id} action={savePageAction} className="tg-chat">
+          <input type="hidden" name="page_id" value={p.page_id} />
+          <div style={{ minWidth: 0 }}>
+            <b>{p.name}</b>
+            <div className="mono" style={{ color: p.last_error ? "var(--warn)" : "var(--dim)" }}>{p.last_error || (p.last_lead_time ? "заявки тягнуться" : "ще не перевірялась")}</div>
+          </div>
+          <select name="client_id" defaultValue={p.client_id ?? ""} aria-label="Клієнт">
+            <option value="">— клієнт —</option>
+            {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <label className="lp-check"><input type="checkbox" name="leads_on" defaultChecked={!!p.leads_on} /> в групу</label>
+          <button className="ghost small">Зберегти</button>
+        </form>
+      ))}
+      <form action={leadsCopyOwnerAction} className="inline">
+        <label className="lp-check"><input type="checkbox" name="copy" defaultChecked={getSetting("leads.copy_owner") === "on"} /> Копію кожної заявки — мені в Telegram</label>
+        <button className="ghost small">Зберегти</button>
+      </form>
+    </div>
+  );
+}
+
 function MetaTab() {
   const token = metaToken();
   const accounts = token ? listAccounts() : [];
@@ -273,6 +318,7 @@ function MetaTab() {
             </>
           )}
         </div>
+        {token && <LeadsCard clients={clients} />}
         {token && (
           <div className="card stack">
             <h2>Кабінети</h2>

@@ -14,7 +14,7 @@ export const metaToken = () => process.env.META_ACCESS_TOKEN?.trim() || null;
 
 type Paged<T> = { data?: T[]; paging?: { next?: string }; error?: { message: string; code?: number } };
 
-async function get<T>(path: string, params: Record<string, string> = {}, tokenOverride?: string): Promise<T> {
+export async function metaGet<T>(path: string, params: Record<string, string> = {}, tokenOverride?: string): Promise<T> {
   const token = tokenOverride ?? metaToken();
   if (!token) throw new Error("Meta не підключена");
   const url = path.startsWith("http") ? path : `${BASE()}/${VERSION()}/${path}?${new URLSearchParams({ ...params, access_token: token })}`;
@@ -43,13 +43,13 @@ async function get<T>(path: string, params: Record<string, string> = {}, tokenOv
 }
 
 // Усі сторінки результату (Meta віддає порціями)
-async function all<T>(path: string, params: Record<string, string>, token?: string): Promise<T[]> {
+export async function metaAll<T>(path: string, params: Record<string, string>, token?: string): Promise<T[]> {
   const out: T[] = [];
-  let page = await get<Paged<T>>(path, params, token);
+  let page = await metaGet<Paged<T>>(path, params, token);
   for (let i = 0; i < 50; i++) {
     out.push(...(page.data ?? []));
     if (!page.paging?.next) break;
-    page = await get<Paged<T>>(page.paging.next, {}, token);
+    page = await metaGet<Paged<T>>(page.paging.next, {}, token);
   }
   return out;
 }
@@ -78,7 +78,7 @@ export function disconnectMeta(): void {
 
 export async function refreshAccounts(token?: string): Promise<number> {
   type A = { id: string; name: string; currency: string; account_status: number; disable_reason?: number; business_name?: string };
-  const list = await all<A>("me/adaccounts", { fields: "id,name,currency,account_status,disable_reason,business_name", limit: "200" }, token);
+  const list = await metaAll<A>("me/adaccounts", { fields: "id,name,currency,account_status,disable_reason,business_name", limit: "200" }, token);
   for (const a of list) {
     upsertAccount({ account_id: a.id, name: a.name ?? a.id, currency: a.currency ?? "", account_status: a.account_status ?? null, disable_reason: a.disable_reason ?? null, business_name: a.business_name ?? "" });
   }
@@ -108,7 +108,7 @@ const CREATIVE_FIELDS = "thumbnail_url,image_url,image_hash,video_id,title,body,
 async function fetchAds(accountId: string, ids: string[], fields: string): Promise<AdInfo[]> {
   const out: AdInfo[] = [];
   for (let i = 0; i < ids.length; i += 50) {
-    out.push(...(await all<AdInfo>(`${accountId}/ads`, {
+    out.push(...(await metaAll<AdInfo>(`${accountId}/ads`, {
       fields, filtering: JSON.stringify([{ field: "id", operator: "IN", value: ids.slice(i, i + 50) }]), limit: "50",
     })));
   }
@@ -144,7 +144,7 @@ async function loadCreatives(accountId: string, adIds: string[]): Promise<Record
   const hashes = [...new Set(list.flatMap((a) => hashesOf(a.creative)))];
   try {
     for (let i = 0; i < hashes.length; i += 50) {
-      const imgs = await all<{ hash: string; url?: string; permalink_url?: string }>(`${accountId}/adimages`, { hashes: JSON.stringify(hashes.slice(i, i + 50)), fields: "hash,url,permalink_url", limit: "50" });
+      const imgs = await metaAll<{ hash: string; url?: string; permalink_url?: string }>(`${accountId}/adimages`, { hashes: JSON.stringify(hashes.slice(i, i + 50)), fields: "hash,url,permalink_url", limit: "50" });
       for (const x of imgs) if (x.url || x.permalink_url) full[x.hash] = (x.url || x.permalink_url)!;
     }
   } catch (e) {
@@ -160,7 +160,7 @@ async function loadCreatives(accountId: string, adIds: string[]): Promise<Record
   }).filter(Boolean) as string[])].slice(0, 30);
   for (const vid of needVideo) {
     try {
-      const v = await get<{ picture?: string; thumbnails?: { data?: { uri: string; width?: number; is_preferred?: boolean }[] } }>(vid, { fields: "picture,thumbnails{uri,width,is_preferred}" });
+      const v = await metaGet<{ picture?: string; thumbnails?: { data?: { uri: string; width?: number; is_preferred?: boolean }[] } }>(vid, { fields: "picture,thumbnails{uri,width,is_preferred}" });
       const th = v.thumbnails?.data ?? [];
       const best = th.find((t) => t.is_preferred) ?? th.sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0];
       if (best?.uri || v.picture) videoCover[vid] = best?.uri || v.picture!;
@@ -197,13 +197,13 @@ export async function syncAccount(accountId: string): Promise<void> {
   const range = JSON.stringify({ since, until });
   try {
     type C = { id: string; name: string; effective_status: string; objective?: string; daily_budget?: string; lifetime_budget?: string };
-    const camps = await all<C>(`${accountId}/campaigns`, { fields: "id,name,effective_status,objective,daily_budget,lifetime_budget", limit: "200" });
+    const camps = await metaAll<C>(`${accountId}/campaigns`, { fields: "id,name,effective_status,objective,daily_budget,lifetime_budget", limit: "200" });
 
     type I = { campaign_id?: string; adset_id?: string; ad_id?: string; date_start: string; spend?: string; impressions?: string; clicks?: string; reach?: string; actions?: Action[] } & Record<string, string | Action[] | undefined>;
-    const daily = await all<I>(`${accountId}/insights`, {
+    const daily = await metaAll<I>(`${accountId}/insights`, {
       level: "campaign", fields: "campaign_id,spend,impressions,clicks,actions", time_range: range, time_increment: "1", limit: "500",
     });
-    const adStats = await all<I>(`${accountId}/insights`, {
+    const adStats = await metaAll<I>(`${accountId}/insights`, {
       level: "ad", fields: "ad_id,adset_id,campaign_id,spend,impressions,clicks,reach,actions", time_range: range, limit: "500",
     });
 
@@ -211,8 +211,8 @@ export async function syncAccount(accountId: string): Promise<void> {
     let adsets: Omit<MetaAdset, "account_id">[] | undefined;
     try {
       type S = { id: string; name: string; campaign_id: string; effective_status: string; daily_budget?: string; lifetime_budget?: string; optimization_goal?: string };
-      const list = await all<S>(`${accountId}/adsets`, { fields: "id,name,campaign_id,effective_status,daily_budget,lifetime_budget,optimization_goal", limit: "200" });
-      const st = await all<I>(`${accountId}/insights`, { level: "adset", fields: "adset_id,spend,impressions,clicks,reach,actions", time_range: range, limit: "500" });
+      const list = await metaAll<S>(`${accountId}/adsets`, { fields: "id,name,campaign_id,effective_status,daily_budget,lifetime_budget,optimization_goal", limit: "200" });
+      const st = await metaAll<I>(`${accountId}/insights`, { level: "adset", fields: "adset_id,spend,impressions,clicks,reach,actions", time_range: range, limit: "500" });
       const by = new Map(st.map((x) => [x.adset_id, x]));
       adsets = list.map((a) => {
         const x = by.get(a.id);
@@ -236,7 +236,7 @@ export async function syncAccount(accountId: string): Promise<void> {
     ];
     for (const c of cuts) {
       try {
-        const rows = await all<I>(`${accountId}/insights`, { level: "account", fields: "spend,impressions,clicks,reach,actions", time_range: range, limit: "500", ...(c.by ? { breakdowns: c.by } : {}) });
+        const rows = await metaAll<I>(`${accountId}/insights`, { level: "account", fields: "spend,impressions,clicks,reach,actions", time_range: range, limit: "500", ...(c.by ? { breakdowns: c.by } : {}) });
         for (const x of rows) breakdowns.push({ kind: c.kind, key: c.key(x), spend: num(x.spend), impressions: num(x.impressions), clicks: num(x.clicks), leads: leadsOf(x.actions), reach: num(x.reach) });
       } catch (e) {
         logError(`meta-breakdown ${c.kind} ${accountId}`, e);
