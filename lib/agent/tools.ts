@@ -128,6 +128,8 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "get_playbook", description: "Текст плейбука.", input_schema: obj({ playbook_id: int("ID плейбука") }, ["playbook_id"]) },
   { name: "attach_playbook", description: "Підключити плейбук до клієнта.", input_schema: obj({ client_id: int("ID клієнта"), playbook_id: int("ID плейбука") }, ["client_id", "playbook_id"]) },
   { name: "make_pdf", description: "Зробити PDF з markdown. format document (A4 документ): # заголовки, абзаци, списки - і 1., чекліст - [ ], **жирне**, --- лінія, таблиці | a | b |; «на одну сторінку» — ~350 слів. format slides (презентація, A4 горизонтально, темна фірмова): перший абзац — підзаголовок титульного, кожен «## Назва» — новий слайд (3–6 пунктів на слайд), картки-цифри рядками «+ Підпис: значення» (до 4 в ряд), таблиці, списки, **жирне». Повертає file_id і посилання; у Telegram-розмові з Сашею файл одразу йде йому (send_to_telegram:false — не надсилати, напр. якщо далі шлеш у групу клієнта).", input_schema: obj({ title: str("Заголовок документа"), format: { type: "string", enum: ["document", "slides"] }, content: str("Вміст у markdown (без заголовка — він окремо)"), file_name: str("Назва файлу, необовʼязково"), client_id: int("Клієнт, якщо документ про нього"), send_to_telegram: { type: "boolean", description: "Надіслати Саші в Telegram (у Telegram-розмові — завжди)" }, caption: str("Підпис до файлу в Telegram") }, ["title", "content"]) },
+  { name: "client_money", description: "Гроші клієнта: абонплата, день оплати, БОРГ (прострочені оплати з сумами і датами), очікувані, останні отримані. Для повідомлення клієнту про заборгованість — це + message_templates (шаблон «Оплата»).", input_schema: obj({ client_id: int("ID клієнта") }, ["client_id"]) },
+  { name: "comm_profile", description: "Профіль спілкування з клієнтом (звертання, хто вирішує, тон, що цікавить, чого уникати). action get — прочитати; build — скласти заново з переписки групи; save — записати текст (коли Саша сам каже, як з клієнтом говорити).", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["get", "build", "save"] }, profile: str("Текст профілю для save") }, ["client_id", "action"]) },
   { name: "message_templates", description: "Шаблони повідомлень клієнтам (Налаштування → Повідомлення): структура під подію (запуск реклами, звіт, що зробили, проблема, потрібно від клієнта, оплата) + загальні правила тону + приклад. ЗАВЖДИ викликай перед тим, як писати чернетку повідомлення клієнту, і пиши строго по структурі обраного шаблону. Без template_id — список; з template_id — повна структура.", input_schema: obj({ template_id: int("ID шаблону зі списку") }) },
   { name: "telegram_group_send", description: "Надіслати в Telegram-групу КЛІЄНТА повідомлення і/або файл (file_id з make_pdf) від імені бота. ТІЛЬКИ коли Саша прямо попросив відправити в групу/клієнту в цій розмові — ніколи з власної ініціативи. Текст — для клієнта: ввічливо, без внутрішніх нотаток, націнок і думок Саші. sasha_request — дослівні слова Саші з проханням.", input_schema: obj({ client_id: int("ID клієнта"), chat_id: int("ID групи, якщо в клієнта їх кілька (telegram_chats)"), text: str("Повідомлення або підпис до файлу"), file_id: int("ID файлу з make_pdf"), sasha_request: str("Дослівно, що Саша попросив") }, ["client_id", "sasha_request"]) },
   { name: "telegram_send", description: "Надіслати Саші в Telegram повідомлення (text) або файл (file_id з make_pdf). Для нагадувань, коли він просить «скинь мені в телеграм».", input_schema: obj({ text: str("Текст або підпис до файлу"), file_id: int("ID файлу з make_pdf") }, []) },
@@ -432,6 +434,34 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       return { ok: true, file_id: f.id, url: `/api/files/${f.id}`, pages_hint: "A4", sent_to_telegram: telegram };
     }
 
+    case "client_money": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      need(getClientRow(cid), "Клієнта нема");
+      const { moneySnapshot } = await import("./context");
+      return { money: moneySnapshot(cid) };
+    }
+
+    case "comm_profile": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      need(getClientRow(cid), "Клієнта нема");
+      const { getComm, saveComm } = await import("../repo/comm");
+      if (input.action === "build") {
+        const { buildCommProfile } = await import("../commProfile");
+        const r = await buildCommProfile(cid);
+        if (!r.ok) throw new Error(r.error);
+        act("client", "Профіль спілкування оновлено", `/clients/${cid}`);
+        return { profile: r.profile };
+      }
+      if (input.action === "save") {
+        const text = need(s(input.profile), "profile порожній");
+        saveComm(cid, text, "manual");
+        act("client", "Профіль спілкування записано", `/clients/${cid}`);
+        return { ok: true };
+      }
+      const c = getComm(cid);
+      return c ? { profile: c.profile, source: c.source, updated_at: c.updated_at } : { profile: "", hint: "Профілю ще нема — action build (потрібна переписка в групі) або save зі слів Саші" };
+    }
+
     case "message_templates": {
       const { listMsgTemplates, getMsgTemplate } = await import("../repo/msgTemplates");
       const { templateGuide } = await import("../clientMessage");
@@ -451,6 +481,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       need(chat, `У клієнта кілька груп: ${chats.map((c) => `${c.title} (${c.chat_id})`).join(", ")} — уточни chat_id`);
       const { sendToGroup } = await import("../telegram");
       await sendToGroup(chat!.chat_id, s(input.text), input.file_id ? Math.trunc(n(input.file_id)) : null);
+      if (s(input.text)) { const { promisesFromGroup } = await import("../promises"); await promisesFromGroup(cid, s(input.text), chat!.title).catch(() => {}); }
       act("telegram", `У групу «${chat!.title}»${input.file_id ? ": файл" : ""}`, `/clients/${cid}?tab=telegram`);
       return { ok: true, chat: chat!.title };
     }

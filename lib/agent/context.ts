@@ -5,6 +5,32 @@ import { getClientRow } from "../repo/clients";
 import { accountsForClient, adsForClient, adsetsForClient, campaignsWithStats, getAnalysis, kyivDay, metaAlerts, totals } from "../repo/meta";
 import { getTask, listTasks, taskItems, taskLinks } from "../repo/tasks";
 import { stepsSummary } from "../taskSteps";
+import { money } from "../config";
+import { ymd } from "../dates";
+import { getComm } from "../repo/comm";
+import { listPayments } from "../repo/payments";
+
+// Гроші клієнта: абонплата, борги (прострочені), очікувані, останні отримані — щоб Джері міг написати клієнту про заборгованість
+export function moneySnapshot(clientId: number): string {
+  const c = getClientRow(clientId);
+  if (!c) return "";
+  const today = ymd();
+  const all = listPayments({ clientId });
+  const open = all.filter((p) => !p.paid_at);
+  const overdue = open.filter((p) => p.due_date < today);
+  const upcoming = open.filter((p) => p.due_date >= today).reverse().slice(0, 3);
+  const paid = all.filter((p) => p.paid_at).sort((a, b) => (b.paid_at ?? "").localeCompare(a.paid_at ?? "")).slice(0, 3);
+  const line = (p: (typeof all)[number]) => `${money(p.amount)} — ${p.paid_at ? `оплачено ${p.paid_at}` : `до ${p.due_date}`}${p.note ? ` (${p.note})` : ""} [payment_id ${p.id}]`;
+  const debt = overdue.reduce((a, p) => a + p.amount, 0);
+  const out = [
+    `Гроші: абонплата ${c.fee_monthly ? `${money(c.fee_monthly)}/міс, день оплати ${c.pay_day || "—"}` : "не вказана"}.`,
+    overdue.length ? `БОРГ (прострочено) ${money(debt)}:\n${overdue.map((p) => `- ${line(p)}`).join("\n")}` : "Боргів нема (прострочених оплат у системі нема).",
+    upcoming.length ? `Очікуються:\n${upcoming.map((p) => `- ${line(p)}`).join("\n")}` : "",
+    paid.length ? `Останні отримані:\n${paid.map((p) => `- ${line(p)}`).join("\n")}` : "Отриманих оплат у системі ще нема.",
+    !all.length ? "Оплат по клієнту в системі не записано — якщо Саша питає про борг, скажи це прямо і запропонуй внести (add_payment)." : "",
+  ];
+  return out.filter(Boolean).join("\n");
+}
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const cpl = (s: number, l: number) => (l ? r2(s / l) : null);
@@ -48,6 +74,9 @@ export function clientSnapshot(clientId: number): string {
     out.push("Лід-форми (питання, налаштування) система поки не тягне з Meta — про них питай Сашу.");
   } else out.push("Meta Ads: кабінет до клієнта не привʼязаний.");
   if (c.drive_url) out.push("Папка клієнта на Google Диску є — що в ній лежить (і те, що Саша закинув руками), дивись drive_list, картинки звідти — view_images.");
+  out.push(moneySnapshot(clientId));
+  const comm = getComm(clientId);
+  if (comm?.profile) out.push(`Як спілкуватись з клієнтом (профіль${comm.source === "manual" ? ", правив Саша" : " з переписки"}):\n${comm.profile}`);
   const tasks = listTasks("all", clientId).filter((t) => t.status !== "done").slice(0, 10);
   if (tasks.length) out.push(`Задачі в роботі:\n${tasks.map((t) => `- #${t.id} «${t.title}»${t.due_date ? ` до ${t.due_date}` : ""}${t.items_total ? ` — ${t.items_done}/${t.items_total} підзадач` : ""}`).join("\n")}`);
   return `Знімок клієнта «${c.name}» (актуальний на цю мить, з бази):\n${out.join("\n")}`;

@@ -8,9 +8,10 @@ import { getSetting, setSetting } from "./repo/settings";
 import { ensureSubfolder, folderExists, folderIdFromUrl, folderUrl, googleConnected, GoogleReconnectError, uploadFile } from "./google";
 import { getClient } from "./repo/clients";
 import { listFolders, saveFolder } from "./repo/services";
-import { addMessage, editMessage, getTgFile, knownChat, pendingTgFiles, setDriveId, setMessageText, upsertChat } from "./repo/telegram";
+import { addMessage, chatClient, editMessage, getTgFile, knownChat, pendingTgFiles, setDriveId, setMessageText, upsertChat } from "./repo/telegram";
 import { setEnvVar } from "./secrets";
 import { transcribe, voiceKey } from "./voice";
+import { promisesFromGroup } from "./promises";
 
 const API = () => process.env.TELEGRAM_API_BASE || "https://api.telegram.org";
 export const tgToken = () => process.env.TELEGRAM_BOT_TOKEN?.trim() || null;
@@ -215,14 +216,21 @@ export async function handleUpdate(u: TgUpdate): Promise<void> {
     tg_file_id: p.file?.id ?? "", file_size: p.file?.size ?? 0, mime: p.file?.mime ?? "",
   });
   if (p.file && rowId) await saveTgFileToDrive(rowId).catch((e) => logError("telegram-drive", e));
+  let said = p.text;
   if (p.voiceId && rowId) {
     try {
       const t = await voiceToText(p.voiceId);
+      said = t;
       setMessageText(rowId, t || `[голосове${p.duration ? `, ${p.duration} с` : ""} — розшифровка вимкнена: підключи ElevenLabs]`);
     } catch (e) {
       logError("telegram-voice", e);
       setMessageText(rowId, `[голосове${p.duration ? `, ${p.duration} с` : ""} — не вдалось розшифрувати]`);
     }
+  }
+  // Саша щось пообіцяв клієнту в групі → задача-нагадування (тумблер auto.promises)
+  if (fromOwner && rowId && said?.trim()) {
+    const ch = chatClient(m.chat.id);
+    if (ch?.client_id) await promisesFromGroup(ch.client_id, said, ch.title).catch((e) => logError("promises", e));
   }
 }
 

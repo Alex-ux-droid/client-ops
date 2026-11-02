@@ -93,3 +93,7 @@ export function pendingTgFiles(chatId: number, limit = 200): TgFile[] {
 export function setDriveId(id: number, driveId: string): void {
   db().prepare("UPDATE tg_messages SET drive_id = ? WHERE id = ?").run(driveId, id);
 }
+
+export function chatClient(chatId: number): { client_id: number | null; title: string } | undefined {
+  return db().prepare("SELECT client_id, title FROM tg_chats WHERE chat_id = ?").get(chatId) as { client_id: number | null; title: string } | undefined;
+}
