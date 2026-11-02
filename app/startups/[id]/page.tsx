@@ -23,6 +23,7 @@ import {
   addItemAction, addStartupTaskAction, deleteItemAction, deleteStartupAction, saveStartupAction, updateItemAction,
 } from "../actions";
 import Monitor from "./Monitor";
+import ProductMap from "./views/ProductMap";
 import { IssuesView, KnowledgeView } from "./views/BuildViews";
 import { openIssueCount } from "@/lib/repo/startupIssues";
 import StartupAssistant from "./StartupAssistant";
@@ -173,6 +174,7 @@ function Overview({ s, items }: { s: Startup; items: StartupItem[] }) {
   const doneT = curTasks.filter((t) => t.status === "done").length;
 
   return (
+    <>
     <div className="su-ov">
       <div className="su-ov-main">
         <form action={saveStartupAction} className="card su-next">
@@ -283,6 +285,8 @@ function Overview({ s, items }: { s: Startup; items: StartupItem[] }) {
         </div>
       </div>
     </div>
+    <ProductMap s={s} items={items} />
+    </>
   );
 }
 

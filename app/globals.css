@@ -1823,3 +1823,30 @@ textarea.vt-ghost::placeholder { color: transparent; }
 .su-q-ans { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
 .su-q-ans li { display: flex; flex-direction: column; gap: 0.125rem; font-size: 0.9375rem; }
 .su-q-ans span { color: var(--muted); }
+
+/* Карта продукту (стартап → Огляд) */
+.pm { display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; }
+.pm-hero { padding: 1rem 1.125rem; border-radius: 12px; background: linear-gradient(135deg, rgba(61, 107, 255, 0.18), rgba(61, 107, 255, 0.04)); border: 1px solid rgba(61, 107, 255, 0.35); }
+.pm-name { font-size: 1.5rem; font-weight: 700; }
+.pm-cat { color: var(--link); font-size: 0.9375rem; margin-top: 0.125rem; }
+.pm-hero p { margin: 0.5rem 0 0; color: var(--text); }
+.pm-grid { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr)); }
+.pm-block { border: 1px solid var(--line); border-radius: 12px; padding: 0.75rem 0.875rem; display: flex; flex-direction: column; gap: 0.375rem; font-size: 0.9375rem; }
+.pm-block.empty { border-style: dashed; opacity: 0.8; }
+.pm-h { display: flex; justify-content: space-between; gap: 0.5rem; }
+.pm-h a { color: var(--link); }
+.pm-block p { margin: 0; }
+.pm-block ul, .pm-block ol { margin: 0; padding-left: 1.125rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.pm-block small { color: var(--muted); }
+.pm-none { color: var(--dim); font-size: 0.875rem; }
+.pm-mods { list-style: none; padding: 0 !important; }
+.pm-mods li { display: flex; justify-content: space-between; gap: 0.5rem; }
+.pm-mods em { font-style: normal; font-size: 0.8125rem; color: var(--muted); }
+.pm-mods li.s-done em { color: var(--ok); } .pm-mods li.s-doing em { color: var(--link); }
+.pm-rel li.s-shipped { color: var(--ok); }
+.pm-nums { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; }
+.pm-nums div { display: flex; flex-direction: column; }
+.pm-nums b { font-size: 1.125rem; } .pm-nums b.ok { color: var(--ok); } .pm-nums b.bad { color: var(--bad); }
+.pm-nums span { color: var(--muted); font-size: 0.8125rem; }
+.pm-next { color: var(--link); font-size: 0.875rem; }
+.pm-edit > summary { cursor: pointer; color: var(--link); font-size: 0.875rem; margin-top: 0.5rem; }
