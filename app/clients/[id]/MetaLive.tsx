@@ -10,6 +10,12 @@ import {
   type Breakdown, type MetaAd, type MetaAdset,
 } from "@/lib/repo/meta";
 import CreativeGallery, { type GalleryItem } from "./CreativeGallery";
+import CreativeGen from "./CreativeGen";
+import { CopyText } from "@/app/startups/[id]/CopyText";
+import VoiceTextarea from "@/components/VoiceTextarea";
+import { brandAction, changeAction, promptUpdateAction } from "@/app/creatives/actions";
+import { brandOf, FORMATS, promptStats } from "@/lib/creativeLab";
+import { adIdsOf, listChanges, listPrompts } from "@/lib/repo/creatives";
 import { leadBotDisconnectAction, leadBotInviteAction, leadBotUserAction, leadRouteAction, rateLeadAction } from "@/app/leads/actions";
 import { botUsers, clientLeads, getRoute, leadFields, leadStats, listPages } from "@/lib/repo/leads";
 import { chatsForClient } from "@/lib/repo/telegram";
@@ -237,7 +243,7 @@ function Tree({ clientId, m }: { clientId: number; m: Fmt }) {
 // ---------- Креативи: маленькі плитки, наведення — збільшення, клік — на весь екран
 function Creatives({ clientId, m }: { clientId: number; m: Fmt }) {
   const ads = adsForClient(clientId);
-  if (!ads.length) return <p style={{ color: "var(--muted)" }}>Креативів з витратами за 30 днів нема.</p>;
+  if (!ads.length) return <><p style={{ color: "var(--muted)" }}>Креативів з витратами за 30 днів нема.</p><CreativePrompts clientId={clientId} m={m} ads={ads} /></>;
   const tot = ads.reduce((s, a) => ({ spend: s.spend + a.spend_30d, leads: s.leads + a.leads_30d, clicks: s.clicks + a.clicks_30d, impressions: s.impressions + a.impressions_30d }), { spend: 0, leads: 0, clicks: 0, impressions: 0 });
   const avg = { cpl: cplOf(tot), ctr: ctrOf(tot), spend: tot.spend };
   const ai = getAnalysis(clientId)?.data.creatives ?? {};
@@ -264,6 +270,7 @@ function Creatives({ clientId, m }: { clientId: number; m: Fmt }) {
     <>
       <div className="mono">Креативи за 30 днів, від найбільших витрат · середня ціна ліда {m(avg.cpl)} · наведи — збільшиться, натисни — на весь екран</div>
       <CreativeGallery items={items} />
+      <CreativePrompts clientId={clientId} m={m} ads={ads} />
     </>
   );
 }
@@ -406,6 +413,89 @@ function LeadRouting({ clientId }: { clientId: number }) {
   );
 }
 
+// Промпти креативів: генерація, бренд, привʼязка до оголошень → цифри, вердикт
+function CreativePrompts({ clientId, m, ads }: { clientId: number; m: Fmt; ads: ReturnType<typeof adsForClient> }) {
+  const list = listPrompts(clientId);
+  const brand = brandOf(clientId);
+  return (
+    <section className="stack" style={{ gap: "0.75rem", marginTop: "1rem" }}>
+      <h3 style={{ margin: 0 }}>Промпти креативів</h3>
+      <CreativeGen clientId={clientId} formats={FORMATS} />
+      <details className="card">
+        <summary><b>Бренд клієнта</b> <span className="mono">{brand ? "заповнено" : "порожньо — Джері візьме нейтральний стиль"}</span></summary>
+        <form action={brandAction} className="stack" style={{ gap: "0.5rem", marginTop: "0.75rem" }}>
+          <input type="hidden" name="client_id" value={clientId} />
+          <VoiceTextarea name="brand" defaultValue={brand} placeholder={"Кольори: #0e3b2e, золотий акцент\nШрифт: строгий без засічок\nЛоготип: є, кутом\nТон: преміально, спокійно, без «акцій»\nФото: обʼєкт, тераса, гори"} style={{ minHeight: "6rem" }} />
+          <div><SubmitButton className="small">Зберегти</SubmitButton></div>
+        </form>
+      </details>
+      {list.map((p) => {
+        const st = promptStats(p, ads);
+        return (
+          <details key={p.id} className={`card cg-prompt ${p.verdict}`}>
+            <summary>
+              {p.verdict === "win" ? <span className="tag ok">спрацював</span> : p.verdict === "lose" ? <span className="tag bad">не спрацював</span> : st.ads.length ? <span className="tag accent">у рекламі</span> : <span className="tag">чернетка</span>}
+              <b>{p.title}</b>
+              <span className="mono">{p.format}{st.ads.length ? ` · ${st.leads} лідів · ціна ліда ${m(st.cpl)} · CTR ${st.ctr == null ? "—" : `${st.ctr.toFixed(2)}%`}` : ""} · {fmtDate(p.created_at)}</span>
+            </summary>
+            {p.angle && <p className="mono" style={{ margin: 0 }}>Кут: {p.angle}</p>}
+            <pre className="su-iss-pre">{p.prompt}</pre>
+            <div className="inline" style={{ flexWrap: "wrap" }}><CopyText text={p.prompt} label="Копіювати промпт" /></div>
+            <form action={promptUpdateAction} className="stack" style={{ gap: "0.5rem" }}>
+              <input type="hidden" name="prompt_id" value={p.id} />
+              {ads.length > 0 && (
+                <details>
+                  <summary className="h-link">Оголошення з цього промпту ({st.ads.length})</summary>
+                  <div className="stack" style={{ gap: "0.25rem", marginTop: "0.5rem" }}>
+                    <input type="hidden" name="ad_ids" value="" />
+                    {ads.map((a) => <label key={a.ad_id} className="lp-check"><input type="checkbox" name="ad_ids" value={a.ad_id} defaultChecked={adIdsOf(p).includes(a.ad_id)} /> {a.name}</label>)}
+                  </div>
+                </details>
+              )}
+              <div className="inline" style={{ flexWrap: "wrap" }}>
+                <select name="verdict" defaultValue={p.verdict} aria-label="Результат"><option value="">— результат —</option><option value="win">спрацював</option><option value="lose">не спрацював</option></select>
+                <input name="notes" defaultValue={p.notes} placeholder="Нотатка: що змінив, чому" />
+                <SubmitButton className="ghost small">Зберегти</SubmitButton>
+                <button name="delete" value="1" className="ghost small danger-text">Видалити</button>
+              </div>
+            </form>
+          </details>
+        );
+      })}
+    </section>
+  );
+}
+
+// Журнал змін реклами: що змінили → чого чекали → що вийшло
+function Changes({ clientId }: { clientId: number }) {
+  const list = listChanges(clientId);
+  return (
+    <section className="stack" style={{ gap: "0.75rem" }}>
+      <div className="mx-main-head"><b>Журнал змін реклами</b><span>що змінили → що вийшло · іде в розбір Джері і звіт клієнту</span></div>
+      <form action={changeAction} className="card mk-form">
+        <input type="hidden" name="client_id" value={clientId} />
+        <input name="what" required placeholder="Що змінили: напр. «вимкнули Чехію, бюджет +$5 на Україну»" className="wide" />
+        <input name="why" placeholder="Чому" />
+        <input name="expect" placeholder="Чого чекаємо: напр. «ціна ліда < $8»" />
+        <input name="at" type="date" aria-label="Коли" />
+        <div><SubmitButton className="small">Записати зміну</SubmitButton></div>
+      </form>
+      {list.map((c) => (
+        <div key={c.id} className="card cg-change">
+          <div><b>{fmtDate(c.at)}</b> · {c.what}</div>
+          {(c.why || c.expect) && <div className="mono">{c.why && `Чому: ${c.why}`}{c.why && c.expect ? " · " : ""}{c.expect && `Чекаємо: ${c.expect}`}</div>}
+          <form action={changeAction} className="inline" style={{ flexWrap: "wrap" }}>
+            <input type="hidden" name="change_id" value={c.id} /><input type="hidden" name="client_id" value={clientId} />
+            <input name="result" defaultValue={c.result} placeholder="Що вийшло (через кілька днів)" />
+            <SubmitButton className="ghost small">Зберегти</SubmitButton>
+            <button name="delete" value="1" className="ghost small danger-text">×</button>
+          </form>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 function Analysis({ clientId, m, err }: { clientId: number; m: Fmt; err?: string }) {
   const ins = metaInsights(clientId, m);
   const a = getAnalysis(clientId);
@@ -430,8 +520,10 @@ function Analysis({ clientId, m, err }: { clientId: number; m: Fmt; err?: string
           <List title="Що добре" items={a.data.pros} tone="good" />
           <List title="Що погано" items={a.data.cons} tone="bad" />
           <List title="Що зробити" items={a.data.tips} tone="tip" />
+          <List title="Патерни: що спрацьовує" items={a.data.patterns} tone="tip" />
         </div>
       )}
+      <Changes clientId={clientId} />
       <div className="mono">Автоматичні висновки по цифрах (оновлюються з кожною синхронізацією)</div>
       <div className="mx-lists">
         <List title="Плюси" items={ins.pros} tone="good" />

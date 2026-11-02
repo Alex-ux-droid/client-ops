@@ -5,12 +5,15 @@ import { agentConfig } from "./agent/config";
 import { getApiKey } from "./secrets";
 import { accountsForClient, adsForClient, adsetsForClient, breakdowns, campaignsWithStats, kyivDay, saveAnalysis, totals, type MetaAnalysis } from "./repo/meta";
 import { cplOf, ctrOf, freqOf, label } from "./metaInsights";
+import { listChanges, listPrompts } from "./repo/creatives";
+import { promptStats } from "./creativeLab";
 
 const PROMPT = `Ти — Джері, сильний таргетолог і права рука Саші (він веде рекламу клієнтів у Meta). Тобі дають цифри рекламного кабінету клієнта за 30 днів і картинки креативів.
 Зроби чесний практичний розбір: що працює, що зливає гроші, що конкретно зробити, щоб ліди стали дешевші і їх стало більше.
 Дивись на самі креативи: перший кадр, оффер, читабельність, контраст, чи зрозуміло за 1 секунду, заклик. Порівнюй з цифрами (ціна ліда, CTR, частота).
 Пиши українською, коротко, простими словами, без води і без загальних порад «тестуйте більше». Кожна порада — конкретна дія з назвою кампанії/креативу/сегмента.
 Цифри бери тільки з даних, нічого не вигадуй. Якщо даних мало для висновку — так і скажи.
+Шукай ПАТЕРНИ: що спільного в креативах з дешевими лідами і в тих, що зливають. Враховуй журнал змін (changes: що Саша змінював і що вийшло) і результати промптів креативів (creative_prompts) — оціни, чи зміни спрацювали.
 
 Відповідай ТІЛЬКИ JSON без markdown:
 {"summary": "2-3 речення: як справи загалом",
@@ -18,6 +21,7 @@ const PROMPT = `Ти — Джері, сильний таргетолог і пр
  "cons": ["що погано / де зливаються гроші", ...],
  "tips": ["конкретна дія", ...],
  "audience": "1-3 речення: хто і звідки приходить, де ліди дешевші",
+ "patterns": ["закономірність, що спрацьовує або ні: кут/оффер, формат (відео/картинка/карусель), хук, текст, аудиторія — з доказом з цифр", ...],
  "creatives": {"<ad_id>": "1-2 речення думки про цей креатив: що в ньому сильне/слабке і що з ним робити", ...}}`;
 
 const r2 = (n: number | null) => (n == null ? null : Math.round(n * 100) / 100);
@@ -42,6 +46,8 @@ export async function analyzeMeta(clientId: number): Promise<void> {
     ads: ads.slice(0, 25).map((a) => ({ ad_id: a.ad_id, name: a.name, type: a.kind, status: a.status, text: a.body.slice(0, 300), spend: r2(a.spend_30d), leads: a.leads_30d,
       cpl: r2(cplOf({ spend: a.spend_30d, leads: a.leads_30d })), ctr: r2(ctrOf({ clicks: a.clicks_30d, impressions: a.impressions_30d })), frequency: r2(freqOf(a.impressions_30d, a.reach_30d)) })),
     placements: cut("placement"), age_gender: cut("age_gender"), regions: cut("region"), devices: cut("device"),
+    changes: listChanges(clientId, 15).map((x) => ({ at: x.at, what: x.what, why: x.why || undefined, expect: x.expect || undefined, result: x.result || undefined })),
+    creative_prompts: listPrompts(clientId, 15).filter((p) => p.ad_ids).map((p) => { const st = promptStats(p, ads); return { title: p.title, angle: p.angle, format: p.format, verdict: p.verdict || undefined, spend: r2(st.spend), leads: st.leads, cpl: r2(st.cpl), ctr: r2(st.ctr) }; }),
   };
 
   // Картинки топових креативів — щоб Джері бачив, що саме крутиться

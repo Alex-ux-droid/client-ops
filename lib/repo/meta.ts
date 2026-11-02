@@ -187,7 +187,7 @@ export function breakdowns(clientId: number, kind: string): Breakdown[] {
     FROM meta_breakdowns WHERE account_id IN (${inList(acc.length)}) AND kind = ? GROUP BY key ORDER BY spend DESC`).all(...acc, kind) as Breakdown[];
 }
 
-export type MetaAnalysis = { summary?: string; pros?: string[]; cons?: string[]; tips?: string[]; audience?: string; creatives?: Record<string, string> };
+export type MetaAnalysis = { summary?: string; pros?: string[]; cons?: string[]; tips?: string[]; audience?: string; creatives?: Record<string, string>; patterns?: string[] };
 export function getAnalysis(clientId: number): { data: MetaAnalysis; created_at: string } | null {
   const r = db().prepare("SELECT data_json, created_at FROM meta_analysis WHERE client_id = ?").get(clientId) as { data_json: string; created_at: string } | undefined;
   return r ? { data: JSON.parse(r.data_json) as MetaAnalysis, created_at: r.created_at } : null;

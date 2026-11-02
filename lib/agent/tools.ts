@@ -128,6 +128,8 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "attach_playbook", description: "Підключити плейбук до клієнта.", input_schema: obj({ client_id: int("ID клієнта"), playbook_id: int("ID плейбука") }, ["client_id", "playbook_id"]) },
   { name: "make_pdf", description: "Зробити PDF з markdown. format document (A4 документ): # заголовки, абзаци, списки - і 1., чекліст - [ ], **жирне**, --- лінія, таблиці | a | b |; «на одну сторінку» — ~350 слів. format slides (презентація, A4 горизонтально, темна фірмова): перший абзац — підзаголовок титульного, кожен «## Назва» — новий слайд (3–6 пунктів на слайд), картки-цифри рядками «+ Підпис: значення» (до 4 в ряд), таблиці, списки, **жирне». Повертає file_id і посилання; у Telegram-розмові з Сашею файл одразу йде йому (send_to_telegram:false — не надсилати, напр. якщо далі шлеш у групу клієнта).", input_schema: obj({ title: str("Заголовок документа"), format: { type: "string", enum: ["document", "slides"] }, content: str("Вміст у markdown (без заголовка — він окремо)"), file_name: str("Назва файлу, необовʼязково"), client_id: int("Клієнт, якщо документ про нього"), send_to_telegram: { type: "boolean", description: "Надіслати Саші в Telegram (у Telegram-розмові — завжди)" }, caption: str("Підпис до файлу в Telegram") }, ["title", "content"]) },
   { name: "leads", description: "Заявки з лід-форм Meta по клієнту: імʼя, телефон, відповіді на питання форми, кампанія/оголошення, чи взяли в роботу, якість (👍/👎 з кнопок у Telegram-групі), + підсумок: скільки якісних, ціна якісної заявки. Для розбору реклами по ЯКОСТІ заявок, а не тільки кількості.", input_schema: obj({ client_id: int("ID клієнта"), days: int("За скільки днів (за замовчуванням 14)") }, ["client_id"]) },
+  { name: "creative_prompt", description: "Промпти на креативи клієнта для Claude / Claude Code. action generate (format square|story|carousel|video, angle — кут, note — побажання; Джері пише ТЗ з даних реклами: що дає дешеві ліди, патерни, бренд, результати минулих промптів) | list (з цифрами привʼязаних оголошень) | update (prompt_id, ad_ids — ID оголошень Meta, що зроблені з промпту; verdict win|lose; notes). Після generate дай Саші промпт у блоці ```Промпт креативу``` щоб копіювався.", input_schema: obj({ action: { type: "string", enum: ["generate", "list", "update"] }, client_id: int("ID клієнта"), prompt_id: int("ID промпту"), format: { type: "string", enum: ["square", "story", "carousel", "video"] }, angle: str("Кут"), note: str("Побажання"), ad_ids: { type: "array", items: { type: "string" } }, verdict: { type: "string", enum: ["", "win", "lose"] }, notes: str("Нотатка") }, ["action"]) },
+  { name: "ad_change", description: "Журнал змін реклами клієнта: що змінили → чому → чого чекаємо → що вийшло. action add (client_id, what, why, expect, at YYYY-MM-DD) | list (client_id) | result (change_id, result — через кілька днів, що вийшло за цифрами). Записуй кожну зміну, яку Саша зробив у рекламі; через 3–7 днів сам перевір цифри і допиши result.", input_schema: obj({ action: { type: "string", enum: ["add", "list", "result"] }, client_id: int("ID клієнта"), change_id: int("ID зміни"), what: str("Що змінили"), why: str("Чому"), expect: str("Чого чекаємо"), at: str("Дата"), result: str("Що вийшло") }, ["action"]) },
   { name: "client_money", description: "Гроші клієнта: абонплата, день оплати, БОРГ (прострочені оплати з сумами і датами), очікувані, останні отримані. Для повідомлення клієнту про заборгованість — це + message_templates (шаблон «Оплата»).", input_schema: obj({ client_id: int("ID клієнта") }, ["client_id"]) },
   { name: "comm_profile", description: "Профіль спілкування з клієнтом (звертання, хто вирішує, тон, що цікавить, чого уникати). action get — прочитати; build — скласти заново з переписки групи; save — записати текст (коли Саша сам каже, як з клієнтом говорити).", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["get", "build", "save"] }, profile: str("Текст профілю для save") }, ["client_id", "action"]) },
   { name: "message_templates", description: "Шаблони повідомлень клієнтам (Налаштування → Повідомлення): структура під подію (запуск реклами, звіт, що зробили, проблема, потрібно від клієнта, оплата) + загальні правила тону + приклад. ЗАВЖДИ викликай перед тим, як писати чернетку повідомлення клієнту, і пиши строго по структурі обраного шаблону. Без template_id — список; з template_id — повна структура.", input_schema: obj({ template_id: int("ID шаблону зі списку") }) },
@@ -454,6 +456,46 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
         leads: list.slice(0, 40).map((l) => ({ when: l.created_time, name: l.name, phone: l.phone, answers: leadFields(l), campaign: l.campaign_name, ad: l.ad_name, taken: !!l.taken_at, quality: l.quality || null })),
         note: list.length ? undefined : "Заявок нема — або не було, або сторінка не підключена (Налаштування → Конектори → Meta → «Заявки з лід-форм»)",
       };
+    }
+
+    case "creative_prompt": {
+      const cr = await import("../repo/creatives");
+      const lab = await import("../creativeLab");
+      const { adsForClient } = await import("../repo/meta");
+      const a = s(input.action);
+      if (a === "generate") {
+        const cid = need(id(input.client_id), "client_id обов'язковий");
+        const fmt = (["square", "story", "carousel", "video"].includes(s(input.format)) ? s(input.format) : "square") as "square";
+        const r = await lab.generateCreativePrompt(cid, { format: fmt, angle: s(input.angle), note: s(input.note) });
+        if (!r.ok) throw new Error(r.error);
+        const p = need(cr.getPrompt(r.id), "Промпт не збережено");
+        act("client", `Промпт креативу: ${p.title}`, `/clients/${cid}?tab=meta_ads&mv=creatives`);
+        return { prompt_id: p.id, title: p.title, angle: p.angle, prompt: p.prompt };
+      }
+      if (a === "list") {
+        const cid = need(id(input.client_id), "client_id обов'язковий");
+        const ads = adsForClient(cid);
+        return { prompts: cr.listPrompts(cid, 20).map((p) => { const st = lab.promptStats(p, ads); return { prompt_id: p.id, title: p.title, angle: p.angle, format: p.format, verdict: p.verdict || undefined, ads: st.ads.map((x) => x.name), leads: st.leads, spend: st.spend, cpl: st.cpl, ctr: st.ctr, notes: p.notes || undefined }; }) };
+      }
+      const p = need(cr.getPrompt(need(id(input.prompt_id), "prompt_id обов'язковий")), "Промпту нема");
+      cr.updatePrompt(p.id, { ...(Array.isArray(input.ad_ids) ? { ad_ids: (input.ad_ids as unknown[]).map(String).join(",") } : {}), ...(input.verdict !== undefined ? { verdict: (["win", "lose"].includes(s(input.verdict)) ? s(input.verdict) : "") as "" } : {}), ...(input.notes !== undefined ? { notes: s(input.notes) } : {}) });
+      return { ok: true };
+    }
+
+    case "ad_change": {
+      const cr = await import("../repo/creatives");
+      const a = s(input.action);
+      if (a === "add") {
+        const cid = need(id(input.client_id), "client_id обов'язковий");
+        const cidOk = need(getClientRow(cid), "Клієнта нема");
+        const cgid = cr.addChange({ client_id: cidOk.id, what: need(s(input.what), "what обовʼязковий"), why: s(input.why), expect: s(input.expect), at: date(input.at) ?? undefined });
+        act("client", `Зміна реклами: ${s(input.what)}`, `/clients/${cid}?tab=meta_ads&mv=analysis`);
+        return { ok: true, change_id: cgid };
+      }
+      if (a === "list") return { changes: cr.listChanges(need(id(input.client_id), "client_id обов'язковий"), 30) };
+      const c = need(cr.getChange(need(id(input.change_id), "change_id обовʼязковий")), "Зміни нема");
+      cr.updateChange(c.id, { result: s(input.result) });
+      return { ok: true };
     }
 
     case "client_money": {

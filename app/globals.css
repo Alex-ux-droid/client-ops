@@ -1780,3 +1780,9 @@ textarea.vt-ghost::placeholder { color: transparent; }
 .su-iss.fixed, .su-iss.ignored { opacity: 0.75; }
 .su-iss-pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.8125rem; color: var(--muted); background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 10px; padding: 0.625rem 0.75rem; margin: 0; max-height: 16rem; overflow: auto; }
 .su-tabs em.su-em-bad { background: var(--bad); color: #fff; }
+.cg-prompt summary { cursor: pointer; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.cg-prompt[open] { display: flex; flex-direction: column; gap: 0.625rem; }
+.cg-prompt.win { border-color: rgba(34, 195, 166, 0.5); }
+.cg-prompt.lose { opacity: 0.75; }
+.cg-change { display: flex; flex-direction: column; gap: 0.375rem; }
+.cg-change input[name=result] { flex: 1; min-width: 12rem; }
