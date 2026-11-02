@@ -1,7 +1,7 @@
 import { saveClient } from "@/app/actions";
 import { currency } from "@/lib/config";
-import { STAGE_LABEL, STATUS_LABEL } from "@/lib/labels";
-import { CLIENT_STATUSES, LEAD_STAGES, type Client } from "@/lib/repo/clients";
+import { STATUS_LABEL } from "@/lib/labels";
+import { CLIENT_STATUSES, type Client } from "@/lib/repo/clients";
 import VoiceTextarea from "./VoiceTextarea";
 
 const F = ({ name, label, c, area, wide, placeholder, mode, type }: { name: keyof Client; label: string; c?: Partial<Client>; area?: boolean; wide?: boolean; placeholder?: string; mode?: "decimal" | "numeric"; type?: string }) => (
@@ -25,12 +25,6 @@ export default function ClientForm({ c }: { c?: Partial<Client> }) {
           <label htmlFor="status">Статус</label>
           <select id="status" name="status" defaultValue={c?.status ?? "active"}>
             {CLIENT_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="stage">Етап воронки (для ліда)</label>
-          <select id="stage" name="stage" defaultValue={c?.stage ?? "new"}>
-            {LEAD_STAGES.map((s) => <option key={s} value={s}>{STAGE_LABEL[s]}</option>)}
           </select>
         </div>
         <F name="next_step" label="Наступний крок" c={c} placeholder="Відправити КП до п'ятниці" />

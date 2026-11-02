@@ -8,7 +8,6 @@ export const SECTIONS: { title: string; items: { href: string; label: string; ic
       { href: "/", label: "Центр", ico: "home" },
       { href: "/tasks", label: "Задачі", ico: "tasks", count: "tasks" },
       { href: "/clients", label: "Клієнти", ico: "users" },
-      { href: "/pipeline", label: "Воронка", ico: "funnel", count: "leads" },
       { href: "/lab", label: "Лабораторія", ico: "flask" },
       { href: "/startups", label: "Стартапи", ico: "rocket" },
       { href: "/money", label: "Гроші", ico: "wallet", count: "debts", bad: true },

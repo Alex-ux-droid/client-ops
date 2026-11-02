@@ -8,7 +8,6 @@ const PAGES: Hit[] = [
   { kind: "playbook", id: -1, title: "Центр управління", sub: "сторінка", href: "/" },
   { kind: "playbook", id: -2, title: "Задачі на сьогодні", sub: "сторінка", href: "/tasks" },
   { kind: "playbook", id: -3, title: "План на тиждень", sub: "сторінка", href: "/tasks?view=week" },
-  { kind: "playbook", id: -4, title: "Воронка лідів", sub: "сторінка", href: "/pipeline" },
   { kind: "playbook", id: -5, title: "Гроші", sub: "сторінка", href: "/money" },
   { kind: "playbook", id: -6, title: "Новий клієнт", sub: "дія", href: "/clients/new" },
   { kind: "playbook", id: -7, title: "Новий плейбук", sub: "дія", href: "/playbooks/new" },
