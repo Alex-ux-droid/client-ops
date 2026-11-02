@@ -6,7 +6,7 @@ import { logError } from "./log";
 import { metaAll, metaGet, metaToken } from "./meta";
 import { getClient } from "./repo/clients";
 import { leadBotToken } from "./leadBot";
-import { addDelivery, botUsers, clientByAd, deliveries, getLead, getPage, getRoute, setBotUserActive, insertLead, leadFields, leadsToRemind, listPages, setLead, setPage, upsertForm, upsertPage, type Lead, type LeadField } from "./repo/leads";
+import { addDelivery, botUsers, setReminderMessage, clientByAd, deliveries, getLead, getPage, getRoute, setBotUserActive, insertLead, leadFields, leadsToRemind, listPages, setLead, setPage, upsertForm, upsertPage, type Lead, type LeadField } from "./repo/leads";
 import { getSetting, setSetting } from "./repo/settings";
 import { chatsForClient } from "./repo/telegram";
 
@@ -197,7 +197,13 @@ export async function leadCallback(q: { id: string; data?: string; from?: { firs
   const all = ds.length ? ds : [{ via: "main" as const, chat_id: q.message!.chat.id, message_id: q.message!.message_id }];
   for (const d of all) {
     const tok = tokenOf(d.via);
-    if (tok) await tgCall(tok, "editMessageText", { chat_id: d.chat_id, message_id: d.message_id, text: leadText(u, d.via === "client"), reply_markup: leadKeyboard(u) }).catch(() => {});
+    if (!tok) continue;
+    await tgCall(tok, "editMessageText", { chat_id: d.chat_id, message_id: d.message_id, text: leadText(u, d.via === "client"), reply_markup: leadKeyboard(u) }).catch(() => {});
+    // заявку взяли / оцінили — нагадування «ніхто не відповів» більше не потрібне
+    if ("id" in d && d.reminder_message_id && u.taken_at) {
+      await tgCall(tok, "deleteMessage", { chat_id: d.chat_id, message_id: d.reminder_message_id }).catch(() => {});
+      setReminderMessage(d.id, null);
+    }
   }
   await answer(m[2] === "t" ? "Записав: взяли в роботу" : "Оцінку записав");
 }
@@ -213,7 +219,9 @@ export async function leadsRemindTick(): Promise<void> {
     const text = `⏰ На заявку${l.name ? ` від ${l.name}` : ""} ще ніхто не відповів. Чим швидше дзвінок — тим вищий шанс продажу. Хто набере? Натисніть «Взяли в роботу».`;
     for (const d of deliveries(l.id)) {
       const tok = d.via === "main" ? tgToken() : l.client_id ? leadBotToken(l.client_id) : null;
-      if (tok) await tgCall(tok, "sendMessage", { chat_id: d.chat_id, reply_to_message_id: d.message_id, text }).catch((e) => logError("leads-remind", e));
+      if (!tok) continue;
+      const r = await tgCall<{ message_id: number }>(tok, "sendMessage", { chat_id: d.chat_id, reply_to_message_id: d.message_id, text }).catch((e) => { logError("leads-remind", e); return null; });
+      if (r) setReminderMessage(d.id, r.message_id);
     }
   }
 }
