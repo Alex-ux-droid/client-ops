@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { proposalMd, proposalTitle } from "@/lib/labPrompt";
-import { markdownToPdf } from "@/lib/pdf";
+import { proposalPdf } from "@/lib/proposalPdf";
 import { getLab } from "@/lib/repo/lab";
 import { getSetting } from "@/lib/repo/settings";
 import { isAuthed, SESSION_COOKIE } from "@/lib/session";
@@ -15,6 +15,6 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (req.nextUrl.searchParams.get("format") === "md") {
     return new Response(`# ${title}\n\n${md}\n`, { headers: { "content-type": "text/markdown; charset=utf-8", "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(title)}.md` } });
   }
-  const pdf = await markdownToPdf(title, md, { kicker: getSetting("proposal.from") || "Комерційна пропозиція" });
+  const pdf = await proposalPdf(l, { from: getSetting("proposal.from") || "" });
   return new Response(new Uint8Array(pdf), { headers: { "content-type": "application/pdf", "content-disposition": `inline; filename*=UTF-8''${encodeURIComponent(title)}.pdf` } });
 }

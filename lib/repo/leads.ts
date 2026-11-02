@@ -1,7 +1,7 @@
 // Заявки з лід-форм Meta
 import { db } from "../db";
 
-export type MetaPage = { page_id: string; name: string; client_id: number | null; client_name?: string | null; leads_on: number; last_lead_time: string | null; last_error: string; updated_at: string };
+export type MetaPage = { page_id: string; name: string; client_id: number | null; client_name?: string | null; leads_on: number; hidden: number; last_lead_time: string | null; last_error: string; updated_at: string };
 export type LeadField = { label: string; value: string };
 export type Lead = {
   id: number; lead_id: string; client_id: number | null; page_id: string; form_id: string; form_name: string; ad_id: string; ad_name: string; adset_name: string; campaign_name: string;
@@ -93,4 +93,8 @@ export function addDelivery(leadId: number, via: "main" | "client", chatId: numb
 }
 export function deliveries(leadId: number): LeadDelivery[] {
   return db().prepare("SELECT * FROM lead_deliveries WHERE lead_id = ?").all(leadId) as LeadDelivery[];
+}
+
+export function setPageHidden(id: string, hidden: boolean): void {
+  db().prepare("UPDATE meta_pages SET hidden = ? WHERE page_id = ?").run(hidden ? 1 : 0, id);
 }
