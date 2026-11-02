@@ -25,7 +25,7 @@ type Block =
   | { t: "h"; level: number; text: string }
   | { t: "p"; text: string }
   | { t: "ul" | "ol"; items: { text: string; n?: string }[] }
-  | { t: "check"; items: { text: string; done: boolean }[] }
+  | { t: "check"; items: { text: string; done: boolean; line: number }[] }
   | { t: "copy"; label: string; text: string }
   | { t: "note"; lines: string[] }
   | { t: "table"; rows: string[][] }
@@ -57,7 +57,7 @@ function parse(md: string): Block[] {
       continue;
     }
     const cb = line.match(/^\s*[-*]\s+\[([ xX])\]\s+(.*)$/);
-    if (cb) { const l = last(); const it = { text: cb[2], done: cb[1] !== " " }; if (l?.t === "check") l.items.push(it); else out.push({ t: "check", items: [it] }); continue; }
+    if (cb) { const l = last(); const it = { text: cb[2], done: cb[1] !== " ", line: i }; if (l?.t === "check") l.items.push(it); else out.push({ t: "check", items: [it] }); continue; }
     const ol = line.match(/^\s*(\d+)[.)]\s+(.*)$/);
     if (ol) { const l = last(); const it = { text: ol[2], n: ol[1] }; if (l?.t === "ol") l.items.push(it); else out.push({ t: "ol", items: [it] }); continue; }
     const li = line.match(/^\s*[-*•]\s+(.*)$/);
@@ -67,7 +67,8 @@ function parse(md: string): Block[] {
   return out;
 }
 
-export default function Markdown({ md }: { md: string }) {
+// onToggle — галочки клікабельні (номер рядка = base + рядок у md), напр. кроки задачі
+export default function Markdown({ md, onToggle, base = 0 }: { md: string; onToggle?: (line: number) => void; base?: number }) {
   return (
     <div className="md">
       {parse(md).map((b, i) => {
@@ -77,7 +78,14 @@ export default function Markdown({ md }: { md: string }) {
           case "p": return <p key={k}>{inline(b.text, k)}</p>;
           case "ul": return <ul key={k} className="md-list">{b.items.map((x, j) => <li key={j}>{inline(x.text, `${k}-${j}`)}</li>)}</ul>;
           case "ol": return <ol key={k} className="md-list" start={Number(b.items[0].n) || 1}>{b.items.map((x, j) => <li key={j}>{inline(x.text, `${k}-${j}`)}</li>)}</ol>;
-          case "check": return <Fragment key={k}>{b.items.map((x, j) => <div key={j} className="check-item"><span className={`check ${x.done ? "on" : ""}`} style={{ display: "inline-block" }} /><span>{inline(x.text, `${k}-${j}`)}</span></div>)}</Fragment>;
+          case "check": return onToggle ? (
+            <ul key={k} className="md-checks">{b.items.map((x, j) => (
+              <li key={j} className={x.done ? "done" : ""}>
+                <button type="button" className={`tm-box-check ${x.done ? "on" : ""}`} onClick={() => onToggle(base + x.line)} aria-label={x.done ? "Зняти галочку" : "Відмітити"}>✓</button>
+                <span>{inline(x.text, `${k}-${j}`)}</span>
+              </li>
+            ))}</ul>
+          ) : <Fragment key={k}>{b.items.map((x, j) => <div key={j} className="check-item"><span className={`check ${x.done ? "on" : ""}`} style={{ display: "inline-block" }} /><span>{inline(x.text, `${k}-${j}`)}</span></div>)}</Fragment>;
           case "copy": return <MdCopy key={k} label={b.label} text={b.text} />;
           case "note": return <div key={k} className="md-note">{b.lines.map((l, j) => (l.trim() ? <p key={j}>{inline(l, `${k}-${j}`)}</p> : null))}</div>;
           case "table": return (

@@ -223,7 +223,8 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
             id={compact ? "dock-text" : "chat-text"}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(text); } }}
+            // Enter — надіслати, Shift+Enter — новий рядок (на телефоні Enter лишається переносом: там є кнопка «Надіслати»)
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && (e.ctrlKey || e.metaKey || window.matchMedia("(hover: hover) and (pointer: fine)").matches)) { e.preventDefault(); send(text); } }}
             onPaste={(e) => { const fl = Array.from(e.clipboardData.files); if (fl.length) { e.preventDefault(); void addFiles(fl); } }}
             placeholder={dict.transcribing ? "Розпізнаю…" : dict.listening ? "Слухаю… говори, потім натисни стоп" : "Напиши, встав переписку або натисни мікрофон"}
             aria-label="Повідомлення"
