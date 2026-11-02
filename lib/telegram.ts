@@ -36,6 +36,10 @@ export type TgUpdate = {
 export async function tg<T = unknown>(method: string, body: Record<string, unknown> = {}): Promise<T> {
   const token = tgToken();
   if (!token) throw new Error("Telegram-бот не підключений");
+  return tgCall<T>(token, method, body);
+}
+// Виклик Bot API з будь-яким токеном (наш Джері або бот клієнта для заявок)
+export async function tgCall<T = unknown>(token: string, method: string, body: Record<string, unknown> = {}): Promise<T> {
   const r = await fetch(`${API()}/bot${token}/${method}`, {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(20000),
   });

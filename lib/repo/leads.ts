@@ -57,7 +57,40 @@ export function leadStats(clientId: number, days: number): { total: number; good
 }
 // Заявки, на які ніхто не натиснув «Взяли» за 15 хв (тільки надіслані в групу, за добу)
 export function leadsToRemind(): Lead[] {
-  return db().prepare(`SELECT * FROM leads WHERE tg_chat_id IS NOT NULL AND taken_at IS NULL AND quality = '' AND reminded_at IS NULL
+  return db().prepare(`SELECT * FROM leads WHERE EXISTS (SELECT 1 FROM lead_deliveries d WHERE d.lead_id = leads.id) AND taken_at IS NULL AND quality = '' AND reminded_at IS NULL
     AND notified_at IS NOT NULL AND notified_at != 'backfill' AND notified_at <= datetime('now', '-15 minutes') AND notified_at >= datetime('now', '-1 day')`).all() as Lead[];
 }
 export const leadFields = (l: Lead): LeadField[] => { try { return JSON.parse(l.fields_json) as LeadField[]; } catch { return []; } };
+
+// ── Куди йдуть заявки клієнта, бот клієнта, доставки
+export type LeadRoute = { client_id: number; to_group: number; to_bot: number; bot_username: string; bot_name: string; invite_code: string; updated_at: string };
+export type LeadBotUser = { id: number; client_id: number; tg_user_id: number; name: string; active: number; created_at: string };
+export type LeadDelivery = { id: number; lead_id: number; via: "main" | "client"; chat_id: number; message_id: number };
+
+export function getRoute(clientId: number): LeadRoute {
+  return (db().prepare("SELECT * FROM lead_routes WHERE client_id = ?").get(clientId) as LeadRoute | undefined)
+    ?? { client_id: clientId, to_group: 1, to_bot: 0, bot_username: "", bot_name: "", invite_code: "", updated_at: "" };
+}
+export function saveRoute(clientId: number, patch: Partial<Omit<LeadRoute, "client_id" | "updated_at">>): void {
+  const cur = getRoute(clientId);
+  const r = { ...cur, ...patch };
+  db().prepare(`INSERT INTO lead_routes (client_id, to_group, to_bot, bot_username, bot_name, invite_code) VALUES (@client_id, @to_group, @to_bot, @bot_username, @bot_name, @invite_code)
+    ON CONFLICT(client_id) DO UPDATE SET to_group = excluded.to_group, to_bot = excluded.to_bot, bot_username = excluded.bot_username, bot_name = excluded.bot_name, invite_code = excluded.invite_code, updated_at = datetime('now')`)
+    .run({ client_id: clientId, to_group: r.to_group, to_bot: r.to_bot, bot_username: r.bot_username, bot_name: r.bot_name, invite_code: r.invite_code });
+}
+export function botUsers(clientId: number, onlyActive = true): LeadBotUser[] {
+  return db().prepare(`SELECT * FROM leadbot_users WHERE client_id = ? ${onlyActive ? "AND active = 1" : ""} ORDER BY id`).all(clientId) as LeadBotUser[];
+}
+export function addBotUser(clientId: number, tgUserId: number, name: string): void {
+  db().prepare(`INSERT INTO leadbot_users (client_id, tg_user_id, name) VALUES (?, ?, ?)
+    ON CONFLICT(client_id, tg_user_id) DO UPDATE SET name = excluded.name, active = 1`).run(clientId, tgUserId, name);
+}
+export function setBotUserActive(clientId: number, tgUserId: number, active: boolean): void {
+  db().prepare("UPDATE leadbot_users SET active = ? WHERE client_id = ? AND tg_user_id = ?").run(active ? 1 : 0, clientId, tgUserId);
+}
+export function addDelivery(leadId: number, via: "main" | "client", chatId: number, messageId: number): void {
+  db().prepare("INSERT INTO lead_deliveries (lead_id, via, chat_id, message_id) VALUES (?, ?, ?, ?)").run(leadId, via, chatId, messageId);
+}
+export function deliveries(leadId: number): LeadDelivery[] {
+  return db().prepare("SELECT * FROM lead_deliveries WHERE lead_id = ?").all(leadId) as LeadDelivery[];
+}

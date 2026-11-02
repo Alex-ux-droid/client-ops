@@ -10,8 +10,11 @@ import {
   type Breakdown, type MetaAd, type MetaAdset,
 } from "@/lib/repo/meta";
 import CreativeGallery, { type GalleryItem } from "./CreativeGallery";
-import { rateLeadAction } from "@/app/leads/actions";
-import { clientLeads, leadFields, leadStats } from "@/lib/repo/leads";
+import { leadBotDisconnectAction, leadBotInviteAction, leadBotUserAction, leadRouteAction, rateLeadAction } from "@/app/leads/actions";
+import { botUsers, clientLeads, getRoute, leadFields, leadStats, listPages } from "@/lib/repo/leads";
+import { chatsForClient } from "@/lib/repo/telegram";
+import { inviteLink, leadBotToken } from "@/lib/leadBot";
+import { CopyInvite, LeadBotConnect, TestLead } from "./LeadBotConnect";
 
 export const STATUS: Record<string, string> = { ACTIVE: "активна", PAUSED: "пауза", CAMPAIGN_PAUSED: "пауза", ADSET_PAUSED: "пауза", ARCHIVED: "архів", DELETED: "видалена", IN_PROCESS: "обробка", WITH_ISSUES: "проблема", DISAPPROVED: "відхилено", PENDING_REVIEW: "перевірка" };
 const fmtN = (n: number) => Math.round(n).toLocaleString("uk-UA");
@@ -319,9 +322,11 @@ function Leads({ clientId, m }: { clientId: number; m: Fmt }) {
   const st = leadStats(clientId, 30);
   const spend = totals(clientId, kyivDay(29), kyivDay(0)).spend;
   const rated = st.good + st.bad;
-  if (!list.length) return <div className="empty">Заявок з лід-форм за 30 днів нема. Якщо вони мають бути — перевір Налаштування → Конектори → Meta → «Заявки з лід-форм» (дозволи токена і сторінка клієнта).</div>;
   return (
     <div className="stack" style={{ gap: "1rem" }}>
+      <LeadRouting clientId={clientId} />
+      {!list.length && <div className="empty">Заявок з лід-форм за 30 днів нема. Якщо вони мають бути — перевір Налаштування → Конектори → Meta → «Заявки з лід-форм» (дозволи токена і сторінка клієнта).</div>}
+      {list.length > 0 && <>
       <div className="ld-kpis">
         <div className="kpi"><div className="n">{st.total}</div><div className="l">Заявок за 30 днів</div></div>
         <div className="kpi"><div className="n">{st.total ? Math.round((st.taken / st.total) * 100) : 0}%</div><div className="l">Взяли в роботу</div></div>
@@ -342,7 +347,62 @@ function Leads({ clientId, m }: { clientId: number; m: Fmt }) {
           </div>
         ))}
       </div>
+      </>}
     </div>
+  );
+}
+
+// Куди йдуть заявки: наша група клієнта і/або власний бот клієнта
+function LeadRouting({ clientId }: { clientId: number }) {
+  const route = getRoute(clientId);
+  const pages = listPages().filter((p) => p.client_id === clientId);
+  const groups = chatsForClient(clientId).filter((c) => c.active);
+  const token = leadBotToken(clientId);
+  const users = token ? botUsers(clientId) : [];
+  const link = token ? inviteLink(clientId) : "";
+  const on = pages.some((p) => p.leads_on);
+  return (
+    <details className="card lb-card" open={!on || (!groups.length && !users.length)}>
+      <summary><b>Куди йдуть заявки</b> <span className="mono">{!on ? "· сторінку не увімкнено" : [route.to_group && groups.length ? "група" : "", route.to_bot && token ? `бот @${route.bot_username} (${users.length})` : ""].filter(Boolean).join(" + ") || "· нікуди — прийдуть тобі"}</span></summary>
+      <div className="stack" style={{ gap: "1rem", marginTop: "0.75rem" }}>
+        {!on && <div className="callout" style={{ borderColor: "var(--warn)" }}>Сторінка Facebook цього клієнта ще не увімкнена для надсилання: Налаштування → Конектори → Meta → «Заявки з лід-форм» → обери цього клієнта і постав «надсилати».</div>}
+        <form action={leadRouteAction} className="stack" style={{ gap: "0.5rem" }}>
+          <input type="hidden" name="client_id" value={clientId} />
+          <label className="lp-check"><input type="checkbox" name="to_group" defaultChecked={!!route.to_group} /> У Telegram-групу з ботом Джері {groups.length ? `(${groups.map((g) => `«${g.title}»`).join(", ")})` : "— групи нема"}</label>
+          <label className="lp-check"><input type="checkbox" name="to_bot" defaultChecked={!!route.to_bot} disabled={!token} /> У власного бота клієнта {token ? `@${route.bot_username}` : "— не підключений"}</label>
+          <div><button className="ghost small">Зберегти</button></div>
+        </form>
+        <div className="lb-bot stack" style={{ gap: "0.625rem" }}>
+          <b>Бот клієнта</b>
+          {!token ? (
+            <>
+              <div className="mono">Заявки приходитимуть менеджерам клієнта від їхнього бота з кнопками «Взяли / Якісна / Сміття». Встав токен бота з @BotFather. Якщо бот уже десь працює (інший сервіс), система попередить.</div>
+              <LeadBotConnect clientId={clientId} />
+            </>
+          ) : (
+            <>
+              <div className="mono">@{route.bot_username}{route.bot_name ? ` · ${route.bot_name}` : ""}. Відправ це посилання менеджерам клієнта. Хто відкриє його й натисне «Start», той отримуватиме заявки. Відписатись можна командою /stop.</div>
+              {link && <CopyInvite link={link} />}
+              {users.length ? (
+                <div className="lb-users">
+                  {users.map((u) => (
+                    <form key={u.id} action={leadBotUserAction} className="tool-chip">
+                      <input type="hidden" name="client_id" value={clientId} /><input type="hidden" name="tg_user_id" value={u.tg_user_id} />
+                      <span>{u.name}</span><button className="tool-x" title="Більше не надсилати" aria-label={`Прибрати ${u.name}`}>×</button>
+                    </form>
+                  ))}
+                </div>
+              ) : <div className="mono" style={{ color: "var(--warn)" }}>Ще ніхто не підписався — без цього заявки в бота не прийдуть.</div>}
+              <div className="inline" style={{ flexWrap: "wrap" }}>
+                <TestLead clientId={clientId} />
+                <form action={leadBotInviteAction}><input type="hidden" name="client_id" value={clientId} /><button className="ghost small" title="Старе посилання перестане працювати; хто вже підписаний — лишаються">Нове посилання</button></form>
+                <form action={leadBotDisconnectAction}><input type="hidden" name="client_id" value={clientId} /><button className="ghost small">Відключити бота</button></form>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </details>
   );
 }
 

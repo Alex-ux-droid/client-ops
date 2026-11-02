@@ -238,7 +238,7 @@ async function LeadsCard({ clients }: { clients: { id: number; name: string }[] 
   return (
     <div className="card stack" style={{ gridColumn: "1 / -1" }}>
       <h2>Заявки з лід-форм</h2>
-      <div className="mono">Раз на хвилину система забирає нові заявки з форм Meta. Для сторінки з увімкненим «в групу» бот кидає заявку в Telegram-групу клієнта з кнопками «Взяли в роботу / Якісна / Сміття». Клієнта визначає за рекламним кабінетом, а якщо заявка не з реклами — за сторінкою.</div>
+      <div className="mono">Раз на хвилину система забирає нові заявки з форм Meta. Для сторінки з галочкою «надсилати» заявка йде клієнту з кнопками «Взяли в роботу / Якісна / Сміття»: у Telegram-групу з Джері і/або у власного бота клієнта (налаштовується в клієнта: Meta → «Заявки» → «Куди йдуть заявки»). Клієнта визначає за рекламним кабінетом, а якщо заявка не з реклами — за сторінкою.</div>
       {missing && missing.length > 0 && (
         <div className="callout" style={{ borderColor: "var(--warn)" }}>
           <b>Токену бракує дозволів: {missing.join(", ")}.</b> Згенеруй новий маркер у Graph API Explorer: ті самі дозволи (ads_read) плюс ці, «Продовжити маркер» → встав у «Оновити токен» вище. Якщо сторінка в Business Manager — там же в «Доступ до лідів» (Leads Access) дай доступ собі.
@@ -259,7 +259,7 @@ async function LeadsCard({ clients }: { clients: { id: number; name: string }[] 
             <option value="">— клієнт —</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <label className="lp-check"><input type="checkbox" name="leads_on" defaultChecked={!!p.leads_on} /> в групу</label>
+          <label className="lp-check"><input type="checkbox" name="leads_on" defaultChecked={!!p.leads_on} /> надсилати</label>
           <button className="ghost small">Зберегти</button>
         </form>
       ))}
