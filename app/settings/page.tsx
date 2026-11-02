@@ -22,7 +22,7 @@ import { githubLogin, githubToken } from "@/lib/github";
 import { backupNowAction, saveDigestAction, sendAvatarsAction, sendDigestNowAction } from "./actions";
 import { backupFolderUrl, backupInfo } from "@/lib/backup";
 import { digestEnabled, digestTime } from "@/lib/digest";
-import { disconnectGoogleAction, saveAgentAction, saveMemoryAction, saveGeneralAction, saveGoogleClientAction, saveKeyAction, testKeyAction } from "./actions";
+import { disconnectGoogleAction, driveFullAction, saveAgentAction, saveMemoryAction, saveGeneralAction, saveGoogleClientAction, saveKeyAction, testKeyAction } from "./actions";
 import { headers } from "next/headers";
 import { googleStatus } from "@/lib/google";
 import { addToolAction, deleteToolAction } from "@/app/actions";
@@ -480,6 +480,15 @@ async function GoogleTab() {
                 <b>Календар:</b> доступ до Google Календаря додали пізніше. Щоб задачі ставились у календар: 1) у Google Cloud увімкни <b>Google Calendar API</b> (APIs &amp; Services → Library → Google Calendar API → Enable); 2) натисни «Перепідключити» нижче і дай дозвіл на календар.
               </div>
             )}
+            <form action={driveFullAction} className="callout stack" style={{ gap: "0.5rem" }}>
+              <b>Повний доступ до Диску: {g.driveFull ? "увімкнено" : getSetting("google.drive_full") === "on" ? "чекає перепідключення" : "вимкнено"}</b>
+              <span className="mono">Потрібен, щоб Джері міг перейменовувати й упорядковувати файли, які ти закинув у папки руками (креативи тощо). Без нього він їх тільки бачить. Ризик: система матиме право змінювати будь-які файли на твоєму Диску — Джері робить це тільки на твоє прохання.</span>
+              <div className="inline">
+                <input type="hidden" name="on" value={getSetting("google.drive_full") === "on" ? "off" : "on"} />
+                <button className="ghost small">{getSetting("google.drive_full") === "on" ? "Вимкнути" : "Увімкнути"}</button>
+                {getSetting("google.drive_full") === "on" && !g.driveFull && <a href="/api/google/connect" className="btn small">Перепідключити зараз</a>}
+              </div>
+            </form>
             {!g.driveAll && (
               <div className="callout" style={{ borderColor: "var(--warn)" }}>
                 <b>Диск:</b> зараз система бачить тільки файли, які створила сама. Щоб Джері бачив усе, що ти закидаєш у папки клієнтів руками (креативи, документи), натисни «Перепідключити» нижче і дай дозвіл «переглядати файли на Диску». Писати система й далі буде тільки у свої папки.

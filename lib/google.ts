@@ -30,6 +30,7 @@ export function googleStatus() {
     error: getSetting("google.error") ?? "",
     calendar: calendarAllowed(),
     driveAll: driveReadAll(),
+    driveFull: driveWriteAll(),
   };
 }
 
@@ -43,7 +44,7 @@ export function authUrl(redirectUri: string, state: string): string {
     client_id: env("GOOGLE_CLIENT_ID"),
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: GOOGLE_SCOPES.join(" "),
+    scope: [...GOOGLE_SCOPES, ...(getSetting("google.drive_full") === "on" ? [DRIVE_FULL] : [])].join(" "),
     access_type: "offline",
     prompt: "consent",
     include_granted_scopes: "true",
@@ -250,6 +251,15 @@ export async function sendMail(input: { to: string; subject: string; body: strin
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ raw, ...(input.threadId ? { threadId: input.threadId } : {}) }),
+  });
+}
+
+// Повний доступ до Диску (перейменовувати/переносити і файли, закинуті руками) — тільки якщо Саша увімкнув і перепідключив
+const DRIVE_FULL = "https://www.googleapis.com/auth/drive";
+export const driveWriteAll = () => googleConnected() && (getSetting("google.scopes") ?? "").split(" ").includes(DRIVE_FULL);
+export async function renameFile(id: string, name: string): Promise<{ id: string; name: string }> {
+  return api(`https://www.googleapis.com/drive/v3/files/${id}?fields=id,name&supportsAllDrives=true`, {
+    method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }),
   });
 }
 

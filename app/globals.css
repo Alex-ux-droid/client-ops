@@ -1618,3 +1618,26 @@ textarea.vt-ghost::placeholder { color: transparent; }
 .tm-step-n { font-size: 0.8125rem; font-weight: 500; color: var(--link); }
 .tm-step-title em, .tm-roadmap em { font-style: normal; font-weight: 400; color: var(--dim); font-size: 0.875rem; }
 .tm-restructure { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; padding: 0.625rem 0.875rem; border: 1px dashed rgba(61, 107, 255, 0.45); border-radius: 12px; background: var(--accent-soft); font-size: 0.875rem; color: var(--muted); }
+
+/* Лабораторія: промпт, сценарії, пропозиція */
+.pr-wrap { position: relative; display: inline-flex; }
+.pr-menu { left: auto; right: 0; bottom: auto; top: calc(100% + 0.375rem); }
+.pr-box { max-width: 52rem; }
+.pr-text { min-height: 22rem; font-size: 0.875rem; line-height: 1.5; }
+.sc-tabs { display: flex; gap: 0.375rem; flex-wrap: wrap; }
+.sc-tabs a { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 0.875rem; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); font-size: 0.9375rem; }
+.sc-tabs a.on { background: var(--accent-soft); border-color: rgba(61, 107, 255, 0.5); color: var(--text); }
+.sc-tabs a .tag { font-size: 0.75rem; }
+.sc-card { display: flex; flex-direction: column; gap: 0.875rem; }
+.sc-card.chosen { border-color: rgba(52, 211, 153, 0.4); }
+.sc-top { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; align-items: flex-start; }
+.sc-top h3 { margin: 0; font-size: 1.25rem; }
+.sc-sum { margin: 0.25rem 0 0; color: var(--muted); }
+.sc-facts { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.sc-facts span { padding: 0.375rem 0.75rem; border-radius: 10px; background: var(--bg-input); border: 1px solid var(--line); font-size: 0.875rem; color: var(--muted); }
+.sc-facts b { color: var(--text); }
+.pp-grid { display: flex; flex-direction: column; gap: 0.875rem; }
+.pp-sec { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr); gap: 0.75rem; align-items: start; }
+.pp-n { width: 2.25rem; height: 2.25rem; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--link); font-weight: 600; }
+.pp-sec label { font-weight: 600; display: block; margin-bottom: 0.125rem; }
+.pp-sec small { color: var(--dim); display: block; margin-bottom: 0.375rem; font-size: 0.8125rem; }
