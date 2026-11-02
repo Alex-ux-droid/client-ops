@@ -65,6 +65,7 @@ export async function labToStartupAction(fd: FormData) {
     raw_text: lab.brief,
     lab_id: lab.id,
     client_id: lab.client_id,
+    kind: lab.client_id ? "client" : "product",
     canvas: { problem: lab.brief, competitors: lab.options.filter((o) => o.id !== chosen?.id).map((o) => `${o.name}${o.about ? ` — ${o.about}` : ""}${o.price_month != null ? ` (${o.price_month}/міс)` : ""}`).join("\n") },
   });
   addItem(id, {
@@ -83,6 +84,8 @@ export async function saveStartupAction(fd: FormData) {
   for (const k of ["name", "one_liner", "north_star", "next_step", "repo", "prod_url"] as const) if (fd.has(k)) patch[k] = str(fd, k);
   if (patch.repo) patch.repo = patch.repo.replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/$/, "");
   if (fd.has("client_id")) patch.client_id = int(fd, "client_id");
+  const kind = str(fd, "kind");
+  if (kind === "product" || kind === "client") patch.kind = kind;
   const stage = str(fd, "stage");
   if (isStage(stage)) patch.stage = stage;
   updateStartup(id, patch);
@@ -212,4 +215,18 @@ export async function checkNowAction(fd: FormData) {
   const r = await checkUrl(s.prod_url);
   addCheck(id, r.ok, r.status, r.ms);
   back(id, "monitor");
+}
+
+// Журнал проблем продукту: статус; «Виправлено» з поясненням → у базу знань
+export async function issueAction(fd: FormData) {
+  await requireUser();
+  const { getIssue, setIssue } = await import("@/lib/repo/startupIssues");
+  const i = getIssue(int(fd, "issue_id")!);
+  if (!i) return;
+  const status = str(fd, "status") as "new" | "work" | "fixed" | "ignored";
+  if (!["new", "work", "fixed", "ignored"].includes(status)) return;
+  const note = str(fd, "fix_note");
+  setIssue(i.id, { status, ...(status === "fixed" && note ? { fix_note: note } : {}) });
+  if (status === "fixed" && fd.get("to_kb") === "on") addItem(i.startup_id, { kind: "knowledge", title: i.title.slice(0, 200), body: i.details.split("\n").slice(0, 6).join("\n"), data: { cat: "fix", fix: note, issue_id: String(i.id) } });
+  back(i.startup_id, "issues");
 }

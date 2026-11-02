@@ -141,10 +141,12 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "startups_list", description: "Стартапи Саші (власні продукти) і скринька сирих ідей (stage raw): стадія, суть, наскільки заповнений фундамент, наступний крок.", input_schema: obj({}, []) },
   { name: "startup_get", description: "Стартап повністю: суть, стадія, фундамент (canvas), етапи плану з задачами, гіпотези, рішення, питання, нотатки, ТЗ.", input_schema: obj({ startup_id: int("ID стартапу") }, ["startup_id"]) },
   { name: "idea_capture", description: "Записати сиру ідею в скриньку стартапів дослівно (коли Саша накидає ідею «на потім»).", input_schema: obj({ text: str("Ідея як сказав Саша") }, ["text"]) },
-  { name: "startup_create", description: "Створити стартап-проєкт (не сиру ідею). Потім заповни фундамент через startup_update.", input_schema: obj({ name: str("Робоча назва"), one_liner: str("Одним реченням: що і для кого"), stage: { type: "string", enum: ["idea", "research", "foundation", "build", "launch", "grow"] } }, ["name"]) },
+  { name: "startup_issues", description: "Журнал проблем продукту (стартапу): помилки і відгуки, які надсилає сам продукт, або записані вручну. action list (startup_id, all=true — і закриті) | add (вручну: startup_id, title, details, kind error|bug|feedback) | update (issue_id, status new|work|fixed|ignored, fix_note — як виправили; to_kb=true — записати в базу знань) | prompt (issue_id — готовий промпт для Claude Code, щоб виправити).", input_schema: obj({ action: { type: "string", enum: ["list", "add", "update", "prompt"] }, startup_id: int("ID стартапу"), issue_id: int("ID проблеми"), all: { type: "boolean" }, title: str("Що сталось"), details: str("Деталі"), kind: { type: "string", enum: ["error", "bug", "feedback"] }, status: { type: "string", enum: ["new", "work", "fixed", "ignored"] }, fix_note: str("Як виправили"), to_kb: { type: "boolean" } }, ["action"]) },
+  { name: "startup_create", description: "Створити стартап-проєкт (не сиру ідею). Потім заповни фундамент через startup_update.", input_schema: obj({ name: str("Робоча назва"), one_liner: str("Одним реченням: що і для кого"), stage: { type: "string", enum: ["idea", "research", "foundation", "build", "launch", "grow"] }, kind: { type: "string", enum: ["product", "client"], description: "product — свій продукт з нуля; client — рішення під конкретного клієнта (тоді client_id)" }, client_id: int("Для якого клієнта (kind client)") }, ["name"]) },
   { name: "startup_update", description: "Оновити стартап: назву, суть, стадію (raw→idea→research→foundation→build→launch→grow, paused, closed), головну метрику, наступний крок, репозиторій, адресу продакшену, ідею (idea: formula {who, pain, product, category, result, alternative, difference} — шматки речення «Для [who], у яких [pain], [product] — це [category], що [result]. На відміну від [alternative], ми [difference]»; stress {pain|pay|market|why_us|competition|build|money: {score 1–5, why}}; verdict), воронку маркетингу (mkt: stages [{name, conv %}] — кроки після ліда, target — клієнтів/міс, cpl — ціна ліда, якщо нема каналів), калькулятор фінансів (finance: model sub|once, price, setup, unit_cost, fixed, marketing, new_clients, growth %, churn %, invest, goal, tiers [{name, price, share %}], link_mkt, link_tech — брати клієнтів/рекламу з воронки і постійні витрати з інфраструктури), CLAUDE.md проєкту (spec_md, замінює повністю). Сегменти, кути, канали, модулі, інфраструктура, релізи, розмови, альтернативи — через startup_item. canvas — старі текстові нотатки, нове туди не пиши.", input_schema: obj({ startup_id: int("ID стартапу"), name: str("Назва"), one_liner: str("Суть одним реченням"), stage: { type: "string", enum: ["raw", "idea", "research", "foundation", "build", "launch", "grow", "paused", "closed"] }, north_star: str("Головна метрика"), next_step: str("Наступний крок"), repo: str("GitHub owner/name"), prod_url: str("Адреса продакшену"), canvas: { type: "object", description: "Блоки опор: ключ → текст (markdown)", additionalProperties: { type: "string" } }, finance: { type: "object", description: "Калькулятор — тільки те, що міняєш" }, idea: { type: "object", description: "formula / stress / verdict — тільки те, що міняєш" }, mkt: { type: "object", description: "stages / target / cpl" }, spec_md: str("ТЗ для Claude Code, markdown") }, ["startup_id"]) },
   { name: "startup_item", description: `Елементи стартапу (action add | update | delete). kind і що куди писати:
 - milestone — етап плану (status now|next|later|done); задачі на етап — create_task зі startup_id і milestone_id.
+- knowledge — БАЗА ЗНАНЬ проєкту: data.cat fix (зламалось → як виправили) | integration (як підключили API/сервіс: Binotel, Zadarma, Meta…, нюанси, ліміти) | lesson (урок/правило) | field (що побачили в людей/відділу продажу); title — коротко, body — що сталось/як влаштовано, data.fix — рішення. Записуй сюди кожну складну річ, яку розібрали — це «міцний каркас» продукту.
 - experiment — гіпотеза: title що думаємо, body як перевіряємо, data.criterion, data.result; status planned|running|confirmed|refuted.
 - decision — рішення: title, body чому, data.alternatives. question — питання/ризик (status open|closed). note — нотатка (body). link — data.url + title.
 ІДЕЯ: competitor — альтернатива: title, data.price, data.strong, data.weak. interview — розмова з клієнтом: title хто, body що сказав, data.pain yes|partly|no, data.pay yes|maybe|no, data.price.
@@ -719,6 +721,9 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
         milestones: pick("milestone"), tasks: startupTasks(sid).map((t) => ({ id: t.id, title: t.title, status: t.status, milestone_id: t.milestone_id, due: t.due_date })),
         experiments: pick("experiment"), decisions: pick("decision"), questions: pick("question"), notes: pick("note").slice(0, 15), links: pick("link"),
         spec_md: x.spec_md ? x.spec_md.slice(0, 6000) : undefined,
+        kind: x.kind === "client" ? "рішення для клієнта" : "свій продукт",
+        knowledge: pick("knowledge").slice(-40),
+        open_issues: (await import("../repo/startupIssues")).listIssues(sid, { open: true, limit: 20 }).map((i) => ({ issue_id: i.id, kind: i.kind, title: i.title, count: i.count, status: i.status, last: i.last_at })),
       };
     }
 
@@ -731,9 +736,39 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       return { ok: true, startup_id: sid };
     }
 
+    case "startup_issues": {
+      const ir = await import("../repo/startupIssues");
+      const r = await import("../repo/startups");
+      const a = s(input.action);
+      if (a === "list") {
+        const sid = need(id(input.startup_id), "startup_id обовʼязковий");
+        return { issues: ir.listIssues(sid, { open: !input.all, limit: 50 }).map((i) => ({ issue_id: i.id, kind: i.kind, title: i.title, details: i.details.slice(0, 600) || undefined, url: i.url || undefined, count: i.count, status: i.status, fix_note: i.fix_note || undefined, last: i.last_at })) };
+      }
+      if (a === "add") {
+        const sid = need(id(input.startup_id), "startup_id обовʼязковий");
+        need(r.getStartup(sid), "Стартапу нема");
+        const title = need(s(input.title), "title обовʼязковий");
+        const kind = (["error", "bug", "feedback"].includes(s(input.kind)) ? s(input.kind) : "bug") as "bug";
+        const res = ir.upsertIssue({ startup_id: sid, kind, title, details: s(input.details), url: "", reporter: "Саша", fingerprint: `manual-${Date.now()}` });
+        act("startup", `Проблема: ${title}`, `/startups/${sid}?v=issues`);
+        return { ok: true, issue_id: res.id };
+      }
+      const iss = need(ir.getIssue(need(id(input.issue_id), "issue_id обовʼязковий")), "Проблеми нема");
+      if (a === "prompt") {
+        const { issuePrompt } = await import("../startupIssues");
+        return { prompt: issuePrompt(need(r.getStartup(iss.startup_id), "Стартапу нема"), iss), hint: "Дай Саші промпт у блоці ```Промпт для Claude Code``` (щоб копіювався)" };
+      }
+      const st = s(input.status);
+      if (!["new", "work", "fixed", "ignored"].includes(st)) throw new Error("status: new|work|fixed|ignored");
+      ir.setIssue(iss.id, { status: st as "fixed", ...(input.fix_note !== undefined ? { fix_note: s(input.fix_note) } : {}) });
+      if (st === "fixed" && input.to_kb) r.addItem(iss.startup_id, { kind: "knowledge", title: iss.title.slice(0, 200), body: iss.details.split("\n").slice(0, 6).join("\n"), data: { cat: "fix", fix: s(input.fix_note), issue_id: String(iss.id) } });
+      act("startup", `Проблема #${iss.id}: ${st}`, `/startups/${iss.startup_id}?v=issues`);
+      return { ok: true };
+    }
+
     case "startup_create": {
       const { createStartup } = await import("../repo/startups");
-      const sid = createStartup({ name: need(s(input.name), "name обовʼязковий"), one_liner: s(input.one_liner), stage: (s(input.stage) || "idea") as "idea" });
+      const sid = createStartup({ name: need(s(input.name), "name обовʼязковий"), one_liner: s(input.one_liner), stage: (s(input.stage) || "idea") as "idea", client_id: id(input.client_id) ?? null, kind: input.kind === "client" ? "client" : input.kind === "product" ? "product" : undefined });
       act("startup", `Стартап: ${s(input.name)}`, `/startups/${sid}`);
       return { ok: true, startup_id: sid };
     }
@@ -773,7 +808,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const data: Record<string, string> = {};
       for (const k of ["criterion", "result", "alternatives", "url"]) if (input[k] !== undefined) data[k] = s(input[k]);
       if (input.data && typeof input.data === "object") for (const [k, v] of Object.entries(input.data as Record<string, unknown>)) if (/^[a-z_]{1,30}$/.test(k)) data[k] = s(v).slice(0, 20000);
-      const VIEW: Record<string, string> = { milestone: "plan", experiment: "tests", decision: "decisions", question: "", note: "notes", link: "notes", competitor: "idea", interview: "idea", segment: "marketing", angle: "marketing", channel: "marketing", module: "tech", infra: "tech", release: "tech" };
+      const VIEW: Record<string, string> = { milestone: "plan", experiment: "tests", decision: "decisions", question: "", note: "notes", link: "notes", competitor: "idea", interview: "idea", segment: "marketing", angle: "marketing", channel: "marketing", module: "tech", infra: "tech", release: "tech", knowledge: "kb" };
       if (a === "add") {
         const sid = need(id(input.startup_id), "startup_id обовʼязковий");
         need(r.getStartup(sid), "Стартапу нема");
