@@ -1815,3 +1815,11 @@ textarea.vt-ghost::placeholder { color: transparent; }
 .rl-card summary { cursor: pointer; }
 .cm-mem { display: flex; flex-direction: column; gap: 0.625rem; }
 .cm-mem > summary { cursor: pointer; display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; }
+.su-q2 li { display: block; }
+.su-q2 summary { cursor: pointer; list-style: none; display: flex; gap: 0.5rem; }
+.su-q2 summary::before { content: "?"; flex: none; width: 1.25rem; height: 1.25rem; border-radius: 50%; border: 1px solid var(--line-strong); display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--link); margin-top: 0.125rem; }
+.su-q2 summary::-webkit-details-marker { display: none; }
+.su-q2 summary small { display: block; color: var(--muted); }
+.su-q-ans { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.su-q-ans li { display: flex; flex-direction: column; gap: 0.125rem; font-size: 0.9375rem; }
+.su-q-ans span { color: var(--muted); }

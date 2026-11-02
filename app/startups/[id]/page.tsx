@@ -165,6 +165,7 @@ function Overview({ s, items }: { s: Startup; items: StartupItem[] }) {
   const curTasks = current ? startupTasks(s.id, current.id) : [];
   const open = startupTasks(s.id).filter((t) => t.status !== "done");
   const questions = items.filter((i) => i.kind === "question" && i.status !== "closed");
+  const answered = items.filter((i) => i.kind === "question" && i.status === "closed");
   const decisions = items.filter((i) => i.kind === "decision").slice(0, 3);
   const exps = items.filter((i) => i.kind === "experiment");
   const running = exps.filter((e) => e.status === "running" || e.status === "planned");
@@ -198,19 +199,32 @@ function Overview({ s, items }: { s: Startup; items: StartupItem[] }) {
 
         <div className="card stack">
           <div className="mx-main-head"><b>Відкриті питання</b><span>{questions.length}</span></div>
+          <p className="lab-muted" style={{ margin: 0 }}>Ризики й невідомі, які треба закрити до запуску. Натисни питання → впиши відповідь (або попроси Джері) → «Закрити».</p>
           {questions.length ? (
-            <ul className="su-q">
+            <ul className="su-q su-q2">
               {questions.map((q) => (
-                <li key={q.id}>
-                  <form action={updateItemAction}>
-                    <input type="hidden" name="item_id" value={q.id} /><input type="hidden" name="status" value="closed" />
-                    <button className="tm-box-check" title="Закрито — відповідь знайшли" aria-label="Закрити питання">✓</button>
-                  </form>
-                  <span>{q.title}{q.body && <small>{q.body}</small>}</span>
+                <li key={q.id} id={`i-${q.id}`}>
+                  <details>
+                    <summary><span>{q.title}{q.body && <small>{q.body}</small>}</span></summary>
+                    <form action={updateItemAction} className="stack" style={{ gap: "0.5rem", marginTop: "0.5rem" }}>
+                      <input type="hidden" name="item_id" value={q.id} /><input type="hidden" name="status" value="closed" />
+                      <VoiceTextarea name="d_answer" defaultValue={q.data.answer ?? ""} placeholder="Відповідь: що зʼясували, цифри, від кого" style={{ minHeight: "4rem" }} />
+                      <div className="inline" style={{ flexWrap: "wrap" }}>
+                        <button className="small">✓ Відповісти і закрити</button>
+                        <AskAssistant text={`Стартап startup_id ${s.id}, відкрите питання item_id ${q.id}: «${q.title}». Допоможи відповісти: що ми вже знаємо (база знань, розмови, цифри, рішення), що треба перевірити і як (кому подзвонити, що порахувати, який тест). Дай чітку чернетку відповіді. Якщо я погоджусь — запиши її в startup_item update (item_id ${q.id}, data.answer, status closed).`}>Джері, допоможи відповісти</AskAssistant>
+                      </div>
+                    </form>
+                  </details>
                 </li>
               ))}
             </ul>
           ) : <Empty>Нема — або ще не записали.</Empty>}
+          {answered.length > 0 && (
+            <details>
+              <summary className="h-link">Відповіли ({answered.length})</summary>
+              <ul className="su-q-ans">{answered.map((q) => <li key={q.id}><b>{q.title}</b>{q.data.answer ? <span>{q.data.answer}</span> : <span className="lab-muted">закрито без відповіді</span>}</li>)}</ul>
+            </details>
+          )}
           <form action={addItemAction} className="inline">
             <input type="hidden" name="id" value={s.id} /><input type="hidden" name="kind" value="question" /><input type="hidden" name="status" value="open" />
             <input name="title" placeholder="+ Питання або ризик, на який треба відповісти" />
