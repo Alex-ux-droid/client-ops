@@ -8,6 +8,7 @@ import CommandPalette from "./CommandPalette";
 import QuickAdd from "./QuickAdd";
 import { SideToggle } from "./sideMini";
 import TaskModal from "./TaskModal";
+import ClientMessage from "./ClientMessage";
 
 import type { AssistantSeed } from "./assistant";
 import Bot from "./Bot";
@@ -159,6 +160,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
       {search && <CommandPalette onClose={() => setSearch(false)} />}
       {add && <QuickAdd clients={clients} onClose={() => setAdd(false)} />}
       <Suspense fallback={null}><TaskModal /></Suspense>
+      <ClientMessage />
       <JerryTip hidden={dock || search || add} />
     </div>
   );

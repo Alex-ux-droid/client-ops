@@ -33,11 +33,15 @@ import { currency, CURRENCIES } from "@/lib/config";
 import { getApiKey, hasAgentToken, maskKey } from "@/lib/secrets";
 import { systemInfo } from "@/lib/system";
 import VoiceTextarea from "@/components/VoiceTextarea";
+import { MSG_RULES_DEFAULT } from "@/lib/clientMessage";
+import { listMsgTemplates, type MsgTemplate } from "@/lib/repo/msgTemplates";
+import { deleteMsgTemplateAction, saveMsgRulesAction, saveMsgTemplateAction } from "@/app/messages/actions";
 
 const TABS = [
   { k: "general", label: "Загальне" },
   { k: "agent", label: "Джері" },
   { k: "caps", label: "Можливості" },
+  { k: "messages", label: "Повідомлення" },
   { k: "connectors", label: "Конектори" },
   { k: "catalog", label: "Довідники" },
   { k: "access", label: "Доступи" },
@@ -80,6 +84,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {tab === "agent" && <div className="stack" style={{ gap: "1rem" }}><Agent /><AgentMemory /></div>}
       {tab === "connectors" && (conn === "google" ? <GoogleTab /> : conn === "voice" ? <VoiceTab /> : conn === "telegram" ? <TelegramTab /> : conn === "meta" ? <MetaTab /> : conn === "github" ? <GithubTab /> : <Connectors />)}
       {tab === "caps" && <Caps />}
+      {tab === "messages" && <Messages />}
       {tab === "catalog" && <Catalog />}
       {tab === "access" && <Access />}
       {tab === "system" && <System />}
@@ -549,6 +554,48 @@ function KeysForm({ redirect, configured }: { redirect: string; configured: bool
       </div>
       <div><button className="ghost">Зберегти ключі</button></div>
     </form>
+  );
+}
+
+function Messages() {
+  const list = listMsgTemplates();
+  const rules = getSetting("msg.rules")?.trim() || MSG_RULES_DEFAULT;
+  const tplForm = (t?: MsgTemplate) => (
+    <form action={saveMsgTemplateAction} className="stack" style={{ gap: "0.625rem" }}>
+      {t && <input type="hidden" name="id" value={t.id} />}
+      <div className="grid2">
+        <label className="field cm-field"><span>Назва</span><input name="title" defaultValue={t?.title} required placeholder="Запуск реклами" /></label>
+        <label className="field cm-field"><span>Коли</span><input name="when_hint" defaultValue={t?.when_hint} placeholder="реклама запущена" /></label>
+      </div>
+      <label className="field cm-field"><span>Структура — що і в якому порядку</span><VoiceTextarea name="guide" defaultValue={t?.guide} rows={9} placeholder={"1. Що зробили одним реченням\n2. Чого чекати\n3. Що потрібно від клієнта\n4. Коли наступний звіт"} /></label>
+      <label className="field cm-field"><span>Приклад вдалого повідомлення (Джері бере стиль і довжину, не факти)</span><VoiceTextarea name="example" defaultValue={t?.example} rows={8} /></label>
+      <div className="inline"><button className="small">Зберегти</button></div>
+    </form>
+  );
+  return (
+    <div className="stack" style={{ gap: "1.25rem" }}>
+      <div className="mono">Шаблони для кнопки «Повідомлення клієнту» у задачі і для Джері в чаті («підготуй повідомлення клієнту»). Джері пише чернетку строго по структурі, бере цифри з бази і тон — з переписки в групі клієнта.</div>
+      <div className="panel">
+        <div className="panel-head"><h2>Загальні правила тону</h2></div>
+        <form action={saveMsgRulesAction} className="stack" style={{ gap: "0.625rem", padding: "0 1.125rem 1rem" }}>
+          <VoiceTextarea name="rules" defaultValue={rules} rows={10} aria-label="Правила" />
+          <div className="inline"><button className="small">Зберегти</button><span className="mono">порожнє — повернуться стандартні</span></div>
+        </form>
+      </div>
+      {list.map((t) => (
+        <details key={t.id} className="panel">
+          <summary className="panel-head" style={{ cursor: "pointer" }}><h2>{t.title}</h2><span className="mono">{t.when_hint}</span></summary>
+          <div style={{ padding: "0 1.125rem 1rem" }} className="stack">
+            {tplForm(t)}
+            <form action={deleteMsgTemplateAction}><input type="hidden" name="id" value={t.id} /><button className="ghost small tm-danger">Видалити шаблон</button></form>
+          </div>
+        </details>
+      ))}
+      <details className="panel">
+        <summary className="panel-head" style={{ cursor: "pointer" }}><h2>+ Новий шаблон</h2></summary>
+        <div style={{ padding: "0 1.125rem 1rem" }}>{tplForm()}</div>
+      </details>
+    </div>
   );
 }
 

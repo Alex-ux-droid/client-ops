@@ -128,6 +128,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "get_playbook", description: "Текст плейбука.", input_schema: obj({ playbook_id: int("ID плейбука") }, ["playbook_id"]) },
   { name: "attach_playbook", description: "Підключити плейбук до клієнта.", input_schema: obj({ client_id: int("ID клієнта"), playbook_id: int("ID плейбука") }, ["client_id", "playbook_id"]) },
   { name: "make_pdf", description: "Зробити PDF з markdown. format document (A4 документ): # заголовки, абзаци, списки - і 1., чекліст - [ ], **жирне**, --- лінія, таблиці | a | b |; «на одну сторінку» — ~350 слів. format slides (презентація, A4 горизонтально, темна фірмова): перший абзац — підзаголовок титульного, кожен «## Назва» — новий слайд (3–6 пунктів на слайд), картки-цифри рядками «+ Підпис: значення» (до 4 в ряд), таблиці, списки, **жирне». Повертає file_id і посилання; у Telegram-розмові з Сашею файл одразу йде йому (send_to_telegram:false — не надсилати, напр. якщо далі шлеш у групу клієнта).", input_schema: obj({ title: str("Заголовок документа"), format: { type: "string", enum: ["document", "slides"] }, content: str("Вміст у markdown (без заголовка — він окремо)"), file_name: str("Назва файлу, необовʼязково"), client_id: int("Клієнт, якщо документ про нього"), send_to_telegram: { type: "boolean", description: "Надіслати Саші в Telegram (у Telegram-розмові — завжди)" }, caption: str("Підпис до файлу в Telegram") }, ["title", "content"]) },
+  { name: "message_templates", description: "Шаблони повідомлень клієнтам (Налаштування → Повідомлення): структура під подію (запуск реклами, звіт, що зробили, проблема, потрібно від клієнта, оплата) + загальні правила тону + приклад. ЗАВЖДИ викликай перед тим, як писати чернетку повідомлення клієнту, і пиши строго по структурі обраного шаблону. Без template_id — список; з template_id — повна структура.", input_schema: obj({ template_id: int("ID шаблону зі списку") }) },
   { name: "telegram_group_send", description: "Надіслати в Telegram-групу КЛІЄНТА повідомлення і/або файл (file_id з make_pdf) від імені бота. ТІЛЬКИ коли Саша прямо попросив відправити в групу/клієнту в цій розмові — ніколи з власної ініціативи. Текст — для клієнта: ввічливо, без внутрішніх нотаток, націнок і думок Саші. sasha_request — дослівні слова Саші з проханням.", input_schema: obj({ client_id: int("ID клієнта"), chat_id: int("ID групи, якщо в клієнта їх кілька (telegram_chats)"), text: str("Повідомлення або підпис до файлу"), file_id: int("ID файлу з make_pdf"), sasha_request: str("Дослівно, що Саша попросив") }, ["client_id", "sasha_request"]) },
   { name: "telegram_send", description: "Надіслати Саші в Telegram повідомлення (text) або файл (file_id з make_pdf). Для нагадувань, коли він просить «скинь мені в телеграм».", input_schema: obj({ text: str("Текст або підпис до файлу"), file_id: int("ID файлу з make_pdf") }, []) },
   { name: "github_repos", description: "GitHub Саші (і приватні репозиторії): список репозиторіїв, новіші зверху. q — фільтр за назвою/описом.", input_schema: obj({ q: str("Фільтр, необовʼязково") }, []) },
@@ -429,6 +430,16 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       }
       act("file", `PDF: ${title}`, `/api/files/${f.id}`);
       return { ok: true, file_id: f.id, url: `/api/files/${f.id}`, pages_hint: "A4", sent_to_telegram: telegram };
+    }
+
+    case "message_templates": {
+      const { listMsgTemplates, getMsgTemplate } = await import("../repo/msgTemplates");
+      const { templateGuide } = await import("../clientMessage");
+      if (input.template_id) {
+        const tpl = need(getMsgTemplate(Math.trunc(n(input.template_id))), "Шаблону нема");
+        return { template: templateGuide(tpl), hint: "Поверни Саші текст у блоці ```Повідомлення <імʼя>``` (щоб копіювався). Нагадай: у задачі є кнопка «Повідомлення клієнту»." };
+      }
+      return { templates: listMsgTemplates().map((x) => ({ id: x.id, title: x.title, when: x.when_hint })), hint: "Обери за подією і виклич з template_id" };
     }
 
     case "telegram_group_send": {

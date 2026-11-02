@@ -12,6 +12,7 @@ export const CAPS = [
   { key: "files", label: "Робити файли (PDF)", desc: "звіти, інструкції, оновлення — PDF на А4", tools: ["make_pdf"] },
   { key: "telegram_send", label: "Писати тобі в Telegram", desc: "надіслати повідомлення або файл з будь-якої розмови", tools: ["telegram_send"] },
   { key: "groups", label: "Писати в групи клієнтів", desc: "повідомлення і файли (звіти, PDF) у Telegram-групу клієнта — тільки коли ти прямо попросив", tools: ["telegram_group_send"] },
+  { key: "client_msg", label: "Повідомлення клієнтам", desc: "кнопка «Повідомлення клієнту» у задачі: чернетка по шаблону (Налаштування → Повідомлення) з цифр і стану задачі; ≈1–3 цента за чернетку", tools: ["message_templates"] },
   { key: "vision", label: "Дивитись картинки", desc: "фото з Telegram-груп клієнтів і креативи Meta — бачить і оцінює сам; кожна картинка коштує токенів", tools: ["view_images"] },
   { key: "mail", label: "Пошта (читання)", desc: "шукати і читати листи в Gmail; надсилати листи Джері не може", tools: ["mail_search", "mail_read"] },
   { key: "drive", label: "Google Диск", desc: "бачити все в папках клієнтів (і те, що ти закинув руками), створювати папки і класти туди файли: фото з Telegram-груп, креативи Meta", tools: ["drive_create_folders", "drive_save_files", "drive_list", "drive_rename"] },
