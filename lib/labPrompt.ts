@@ -1,7 +1,7 @@
 // Лабораторія → тексти назовні: пропозиція клієнту (markdown для PDF A4) і готові промпти,
 // щоб у будь-якому іншому інструменті (Claude, Gamma, Canva…) зібрати презентацію. Без ШІ — миттєво і безкоштовно.
 import { money } from "./config";
-import { PROPOSAL, type LabFull, type LabScenario } from "./repo/lab";
+import { labFinance, PROPOSAL, type LabFull, type LabScenario } from "./repo/lab";
 
 const sc = (s: LabScenario) => [
   `### ${s.title}`,
@@ -27,6 +27,9 @@ function context(l: LabFull): string {
     `Задача клієнта:\n${l.brief || "—"}`,
     opts && `Варіанти, які порівнювали:\n${opts}`,
     chosen ? `ОБРАНИЙ СЦЕНАРІЙ:\n${sc(chosen)}` : l.scenarios.length ? `Сценарії:\n${l.scenarios.map(sc).join("\n\n")}` : "",
+    l.products.length ? `Що даємо клієнту (продукти):\n${l.products.map((p) => `- ${p.name}${p.about ? ` — ${p.about}` : ""}${p.price_setup != null ? `, разово ${money(p.price_setup)}` : ""}${p.price_month != null ? `, ${money(p.price_month)}/міс` : ""}`).join("\n")}` : "",
+    l.products.length ? (() => { const f = labFinance(l.products); return `Ціна для клієнта: разово ${money(f.clientSetup)}, щомісяця ${money(f.clientMonth)}, перший рік ${money(f.clientYear)}.`; })() : "",
+    l.stages.length ? `Етапи роботи:\n${l.stages.map((s, i) => `${i + 1}. ${s.title}${s.duration ? ` (${s.duration})` : ""}${s.result ? ` — результат: ${s.result}` : ""}\n${s.steps_md.trim()}`).join("\n\n")}` : "",
     l.conclusion && `Висновок:\n${l.conclusion}`,
   ].filter(Boolean).join("\n\n");
 }

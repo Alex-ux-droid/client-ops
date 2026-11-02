@@ -30,7 +30,7 @@ const TEMPLATES: Record<LabCategory, [string, number][]> = {
 export type LabSession = {
   id: number; client_id: number | null; client_name: string | null; title: string; category: LabCategory; status: "open" | "done";
   brief: string; notes: string; conclusion: string; chosen_option_id: number | null; created_at: string; done_at: string | null;
-  proposal_json: string; chosen_scenario_id: number | null;
+  proposal_json: string; chosen_scenario_id: number | null; mode: "choose" | "solution";
   options_count?: number;
 };
 export type LabCriterion = { id: number; session_id: number; name: string; weight: number };
@@ -52,8 +52,32 @@ export type ProposalKey = (typeof PROPOSAL)[number]["k"];
 export type Proposal = Partial<Record<ProposalKey | "title" | "subtitle", string>>;
 export const parseProposal = (j: string | null | undefined): Proposal => { try { return JSON.parse(j || "{}") as Proposal; } catch { return {}; } };
 
+// Режим «рішення»: складові (продукти) з ціною для клієнта і собівартістю, етапи покроково
+export const PRODUCT_TYPES = { ours: "наша робота", service: "сервіс", contractor: "підрядник" } as const;
+export type LabProduct = { id: number; session_id: number; name: string; about: string; ptype: keyof typeof PRODUCT_TYPES; price_setup: number | null; price_month: number | null; cost_setup: number | null; cost_month: number | null; notes: string; position: number };
+export type LabStage = { id: number; session_id: number; title: string; steps_md: string; result: string; duration: string; product_id: number | null; position: number };
+// Чи етап прописаний: є кроки (2+), результат і термін
+export function stageGaps(st: LabStage): string[] {
+  const steps = st.steps_md.split("\n").filter((l) => /^\s*(\d+[.)]|[-*•]|- \[[ xX]\])\s+\S/.test(l)).length;
+  return [steps < 2 && "кроки", !st.result.trim() && "результат", !st.duration.trim() && "термін"].filter(Boolean) as string[];
+}
+export function labFinance(products: LabProduct[]) {
+  const sum = (k: "price_setup" | "price_month" | "cost_setup" | "cost_month") => products.reduce((a, p) => a + (p[k] ?? 0), 0);
+  const clientSetup = sum("price_setup"), clientMonth = sum("price_month"), costSetup = sum("cost_setup"), costMonth = sum("cost_month");
+  return {
+    clientSetup, clientMonth, clientYear: clientSetup + clientMonth * 12,
+    costSetup, costMonth, costYear: costSetup + costMonth * 12,
+    marginSetup: clientSetup - costSetup, marginMonth: clientMonth - costMonth,
+    marginYear: clientSetup - costSetup + (clientMonth - costMonth) * 12,
+    missingPrice: products.filter((p) => p.price_setup == null && p.price_month == null).map((p) => p.name),
+    missingCost: products.filter((p) => p.cost_setup == null && p.cost_month == null).map((p) => p.name),
+  };
+}
+
 export type LabFull = LabSession & {
   scenarios: LabScenario[];
+  products: LabProduct[];
+  stages: LabStage[];
   proposal: Proposal;
   criteria: LabCriterion[];
   options: (LabOption & { scores: Record<number, number>; total: number | null })[];
@@ -93,7 +117,9 @@ export function getLab(id: number): LabFull | undefined {
     return { ...o, scores, total: total(scores, criteria) };
   });
   const scenarios = db().prepare("SELECT * FROM lab_scenarios WHERE session_id = ? ORDER BY position, id").all(id) as LabScenario[];
-  return { ...s, criteria, options, scenarios, proposal: parseProposal(s.proposal_json) };
+  const products = db().prepare("SELECT * FROM lab_products WHERE session_id = ? ORDER BY position, id").all(id) as LabProduct[];
+  const stages = db().prepare("SELECT * FROM lab_stages WHERE session_id = ? ORDER BY position, id").all(id) as LabStage[];
+  return { ...s, criteria, options, scenarios, products, stages, proposal: parseProposal(s.proposal_json) };
 }
 
 export function createLab(input: { client_id: number | null; title: string; category: LabCategory; brief?: string }): number {
@@ -140,6 +166,35 @@ export function deleteScenario(id: number): void {
   db().prepare("UPDATE lab_sessions SET chosen_scenario_id = NULL WHERE chosen_scenario_id = ?").run(id);
   db().prepare("DELETE FROM lab_scenarios WHERE id = ?").run(id);
 }
+
+export function setLabMode(id: number, mode: "choose" | "solution"): void {
+  db().prepare("UPDATE lab_sessions SET mode = ? WHERE id = ?").run(mode, id);
+}
+const PR_F = ["name", "about", "ptype", "price_setup", "price_month", "cost_setup", "cost_month", "notes"] as const;
+type PrIn = Partial<Pick<LabProduct, (typeof PR_F)[number]>>;
+const nextPos = (table: string, sid: number) => (db().prepare(`SELECT COALESCE(MAX(position), 0) p FROM ${table} WHERE session_id = ?`).get(sid) as { p: number }).p + 1;
+export function addProduct(sid: number, i: PrIn & { name: string }): number {
+  return Number(db().prepare(`INSERT INTO lab_products (session_id, name, about, ptype, price_setup, price_month, cost_setup, cost_month, notes, position) VALUES (?,?,?,?,?,?,?,?,?,?)`)
+    .run(sid, i.name.slice(0, 120), i.about ?? "", i.ptype && i.ptype in PRODUCT_TYPES ? i.ptype : "ours", i.price_setup ?? null, i.price_month ?? null, i.cost_setup ?? null, i.cost_month ?? null, i.notes ?? "", nextPos("lab_products", sid)).lastInsertRowid);
+}
+export function updateProduct(id: number, p: PrIn): void {
+  const keys = PR_F.filter((k) => p[k] !== undefined);
+  if (keys.length) db().prepare(`UPDATE lab_products SET ${keys.map((k) => `${k} = @${k}`).join(", ")} WHERE id = @id`).run({ ...p, id });
+}
+export const getProduct = (id: number) => db().prepare("SELECT * FROM lab_products WHERE id = ?").get(id) as LabProduct | undefined;
+export const deleteProduct = (id: number) => { db().prepare("UPDATE lab_stages SET product_id = NULL WHERE product_id = ?").run(id); db().prepare("DELETE FROM lab_products WHERE id = ?").run(id); };
+const ST_F = ["title", "steps_md", "result", "duration", "product_id", "position"] as const;
+type StIn = Partial<Pick<LabStage, (typeof ST_F)[number]>>;
+export function addStage(sid: number, i: StIn & { title: string }): number {
+  return Number(db().prepare(`INSERT INTO lab_stages (session_id, title, steps_md, result, duration, product_id, position) VALUES (?,?,?,?,?,?,?)`)
+    .run(sid, i.title.slice(0, 160), i.steps_md ?? "", i.result ?? "", i.duration ?? "", i.product_id ?? null, i.position ?? nextPos("lab_stages", sid)).lastInsertRowid);
+}
+export function updateStage(id: number, p: StIn): void {
+  const keys = ST_F.filter((k) => p[k] !== undefined);
+  if (keys.length) db().prepare(`UPDATE lab_stages SET ${keys.map((k) => `${k} = @${k}`).join(", ")} WHERE id = @id`).run({ ...p, id });
+}
+export const getStage = (id: number) => db().prepare("SELECT * FROM lab_stages WHERE id = ?").get(id) as LabStage | undefined;
+export const deleteStage = (id: number) => db().prepare("DELETE FROM lab_stages WHERE id = ?").run(id);
 
 export function setLabStatus(id: number, status: "open" | "done"): void {
   db().prepare(`UPDATE lab_sessions SET status = ?, done_at = CASE WHEN ? = 'done' THEN datetime('now') ELSE NULL END WHERE id = ?`).run(status, status, id);

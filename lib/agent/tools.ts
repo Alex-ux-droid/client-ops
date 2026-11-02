@@ -28,7 +28,7 @@ import { label as cutLabel } from "../metaInsights";
 import { listChangelog } from "../repo/changelog";
 import { ACCESS_OWNERS, getAccess, listAccess, saveAccess } from "../repo/access";
 import { addTip, reactedTips, TIP_TOPICS, tipStats, topicScores } from "../repo/tips";
-import { addCriterion, addOption, createLab, getLab, getOption, isLabCategory, LAB_CATEGORIES, listLab, setScore, updateLab, updateOption } from "../repo/lab";
+import { addCriterion, addOption, createLab, getLab, getOption, isLabCategory, LAB_CATEGORIES, listLab, setLabMode, setScore, updateLab, updateOption } from "../repo/lab";
 import { addTool, enableService, findToolByName, listFolders, listServices, listTools, removeService, saveFolder, updateService } from "../repo/services";
 import { isServiceType, SERVICE_TYPES, SERVICES, type ServiceDef } from "../services";
 
@@ -170,7 +170,10 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "lab_create", description: "Лабораторія: нова сесія підбору (додає стартові критерії для категорії).", input_schema: obj({ client_id: int("ID клієнта"), title: str("Питання: напр. «Яку CRM поставити»"), category: { type: "string", enum: Object.keys(LAB_CATEGORIES) }, brief: str("Що треба клієнту, бюджет, обмеження") }, ["title", "category"]) },
   { name: "lab_scenario", description: "Лабораторія: сценарії рішення (покрокові варіанти з термінами і ціною). action add | update | delete | choose (choose — обраний іде в пропозицію клієнту; scenario_id 0 — скасувати вибір). steps_md — кроки по порядку markdown (1. 2. 3. або ### Етап). Ціни — числами, тільки якщо знаєш; не вигадуй.", input_schema: obj({ action: { type: "string", enum: ["add", "update", "delete", "choose"] }, lab_id: int("ID сесії"), scenario_id: int("ID сценарію (update/delete/choose)"), title: str("Назва"), summary: str("Суть 1–2 речення"), steps_md: str("Кроки, markdown"), timeline: str("Терміни"), price_setup: num("Впровадження"), price_month: num("На місяць"), pros: str("Плюси, кожен з нового рядка"), cons: str("Мінуси, кожен з нового рядка") }, ["action", "lab_id"]) },
   { name: "lab_proposal", description: "Лабораторія: пропозиція клієнту (документ A4, PDF — кнопка на сторінці). Поля (передавай тільки ті, що міняєш, текст markdown): title, subtitle, problem (яку проблему вирішуємо), why (чому це проблема саме в них — що втрачають), offer (що ми дамо — списком), price (ціна впровадження, підтримка, що входить, терміни), bonuses (плюшки, якщо на підтримці — списком). Для власника бізнесу: просто, вигоди, без техніки; цифри тільки реальні, інакше [уточнити].", input_schema: obj({ lab_id: int("ID сесії"), title: str("Заголовок"), subtitle: str("Підзаголовок"), problem: str("Проблема"), why: str("Чому це проблема саме у них"), offer: str("Що ми дамо"), price: str("Ціна і підтримка"), bonuses: str("Бонуси на підтримці") }, ["lab_id"]) },
-  { name: "lab_update", description: "Лабораторія: змінити сесію — title (коротке питання), category (що підбираємо: crm/telephony/site/other — від цього залежить, у яку вкладку клієнта піде вибір), brief (проблема), notes (штурм), conclusion (висновок: чому цей варіант, ризики, наступні кроки).", input_schema: obj({ lab_id: int("ID сесії"), title: str("Питання"), category: { type: "string", enum: Object.keys(LAB_CATEGORIES) }, brief: str("Що треба клієнту"), notes: str("Штурм — повний текст"), conclusion: str("Висновок — повний текст") }, ["lab_id"]) },
+  { name: "lab_product", description: "Лабораторія, режим «рішення»: продукти (складові) обраного рішення — наша розробка, сервіси, підрядники. action add | update | delete. Для кожного: name, about (що дає клієнту, 1 речення), ptype ours|service|contractor, price_setup / price_month (що платить клієнт), cost_setup / cost_month (наша собівартість). Невідомі ціни лиши порожніми — не вигадуй.", input_schema: obj({ action: { type: "string", enum: ["add", "update", "delete"] }, lab_id: int("ID сесії"), product_id: int("ID продукту (update/delete)"), name: str("Назва"), about: str("Що дає клієнту"), ptype: { type: "string", enum: ["ours", "service", "contractor"] }, price_setup: num("Клієнту разово"), price_month: num("Клієнту на місяць"), cost_setup: num("Нам разово"), cost_month: num("Нам на місяць"), notes: str("Нотатка") }, ["action", "lab_id"]) },
+  { name: "lab_stage", description: "Лабораторія, режим «рішення»: покрокова структура впровадження. action add | update | delete. Етап: title, steps_md (конкретні кроки 1. 2. 3.), result (що клієнт має на виході), duration (термін), product_id (до якого продукту), position (порядок). Етап вважається прописаним, коли є 2+ кроки, результат і термін.", input_schema: obj({ action: { type: "string", enum: ["add", "update", "delete"] }, lab_id: int("ID сесії"), stage_id: int("ID етапу (update/delete)"), title: str("Назва етапу"), steps_md: str("Кроки"), result: str("Результат для клієнта"), duration: str("Термін"), product_id: int("ID продукту"), position: int("Порядок") }, ["action", "lab_id"]) },
+  { name: "lab_delete_option", description: "Лабораторія: прибрати варіант з порівняння (option_id з lab_get). Роби тільки на прохання Саші.", input_schema: obj({ option_id: int("ID варіанта") }, ["option_id"]) },
+  { name: "lab_update", description: "Лабораторія: змінити сесію — title (коротке питання), category (що підбираємо: crm/telephony/site/other — від цього залежить, у яку вкладку клієнта піде вибір), brief (проблема), notes (штурм), conclusion (висновок: чому цей варіант, ризики, наступні кроки).", input_schema: obj({ lab_id: int("ID сесії"), title: str("Питання"), category: { type: "string", enum: Object.keys(LAB_CATEGORIES) }, brief: str("Що треба клієнту"), notes: str("Штурм — повний текст"), conclusion: str("Висновок — повний текст"), mode: { type: "string", enum: ["choose", "solution"], description: "Режим сесії: choose — вибір рішення; solution — робота над обраним (коли Саша сказав «беремо цей варіант / переробляй під нього»: тоді обери сценарій lab_scenario choose, перемкни solution і заповни продукти, етапи, пропозицію)" } }, ["lab_id"]) },
   { name: "lab_add_option", description: "Лабораторія: додати варіант (сервіс або своє рішення) з тим, що відомо. ОБОВʼЯЗКОВО about — що це простими словами, 1 речення, щоб Саша без гугла зрозумів. Плюси/мінуси — кожен з нового рядка, коротко.", input_schema: obj({ lab_id: int("ID сесії"), name: str("Назва"), about: str("Що це простими словами, 1 речення: напр. «Готова CRM з телефонією і задачами, популярна в Україні, від $49/міс»"), link: str("Посилання"), price_month: num("Ціна на місяць"), price_setup: num("Разова вартість впровадження"), pros: str("Плюси"), cons: str("Мінуси"), notes: str("Що видно на тесті") }, ["lab_id", "name"]) },
   { name: "lab_update_option", description: "Лабораторія: оновити варіант (передавай тільки те, що змінюєш).", input_schema: obj({ option_id: int("ID варіанта"), name: str("Назва"), about: str("Що це простими словами, 1 речення"), link: str("Посилання"), price_month: num("Ціна на місяць"), price_setup: num("Впровадження"), pros: str("Плюси"), cons: str("Мінуси"), notes: str("Що видно на тесті") }, ["option_id"]) },
   { name: "lab_add_criterion", description: "Лабораторія: додати критерій порівняння.", input_schema: obj({ lab_id: int("ID сесії"), name: str("Критерій"), weight: int("1 неважливо, 2 важливо, 3 критично") }, ["lab_id", "name"]) },
@@ -892,13 +895,49 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       return { ok: true, pdf: `/api/lab/${lid}/proposal` };
     }
 
+    case "lab_product":
+    case "lab_stage": {
+      const r = await import("../repo/lab");
+      const lid = need(id(input.lab_id), "lab_id обов'язковий");
+      need(getLab(lid), "Сесії нема");
+      const a = s(input.action);
+      const numv = (k: string) => (input[k] === undefined ? undefined : input[k] === null || input[k] === "" ? null : Number(input[k]));
+      if (name === "lab_product") {
+        const f: Record<string, unknown> = {};
+        for (const k of ["name", "about", "ptype", "notes"]) if (input[k] !== undefined) f[k] = s(input[k]);
+        for (const k of ["price_setup", "price_month", "cost_setup", "cost_month"]) if (input[k] !== undefined) f[k] = numv(k);
+        if (a === "add") { const pid = r.addProduct(lid, { ...f, name: need(s(input.name), "name обов'язковий") }); act("lab", `Продукт: ${s(input.name)}`, `/lab/${lid}#products`); return { ok: true, product_id: pid }; }
+        const pid = need(id(input.product_id), "product_id обов'язковий");
+        need(r.getProduct(pid), "Продукту нема");
+        if (a === "delete") { r.deleteProduct(pid); return { ok: true }; }
+        r.updateProduct(pid, f); act("lab", "Продукт оновлено", `/lab/${lid}#products`); return { ok: true };
+      }
+      const f: Record<string, unknown> = {};
+      for (const k of ["title", "steps_md", "result", "duration"]) if (input[k] !== undefined) f[k] = s(input[k]);
+      for (const k of ["product_id", "position"]) if (input[k] !== undefined) f[k] = id(input[k]);
+      if (a === "add") { const sid = r.addStage(lid, { ...f, title: need(s(input.title), "title обов'язковий") }); act("lab", `Етап: ${s(input.title)}`, `/lab/${lid}#stages`); return { ok: true, stage_id: sid }; }
+      const sid = need(id(input.stage_id), "stage_id обов'язковий");
+      need(r.getStage(sid), "Етапу нема");
+      if (a === "delete") { r.deleteStage(sid); return { ok: true }; }
+      r.updateStage(sid, f); act("lab", "Етап оновлено", `/lab/${lid}#stages`); return { ok: true };
+    }
+
+    case "lab_delete_option": {
+      const o = need(getOption(need(id(input.option_id), "option_id обов'язковий")), "Варіанта нема");
+      const { deleteOption } = await import("../repo/lab");
+      deleteOption(o.id);
+      act("lab", `Варіант прибрано: ${o.name}`, `/lab/${o.session_id}#options`);
+      return { ok: true };
+    }
+
     case "lab_update": {
       const lid = need(id(input.lab_id), "lab_id обов'язковий");
       need(getLab(lid), "Сесії нема");
       const patch: Record<string, string> = {};
       for (const k of ["title", "brief", "notes", "conclusion"]) if (input[k] !== undefined) patch[k] = s(input[k]);
       if (input.category !== undefined && isLabCategory(s(input.category))) patch.category = s(input.category);
-      updateLab(lid, patch);
+      if (Object.keys(patch).length) updateLab(lid, patch);
+      if (input.mode === "solution" || input.mode === "choose") { setLabMode(lid, input.mode); patch.mode = String(input.mode); }
       act("lab", `Лабораторія: оновлено ${Object.keys(patch).join(", ")}`, `/lab/${lid}`);
       return { ok: true };
     }
