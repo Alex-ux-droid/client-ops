@@ -6,7 +6,7 @@ import { taskCalendarAction, taskCloseWithLog, taskDelete, taskItemAdd, taskItem
 import type { TaskItem, TaskLink, TaskRow } from "@/lib/repo/tasks";
 import { openAssistant } from "./assistant";
 import Markdown from "./Markdown";
-import { OPEN_TASK } from "./tasks";
+import { OPEN_TASK, openClientMessage } from "./tasks";
 import VoiceTextarea from "./VoiceTextarea";
 import Icon from "./Icon";
 import { setStepDone, splitSteps, toggleLine } from "@/lib/taskSteps";
@@ -306,6 +306,7 @@ export default function TaskModal() {
               ) : d.calendar === "reconnect" ? (
                 <Link href="/settings?tab=connectors&c=google" className="btn ghost" onClick={close} title="Доступ до Календаря додали пізніше — треба один раз перепідключити Google">📅 Календар: перепідключи Google</Link>
               ) : null}
+              {t!.client_id && <button type="button" className="ghost" onClick={() => openClientMessage({ clientId: t!.client_id!, clientName: t!.client_name ?? "", taskId: id })}>✉ Повідомлення клієнту</button>}
               <button type="button" className="ghost" onClick={() => { close(); openAssistant(`Допоможи з задачею #${id} «${t!.title}»${t!.client_name ? ` (${t!.client_name})` : ""}: розпиши, як її зробити, онови підзадачі й інструкцію.`, true); }}>Джері, допоможи</button>
               <span style={{ flex: 1 }} />
               <button type="button" className="ghost small tm-danger" onClick={() => { if (confirm("Видалити задачу назавжди?")) void taskDelete(id).then(() => { close(); router.refresh(); }); }}>Видалити</button>

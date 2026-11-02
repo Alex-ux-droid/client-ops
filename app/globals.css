@@ -1685,3 +1685,19 @@ textarea.vt-ghost::placeholder { color: transparent; }
 .ls-head b { font-size: 1.0625rem; }
 .ls-meta { display: flex; gap: 0.75rem; flex-wrap: wrap; font-size: 0.8125rem; color: var(--muted); margin-top: 0.125rem; }
 .ls-gap { color: var(--warn); }
+
+/* Повідомлення клієнту (ClientMessage.tsx) */
+.cm-box { max-width: 40rem; }
+.cm-title { font-size: 1.25rem; margin: 0; }
+.cm-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 0.75rem; }
+.cm-label { font-size: 0.8125rem; color: var(--muted); }
+.cm-tpls { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.cm-tpl { all: unset; cursor: pointer; padding: 0.375rem 0.75rem; border-radius: 999px; border: 1px solid var(--line-strong); font-size: 0.875rem; color: var(--muted); }
+.cm-tpl:hover { border-color: var(--accent); }
+.cm-tpl.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.cm-edit { margin-left: auto; font-size: 0.8125rem; color: var(--link); }
+.cm-text { width: 100%; font: inherit; font-size: 0.9375rem; line-height: 1.5; min-height: 10rem; }
+.cm-msg { color: var(--link); }
+.cm-field { display: flex; flex-direction: column; gap: 0.375rem; margin-bottom: 0; }
+.cm-field > span { font-size: 0.8125rem; color: var(--muted); }
