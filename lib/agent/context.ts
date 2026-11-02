@@ -9,6 +9,9 @@ import { money } from "../config";
 import { ymd } from "../dates";
 import { getComm } from "../repo/comm";
 import { leadStats } from "../repo/leads";
+import { getClientMemory } from "../repo/clientMemory";
+import { listWork } from "../repo/worklog";
+import { clientMessages } from "../repo/telegram";
 import { listChanges } from "../repo/creatives";
 import { listPayments } from "../repo/payments";
 
@@ -57,6 +60,24 @@ export function clientSnapshot(clientId: number): string {
   const c = getClientRow(clientId);
   if (!c) return "";
   const out: string[] = [];
+  // Головне спершу: де ми з клієнтом зараз і що вже зроблено — план будуємо ВІД ЦЬОГО, а не з нуля
+  const mem = getClientMemory(clientId);
+  out.push(mem?.text ? `ПАМʼЯТЬ ПО КЛІЄНТУ (де ми, домовленості, що зроблено, що далі; оновлено ${mem.updated_at.slice(0, 16)}):\n${mem.text}` : "Памʼяті по клієнту ще нема — збери стан з історії робіт, задач і переписки (get_client, telegram_messages) і запиши client_memory.");
+  const card = [
+    `Статус: ${c.status}${c.fee_monthly ? `, абонплата ${c.fee_monthly}/міс` : ""}${c.work_since ? `, працюємо з ${c.work_since}` : ""}.`,
+    c.next_step && `Наступний крок (картка): ${c.next_step}`,
+    c.offer && `Що продає / офер: ${c.offer.slice(0, 300)}`,
+    c.needs && `Потреби: ${c.needs.slice(0, 400)}`,
+    c.client_vision && `Бачення клієнта: ${c.client_vision.slice(0, 300)}`,
+    c.my_vision && `Бачення Саші: ${c.my_vision.slice(0, 300)}`,
+  ].filter(Boolean);
+  out.push(card.join("\n"));
+  const work = listWork(clientId, 12);
+  if (work.length) out.push(`Що вже зроблено (історія робіт, нові зверху):\n${work.map((w) => `- ${w.done_at.slice(0, 10)}: ${w.what}${w.result ? ` → ${w.result}` : ""}`).join("\n")}`);
+  const doneTasks = listTasks("all", clientId).filter((t) => t.status === "done").slice(0, 10);
+  if (doneTasks.length) out.push(`Закриті задачі (останні): ${doneTasks.map((t) => `«${t.title}»`).join(", ")}`);
+  const tgm = clientMessages(clientId, { limit: 15 }).filter((m) => m.text?.trim());
+  if (tgm.length) out.push(`Останнє в Telegram-групі з клієнтом:\n${tgm.map((m) => `- ${m.sent_at.slice(5, 16)} ${m.is_owner ? "Саша" : m.from_name}: ${m.text.replace(/\s+/g, " ").slice(0, 160)}`).join("\n")}`);
   const accs = accountsForClient(clientId);
   if (accs.length) {
     const cur = accs[0].currency;

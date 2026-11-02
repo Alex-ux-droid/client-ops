@@ -62,3 +62,11 @@ export async function reportLinkAction(fd: FormData) {
   setReportLink(cid, op !== "off", op === "renew");
   revalidatePath(`/clients/${cid}`);
 }
+
+export async function saveClientMemoryAction(fd: FormData) {
+  await requireUser();
+  const cid = Number(fd.get("client_id"));
+  const { setClientMemory } = await import("@/lib/repo/clientMemory");
+  setClientMemory(cid, String(fd.get("text") ?? ""));
+  revalidatePath(`/clients/${cid}`);
+}

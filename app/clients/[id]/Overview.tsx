@@ -12,6 +12,11 @@ import { listTasks } from "@/lib/repo/tasks";
 import { clientMessages } from "@/lib/repo/telegram";
 import { listWork } from "@/lib/repo/worklog";
 import { SERVICES, type ServiceType } from "@/lib/services";
+import Markdown from "@/components/Markdown";
+import SubmitButton from "@/components/SubmitButton";
+import VoiceTextarea from "@/components/VoiceTextarea";
+import { getClientMemory } from "@/lib/repo/clientMemory";
+import { saveClientMemoryAction } from "@/app/creatives/actions";
 
 const STATUS_TXT = { active: "ведемо", paused: "пауза", done: "завершено" } as const;
 
@@ -32,6 +37,8 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
           <b>Клієнта створено.</b> Відкрий <Link href={`/clients/${id}?tab=setup`} className="h-link">Налаштування клієнта</Link> і обери послуги — кожна стане окремим розділом. Решту можна надиктувати Джері.
         </div>
       )}
+
+      <ClientMemoryCard clientId={id} />
 
       <div className="ov-now card">
         <div className="ov-now-row">
@@ -131,5 +138,27 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
         </dl>
       </details>
     </div>
+  );
+}
+
+// Що Джері памʼятає про клієнта: де ми, домовленості, зроблене, далі. Від цього він планує, а не з нуля.
+function ClientMemoryCard({ clientId }: { clientId: number }) {
+  const mem = getClientMemory(clientId);
+  return (
+    <details className="card cm-mem" open={!mem?.text}>
+      <summary><b>Що Джері памʼятає про клієнта</b> <span className="mono">{mem ? `оновлено ${fmtDate(mem.updated_at)} · сам після розмов` : "ще порожньо"}</span></summary>
+      {mem?.text ? <div className="tm-details"><Markdown md={mem.text} /></div> : <p className="mono">Розкажи Джері, де ви з клієнтом (зустріч, домовленості, що вже зроблено) — або натисни «Зібрати», він збере з історії, задач і переписки.</p>}
+      <div className="inline" style={{ flexWrap: "wrap" }}>
+        <AskAssistant text={`Клієнт client_id ${clientId}: збери памʼять по клієнту з усього, що є (історія робіт, задачі, переписка в групі, заявки, лабораторія, наші розмови) і запиши client_memory rewrite: де ми зараз, домовленості (гроші, обсяг, терміни), що вже зроблено, що в роботі і далі, що важливо. Потім коротко покажи мені.`}>Джері, зібрати / оновити</AskAssistant>
+      </div>
+      <details>
+        <summary className="h-link">Правити руками</summary>
+        <form action={saveClientMemoryAction} className="stack" style={{ gap: "0.5rem", marginTop: "0.5rem" }}>
+          <input type="hidden" name="client_id" value={clientId} />
+          <VoiceTextarea name="text" defaultValue={mem?.text ?? "## Де ми зараз\n\n## Домовленості (гроші, обсяг, терміни)\n\n## Що вже зроблено\n\n## Що в роботі і далі\n\n## Важливо памʼятати\n"} style={{ minHeight: "12rem" }} />
+          <div><SubmitButton className="small">Зберегти</SubmitButton></div>
+        </form>
+      </details>
+    </details>
   );
 }

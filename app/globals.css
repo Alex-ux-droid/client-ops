@@ -1813,3 +1813,5 @@ textarea.vt-ghost::placeholder { color: transparent; }
 .rp-list span { color: var(--dim); font-variant-numeric: tabular-nums; }
 .rp-list em { color: var(--ok); font-style: normal; }
 .rl-card summary { cursor: pointer; }
+.cm-mem { display: flex; flex-direction: column; gap: 0.625rem; }
+.cm-mem > summary { cursor: pointer; display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; }
