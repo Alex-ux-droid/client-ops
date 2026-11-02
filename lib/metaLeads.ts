@@ -19,6 +19,8 @@ type RawLead = { id: string; created_time: string; field_data?: { name: string; 
 
 let running = false;
 let pauseUntil = 0;
+// новий токен — одразу пробуємо знову, без 15-хвилинної паузи
+export function resetLeadsPause(): void { pauseUntil = 0; setSetting("leads.last_error", ""); }
 let formsAt = 0;
 const formsCache = new Map<string, Form[]>(); // page_id → форми
 

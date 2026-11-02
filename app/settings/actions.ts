@@ -170,6 +170,7 @@ export async function connectMetaAction(fd: FormData) {
   if (token.length < 50 || /\s/.test(token)) back("Токен виглядає неправильно — скопіюй його повністю.", false, "connectors&c=meta");
   try {
     const n = await connectMeta(token);
+    (await import("@/lib/metaLeads")).resetLeadsPause();
     back(`Meta підключена: знайшов ${n} кабінет(ів). Привʼяжи їх до клієнтів нижче.`, true, "connectors&c=meta");
   } catch (e) {
     if (e instanceof Error && e.message.startsWith("NEXT_REDIRECT")) throw e;

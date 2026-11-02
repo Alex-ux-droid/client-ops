@@ -66,6 +66,11 @@ const budget = (v: unknown) => (v == null || v === "" ? null : Number(v) / 100);
 
 // Спершу перевіряємо токен запитом, зберігаємо тільки робочий
 export async function connectMeta(token: string): Promise<number> {
+  // короткий маркер (живе 1–2 год) не приймаємо — інакше за годину все падає
+  const dbg = await metaGet<{ data?: { expires_at?: number; data_access_expires_at?: number } }>("debug_token", { input_token: token }, token).catch(() => null);
+  const exp = dbg?.data?.expires_at ?? 0;
+  if (exp > 0 && exp * 1000 - Date.now() < 24 * 3600_000) throw new Error("Це короткий токен — він живе 1–2 години. Відкрий developers.facebook.com/tools/debug/accesstoken → встав його → «Продовжити маркер доступу» → встав сюди новий довгий.");
+  if (exp > 0) setSetting("meta.token_expires", new Date(exp * 1000).toISOString());
   const n = await refreshAccounts(token);
   setEnvVar("META_ACCESS_TOKEN", token);
   setSetting("meta.connected_at", new Date().toISOString());
