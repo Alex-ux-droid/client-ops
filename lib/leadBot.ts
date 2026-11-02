@@ -30,7 +30,7 @@ export async function connectLeadBot(clientId: number, token: string, origin: st
   await tgCall(token, "setWebhook", { url, secret_token: leadBotSecret(clientId), allowed_updates: ["message", "callback_query"] });
   setEnvVar(leadBotEnv(clientId), token);
   const r = getRoute(clientId);
-  saveRoute(clientId, { to_bot: 1, bot_username: me.username, bot_name: me.first_name, invite_code: r.invite_code || randomBytes(6).toString("hex") });
+  saveRoute(clientId, { to_bot: 1, to_group: 0, bot_username: me.username, bot_name: me.first_name, invite_code: r.invite_code || randomBytes(6).toString("hex") });
   return { ok: true, username: me.username };
 }
 

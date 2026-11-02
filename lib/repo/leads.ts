@@ -65,11 +65,11 @@ export const leadFields = (l: Lead): LeadField[] => { try { return JSON.parse(l.
 // ── Куди йдуть заявки клієнта, бот клієнта, доставки
 export type LeadRoute = { client_id: number; to_group: number; to_bot: number; bot_username: string; bot_name: string; invite_code: string; updated_at: string };
 export type LeadBotUser = { id: number; client_id: number; tg_user_id: number; name: string; active: number; created_at: string };
-export type LeadDelivery = { id: number; lead_id: number; via: "main" | "client"; chat_id: number; message_id: number };
+export type LeadDelivery = { id: number; lead_id: number; via: "main" | "client"; chat_id: number; message_id: number; reminder_message_id: number | null };
 
 export function getRoute(clientId: number): LeadRoute {
   return (db().prepare("SELECT * FROM lead_routes WHERE client_id = ?").get(clientId) as LeadRoute | undefined)
-    ?? { client_id: clientId, to_group: 1, to_bot: 0, bot_username: "", bot_name: "", invite_code: "", updated_at: "" };
+    ?? { client_id: clientId, to_group: 0, to_bot: 0, bot_username: "", bot_name: "", invite_code: "", updated_at: "" };
 }
 export function saveRoute(clientId: number, patch: Partial<Omit<LeadRoute, "client_id" | "updated_at">>): void {
   const cur = getRoute(clientId);
@@ -97,4 +97,8 @@ export function deliveries(leadId: number): LeadDelivery[] {
 
 export function setPageHidden(id: string, hidden: boolean): void {
   db().prepare("UPDATE meta_pages SET hidden = ? WHERE page_id = ?").run(hidden ? 1 : 0, id);
+}
+
+export function setReminderMessage(deliveryId: number, messageId: number | null): void {
+  db().prepare("UPDATE lead_deliveries SET reminder_message_id = ? WHERE id = ?").run(messageId, deliveryId);
 }

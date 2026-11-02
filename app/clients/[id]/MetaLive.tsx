@@ -368,7 +368,7 @@ function LeadRouting({ clientId }: { clientId: number }) {
         {!on && <div className="callout" style={{ borderColor: "var(--warn)" }}>Сторінка Facebook цього клієнта ще не увімкнена для надсилання: Налаштування → Конектори → Meta → «Заявки з лід-форм» → обери цього клієнта і постав «надсилати».</div>}
         <form action={leadRouteAction} className="stack" style={{ gap: "0.5rem" }}>
           <input type="hidden" name="client_id" value={clientId} />
-          <label className="lp-check"><input type="checkbox" name="to_group" defaultChecked={!!route.to_group} /> У Telegram-групу з ботом Джері {groups.length ? `(${groups.map((g) => `«${g.title}»`).join(", ")})` : "— групи нема"}</label>
+          <label className="lp-check"><input type="checkbox" name="to_group" defaultChecked={!!route.to_group} /> Також у спільну Telegram-групу з клієнтом {groups.length ? `(${groups.map((g) => `«${g.title}»`).join(", ")})` : "— групи нема"} — зазвичай не треба, якщо є бот</label>
           <label className="lp-check"><input type="checkbox" name="to_bot" defaultChecked={!!route.to_bot} disabled={!token} /> У власного бота клієнта {token ? `@${route.bot_username}` : "— не підключений"}</label>
           <div><button className="ghost small">Зберегти</button></div>
         </form>
