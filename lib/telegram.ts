@@ -30,6 +30,7 @@ type TgMsg = {
 export type TgUpdate = {
   update_id: number; message?: TgMsg; edited_message?: TgMsg;
   my_chat_member?: { chat: TgChatRaw; from?: TgUser; new_chat_member: { status: string } };
+  callback_query?: { id: string; data?: string; from?: TgUser & { last_name?: string; username?: string }; message?: { chat: { id: number }; message_id: number } };
 };
 
 export async function tg<T = unknown>(method: string, body: Record<string, unknown> = {}): Promise<T> {
@@ -75,7 +76,7 @@ export async function connectBot(token: string, origin: string): Promise<BotInfo
   await tg("setWebhook", {
     url: `${origin}/api/telegram/webhook`,
     secret_token: tgSecret(),
-    allowed_updates: ["message", "edited_message", "my_chat_member"],
+    allowed_updates: TG_UPDATES,
   });
   setSetting("tg.username", me.username);
   await setupProfile();
@@ -178,7 +179,21 @@ export async function syncChatFiles(chatId: number): Promise<void> {
   }
 }
 
+export const TG_UPDATES = ["message", "edited_message", "my_chat_member", "callback_query"];
+// Старі вебхуки ставились без callback_query (кнопки під заявками) — один раз переставляємо з новим списком
+export async function ensureWebhookUpdates(): Promise<void> {
+  if (!tgToken() || getSetting("tg.updates_v") === "2") return;
+  const h = await tg<WebhookInfo>("getWebhookInfo");
+  if (!h.url) return;
+  await tg("setWebhook", { url: h.url, secret_token: tgSecret(), allowed_updates: TG_UPDATES });
+  setSetting("tg.updates_v", "2");
+}
+
 export async function handleUpdate(u: TgUpdate): Promise<void> {
+  if (u.callback_query) {
+    const { leadCallback } = await import("./metaLeads");
+    return leadCallback(u.callback_query);
+  }
   if (u.my_chat_member) {
     const { chat, from, new_chat_member } = u.my_chat_member;
     if (chat.type === "private") return;

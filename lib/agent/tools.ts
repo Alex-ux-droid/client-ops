@@ -128,6 +128,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "get_playbook", description: "Текст плейбука.", input_schema: obj({ playbook_id: int("ID плейбука") }, ["playbook_id"]) },
   { name: "attach_playbook", description: "Підключити плейбук до клієнта.", input_schema: obj({ client_id: int("ID клієнта"), playbook_id: int("ID плейбука") }, ["client_id", "playbook_id"]) },
   { name: "make_pdf", description: "Зробити PDF з markdown. format document (A4 документ): # заголовки, абзаци, списки - і 1., чекліст - [ ], **жирне**, --- лінія, таблиці | a | b |; «на одну сторінку» — ~350 слів. format slides (презентація, A4 горизонтально, темна фірмова): перший абзац — підзаголовок титульного, кожен «## Назва» — новий слайд (3–6 пунктів на слайд), картки-цифри рядками «+ Підпис: значення» (до 4 в ряд), таблиці, списки, **жирне». Повертає file_id і посилання; у Telegram-розмові з Сашею файл одразу йде йому (send_to_telegram:false — не надсилати, напр. якщо далі шлеш у групу клієнта).", input_schema: obj({ title: str("Заголовок документа"), format: { type: "string", enum: ["document", "slides"] }, content: str("Вміст у markdown (без заголовка — він окремо)"), file_name: str("Назва файлу, необовʼязково"), client_id: int("Клієнт, якщо документ про нього"), send_to_telegram: { type: "boolean", description: "Надіслати Саші в Telegram (у Telegram-розмові — завжди)" }, caption: str("Підпис до файлу в Telegram") }, ["title", "content"]) },
+  { name: "leads", description: "Заявки з лід-форм Meta по клієнту: імʼя, телефон, відповіді на питання форми, кампанія/оголошення, чи взяли в роботу, якість (👍/👎 з кнопок у Telegram-групі), + підсумок: скільки якісних, ціна якісної заявки. Для розбору реклами по ЯКОСТІ заявок, а не тільки кількості.", input_schema: obj({ client_id: int("ID клієнта"), days: int("За скільки днів (за замовчуванням 14)") }, ["client_id"]) },
   { name: "client_money", description: "Гроші клієнта: абонплата, день оплати, БОРГ (прострочені оплати з сумами і датами), очікувані, останні отримані. Для повідомлення клієнту про заборгованість — це + message_templates (шаблон «Оплата»).", input_schema: obj({ client_id: int("ID клієнта") }, ["client_id"]) },
   { name: "comm_profile", description: "Профіль спілкування з клієнтом (звертання, хто вирішує, тон, що цікавить, чого уникати). action get — прочитати; build — скласти заново з переписки групи; save — записати текст (коли Саша сам каже, як з клієнтом говорити).", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["get", "build", "save"] }, profile: str("Текст профілю для save") }, ["client_id", "action"]) },
   { name: "message_templates", description: "Шаблони повідомлень клієнтам (Налаштування → Повідомлення): структура під подію (запуск реклами, звіт, що зробили, проблема, потрібно від клієнта, оплата) + загальні правила тону + приклад. ЗАВЖДИ викликай перед тим, як писати чернетку повідомлення клієнту, і пиши строго по структурі обраного шаблону. Без template_id — список; з template_id — повна структура.", input_schema: obj({ template_id: int("ID шаблону зі списку") }) },
@@ -432,6 +433,24 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       }
       act("file", `PDF: ${title}`, `/api/files/${f.id}`);
       return { ok: true, file_id: f.id, url: `/api/files/${f.id}`, pages_hint: "A4", sent_to_telegram: telegram };
+    }
+
+    case "leads": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      const days = Math.min(Math.max(Math.trunc(n(input.days)) || 14, 1), 90);
+      const { clientLeads, leadFields, leadStats } = await import("../repo/leads");
+      const { totals, kyivDay } = await import("../repo/meta");
+      const st = leadStats(cid, days);
+      const spend = totals(cid, kyivDay(days - 1), kyivDay(0)).spend;
+      const byAd: Record<string, { total: number; good: number; bad: number }> = {};
+      const list = clientLeads(cid, days, 300);
+      for (const l of list) { const k = l.ad_name || l.form_name || "без оголошення"; byAd[k] ??= { total: 0, good: 0, bad: 0 }; byAd[k].total++; if (l.quality === "good") byAd[k].good++; if (l.quality === "bad") byAd[k].bad++; }
+      return {
+        summary: { ...st, spend: Math.round(spend * 100) / 100, cost_per_good: st.good ? Math.round((spend / st.good) * 100) / 100 : null },
+        by_ad: byAd,
+        leads: list.slice(0, 40).map((l) => ({ when: l.created_time, name: l.name, phone: l.phone, answers: leadFields(l), campaign: l.campaign_name, ad: l.ad_name, taken: !!l.taken_at, quality: l.quality || null })),
+        note: list.length ? undefined : "Заявок нема — або не було, або сторінка не підключена (Налаштування → Конектори → Meta → «Заявки з лід-форм»)",
+      };
     }
 
     case "client_money": {

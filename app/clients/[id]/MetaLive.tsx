@@ -10,6 +10,8 @@ import {
   type Breakdown, type MetaAd, type MetaAdset,
 } from "@/lib/repo/meta";
 import CreativeGallery, { type GalleryItem } from "./CreativeGallery";
+import { rateLeadAction } from "@/app/leads/actions";
+import { clientLeads, leadFields, leadStats } from "@/lib/repo/leads";
 
 export const STATUS: Record<string, string> = { ACTIVE: "активна", PAUSED: "пауза", CAMPAIGN_PAUSED: "пауза", ADSET_PAUSED: "пауза", ARCHIVED: "архів", DELETED: "видалена", IN_PROCESS: "обробка", WITH_ISSUES: "проблема", DISAPPROVED: "відхилено", PENDING_REVIEW: "перевірка" };
 const fmtN = (n: number) => Math.round(n).toLocaleString("uk-UA");
@@ -19,6 +21,7 @@ const VIEWS = [
   { k: "tree", label: "Структура" },
   { k: "creatives", label: "Креативи" },
   { k: "audience", label: "Аудиторія" },
+  { k: "leads", label: "Заявки" },
   { k: "analysis", label: "Висновки" },
 ] as const;
 const COLORS = ["#3d6bff", "#22c3a6", "#f5b43c", "#e86ad6", "#8f7bff", "#4fb3ff", "#ff7a59", "#9bd35a"];
@@ -68,6 +71,7 @@ export default function MetaLive({ clientId, view = "overview", err }: { clientI
       {v === "tree" && <Tree clientId={clientId} m={m} />}
       {v === "creatives" && <Creatives clientId={clientId} m={m} />}
       {v === "audience" && <Audience clientId={clientId} m={m} />}
+      {v === "leads" && <Leads clientId={clientId} m={m} />}
       {v === "analysis" && <Analysis clientId={clientId} m={m} err={err} />}
     </section>
   );
@@ -309,6 +313,39 @@ function Audience({ clientId, m }: { clientId: number; m: Fmt }) {
 }
 
 // ---------- Висновки: автоматичні правила + розбір Джері
+// Заявки з лід-форм: хто, телефон, відповіді, з якої реклами, оцінка якості (з Telegram-кнопок або тут)
+function Leads({ clientId, m }: { clientId: number; m: Fmt }) {
+  const list = clientLeads(clientId, 30);
+  const st = leadStats(clientId, 30);
+  const spend = totals(clientId, kyivDay(29), kyivDay(0)).spend;
+  const rated = st.good + st.bad;
+  if (!list.length) return <div className="empty">Заявок з лід-форм за 30 днів нема. Якщо вони мають бути — перевір Налаштування → Конектори → Meta → «Заявки з лід-форм» (дозволи токена і сторінка клієнта).</div>;
+  return (
+    <div className="stack" style={{ gap: "1rem" }}>
+      <div className="ld-kpis">
+        <div className="kpi"><div className="n">{st.total}</div><div className="l">Заявок за 30 днів</div></div>
+        <div className="kpi"><div className="n">{st.total ? Math.round((st.taken / st.total) * 100) : 0}%</div><div className="l">Взяли в роботу</div></div>
+        <div className="kpi"><div className="n">{rated ? `${Math.round((st.good / rated) * 100)}%` : "—"}</div><div className="l">Якісних з оцінених ({rated})</div></div>
+        <div className="kpi"><div className="n">{st.good ? m(spend / st.good) : "—"}</div><div className="l">Ціна якісної заявки</div></div>
+      </div>
+      <div className="ld-list">
+        {list.map((l) => (
+          <div key={l.id} className={`ld-item ${l.quality}`}>
+            <div className="ld-who">{l.name || "Без імені"}{l.phone && <a href={`tel:${l.phone.replace(/[^\d+]/g, "")}`}>{l.phone}</a>}{l.email && <span className="mono"> · {l.email}</span>}</div>
+            <form action={rateLeadAction} className="ld-rate">
+              <input type="hidden" name="id" value={l.id} />
+              <button name="q" value="good" className={`ghost ${l.quality === "good" ? "on" : ""}`} title="Якісна">👍</button>
+              <button name="q" value="bad" className={`ghost ${l.quality === "bad" ? "on" : ""}`} title="Сміття">👎</button>
+            </form>
+            {leadFields(l).length > 0 && <div className="ld-fields">{leadFields(l).map((f, i) => <span key={i}>{f.label}: <b>{f.value}</b></span>)}</div>}
+            <div className="ld-src">{new Date(l.created_time).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} · {[l.campaign_name, l.ad_name].filter(Boolean).join(" / ") || l.form_name}{l.taken_at ? ` · взяли${l.taken_by ? ` (${l.taken_by})` : ""}` : l.tg_chat_id ? " · ще не взяли" : ""}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Analysis({ clientId, m, err }: { clientId: number; m: Fmt; err?: string }) {
   const ins = metaInsights(clientId, m);
   const a = getAnalysis(clientId);
