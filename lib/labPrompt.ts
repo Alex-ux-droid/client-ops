@@ -1,7 +1,7 @@
 // Лабораторія → тексти назовні: пропозиція клієнту (markdown для PDF A4) і готові промпти,
 // щоб у будь-якому іншому інструменті (Claude, Gamma, Canva…) зібрати презентацію. Без ШІ — миттєво і безкоштовно.
 import { money } from "./config";
-import { labFinance, PROPOSAL, type LabFull, type LabScenario } from "./repo/lab";
+import { includesList, labFinance, packageCalc, PROPOSAL, type LabFull, type LabScenario } from "./repo/lab";
 
 const sc = (s: LabScenario) => [
   `### ${s.title}`,
@@ -13,9 +13,53 @@ const sc = (s: LabScenario) => [
   s.cons && `Мінуси: ${s.cons.replace(/\n+/g, "; ")}`,
 ].filter(Boolean).join("\n");
 
+// Автоматичні розділи пропозиції з послуг і пакетів: що входить, пакети, вигода проти ринку, рахунок
+export function offerMd(l: LabFull): string[] {
+  if (!l.products.length) return [];
+  const out: string[] = [];
+  const chosen = l.packages.find((pk) => pk.id === l.chosen_package_id) ?? null;
+  const shown = chosen ? packageCalc(chosen, l.products).items : l.products;
+  out.push(`## Що входить\n${shown.map((p) => {
+    const inc = includesList(p.includes);
+    return `**${p.name}**${p.about ? ` — ${p.about}` : ""}${inc.length ? `\n${inc.map((x) => `- ${x}`).join("\n")}` : ""}`;
+  }).join("\n\n")}`);
+  if (l.packages.length > 1) {
+    const calcs = l.packages.map((pk) => ({ pk, c: packageCalc(pk, l.products) }));
+    const head = `| Послуга | ${calcs.map(({ pk }) => `${pk.name}${pk.highlight ? " ★" : ""}`).join(" | ")} |`;
+    const sep = `|---|${calcs.map(() => "---").join("|")}|`;
+    const rows = l.products.map((p) => `| ${p.name} | ${calcs.map(({ pk }) => (pk.product_ids.includes(p.id) ? "✓" : "—")).join(" | ")} |`);
+    const price = `| **Щомісяця** | ${calcs.map(({ c }) => `**${money(c.month)}**`).join(" | ")} |`;
+    const setup = calcs.some(({ c }) => c.setup > 0) ? [`| Запуск (разово) | ${calcs.map(({ c }) => (c.setup ? money(c.setup) : "—")).join(" | ")} |`] : [];
+    const tags = calcs.filter(({ pk }) => pk.tagline).map(({ pk }) => `- **${pk.name}** — ${pk.tagline}`);
+    out.push(`## Пакети\n${[head, sep, ...rows, price, ...setup].join("\n")}${tags.length ? `\n\n${tags.join("\n")}` : ""}`);
+  }
+  const forSave = chosen ? [chosen] : l.packages;
+  const saves = forSave.map((pk) => ({ pk, c: packageCalc(pk, l.products) })).filter(({ c }) => c.hasMarket && c.saveYear > 0);
+  if (saves.length) out.push(`## Чому це вигідно\n${saves.map(({ pk, c }) => `- **${pk.name}**: окремо в агенціях і у фрилансерів це ≈ ${money(c.marketMonth)}/міс${c.marketSetup ? ` + ${money(c.marketSetup)} на старті` : ""}. У нас — ${money(c.month)}/міс${c.setup ? ` + ${money(c.setup)}` : ""}. **Економія ${money(c.saveYear)} за перший рік.**`).join("\n")}\n\nІ все в одних руках: реклама, заявки, CRM і звіти — без перекидання відповідальності між підрядниками.`);
+  else if (!l.packages.length && l.products.some((p) => p.market_month != null || p.market_setup != null)) {
+    const mm = l.products.reduce((a, p) => a + (p.market_month ?? p.price_month ?? 0), 0), ms = l.products.reduce((a, p) => a + (p.market_setup ?? p.price_setup ?? 0), 0);
+    const f = labFinance(l.products);
+    const save = ms + mm * 12 - f.clientYear;
+    if (save > 0) out.push(`## Чому це вигідно\nОкремо на ринку ≈ ${money(mm)}/міс${ms ? ` + ${money(ms)} на старті` : ""}. У нас — ${money(f.clientMonth)}/міс${f.clientSetup ? ` + ${money(f.clientSetup)}` : ""}. **Економія ${money(save)} за перший рік.**`);
+  }
+  const items = shown;
+  const setup = chosen ? packageCalc(chosen, l.products).setup : labFinance(l.products).clientSetup;
+  const month = chosen ? packageCalc(chosen, l.products).month : labFinance(l.products).clientMonth;
+  out.push(`## Рахунок${chosen ? ` — пакет «${chosen.name}»` : ""}\n| Послуга | Разово | Щомісяця |\n|---|---|---|\n${items.map((p) => `| ${p.name} | ${p.price_setup != null ? money(p.price_setup) : "—"} | ${p.price_month != null ? money(p.price_month) : "—"} |`).join("\n")}${chosen && (chosen.price_month != null || chosen.price_setup != null) ? `\n| **Ціна пакета** | **${money(setup)}** | **${money(month)}** |` : ""}\n\n- Перший платіж (запуск + перший місяць): **${money(setup + month)}**\n- Далі щомісяця: **${money(month)}**`);
+  return out;
+}
+
 export function proposalMd(l: LabFull): string {
   const p = l.proposal;
-  return PROPOSAL.map((x, i) => `## ${i + 1}. ${x.label}\n${p[x.k]?.trim() || "_ще не заповнено_"}`).join("\n\n");
+  const auto = offerMd(l);
+  const parts: string[] = [];
+  let n = 1;
+  for (const x of PROPOSAL) {
+    const body = p[x.k]?.trim();
+    if (body || !auto.length || (x.k !== "price")) parts.push(`## ${n++}. ${x.label}\n${body || "_ще не заповнено_"}`);
+    if (x.k === "offer") for (const a of auto) parts.push(a.replace(/^## /, `## ${n++}. `));
+  }
+  return parts.join("\n\n");
 }
 export const proposalTitle = (l: LabFull) => l.proposal.title?.trim() || `Пропозиція для ${l.client_name ?? "клієнта"}`;
 
@@ -27,8 +71,9 @@ function context(l: LabFull): string {
     `Задача клієнта:\n${l.brief || "—"}`,
     opts && `Варіанти, які порівнювали:\n${opts}`,
     chosen ? `ОБРАНИЙ СЦЕНАРІЙ:\n${sc(chosen)}` : l.scenarios.length ? `Сценарії:\n${l.scenarios.map(sc).join("\n\n")}` : "",
-    l.products.length ? `Що даємо клієнту (продукти):\n${l.products.map((p) => `- ${p.name}${p.about ? ` — ${p.about}` : ""}${p.price_setup != null ? `, разово ${money(p.price_setup)}` : ""}${p.price_month != null ? `, ${money(p.price_month)}/міс` : ""}`).join("\n")}` : "",
+    l.products.length ? `Що даємо клієнту (послуги):\n${l.products.map((p) => `- ${p.name}${p.about ? ` — ${p.about}` : ""}${includesList(p.includes).length ? ` (входить: ${includesList(p.includes).join("; ")})` : ""}${p.price_setup != null ? `, разово ${money(p.price_setup)}` : ""}${p.price_month != null ? `, ${money(p.price_month)}/міс` : ""}`).join("\n")}` : "",
     l.products.length ? (() => { const f = labFinance(l.products); return `Ціна для клієнта: разово ${money(f.clientSetup)}, щомісяця ${money(f.clientMonth)}, перший рік ${money(f.clientYear)}.`; })() : "",
+    l.packages.length ? `Пакети:\n${l.packages.map((pk) => { const c = packageCalc(pk, l.products); return `- ${pk.name}${pk.highlight ? " (рекомендуємо)" : ""}${pk.id === l.chosen_package_id ? " [обраний]" : ""}: ${money(c.month)}/міс${c.setup ? ` + ${money(c.setup)} запуск` : ""}; входить: ${c.items.map((p) => p.name).join(", ") || "—"}${pk.tagline ? `; для кого: ${pk.tagline}` : ""}${c.hasMarket && c.saveYear > 0 ? `; на ринку ≈ ${money(c.marketMonth)}/міс, економія ${money(c.saveYear)} за рік` : ""}`; }).join("\n")}` : "",
     l.stages.length ? `Етапи роботи:\n${l.stages.map((s, i) => `${i + 1}. ${s.title}${s.duration ? ` (${s.duration})` : ""}${s.result ? ` — результат: ${s.result}` : ""}\n${s.steps_md.trim()}`).join("\n\n")}` : "",
     l.conclusion && `Висновок:\n${l.conclusion}`,
   ].filter(Boolean).join("\n\n");

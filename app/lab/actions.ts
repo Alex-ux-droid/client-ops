@@ -189,6 +189,7 @@ export async function setModeAction(fd: FormData) {
 const prFields = (fd: FormData) => ({
   name: str(fd, "name"), about: str(fd, "about"), ptype: str(fd, "ptype") as "ours", notes: str(fd, "notes"),
   price_setup: price(fd, "price_setup"), price_month: price(fd, "price_month"), cost_setup: price(fd, "cost_setup"), cost_month: price(fd, "cost_month"),
+  includes: String(fd.get("includes") ?? "").trim(), market_setup: price(fd, "market_setup"), market_month: price(fd, "market_month"),
 });
 export async function saveProductAction(fd: FormData) {
   await requireUser();
@@ -219,4 +220,50 @@ export async function deleteStageAction(fd: FormData) {
   const { deleteStage } = await import("@/lib/repo/lab");
   deleteStage(int(fd, "stage_id")!);
   back(id, "#stages");
+}
+
+// ── Пакети послуг і «Мої послуги»
+export async function savePackageAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  const { savePackage } = await import("@/lib/repo/lab");
+  const name = str(fd, "name");
+  if (name) savePackage(id, { id: int(fd, "package_id"), name, tagline: str(fd, "tagline"), price_setup: price(fd, "price_setup"), price_month: price(fd, "price_month"), highlight: fd.get("highlight") === "on", product_ids: fd.getAll("product_ids").map(Number).filter(Boolean) });
+  back(id, "#packages");
+}
+export async function deletePackageAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  const { deletePackage } = await import("@/lib/repo/lab");
+  deletePackage(int(fd, "package_id")!);
+  back(id, "#packages");
+}
+export async function choosePackageAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  const { choosePackage } = await import("@/lib/repo/lab");
+  choosePackage(id, int(fd, "package_id"));
+  back(id, "#bill");
+}
+export async function productToTemplateAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  const { getProduct, productToTemplate } = await import("@/lib/repo/lab");
+  const p = getProduct(int(fd, "product_id")!);
+  if (p) productToTemplate(p);
+  back(id, "#products");
+}
+export async function addFromTemplateAction(fd: FormData) {
+  await requireUser();
+  const id = int(fd, "id")!;
+  const { templateToProduct } = await import("@/lib/repo/lab");
+  for (const t of fd.getAll("template_id").map(Number).filter(Boolean)) templateToProduct(id, t);
+  back(id, "#products");
+}
+export async function deleteTemplateAction(fd: FormData) {
+  await requireUser();
+  const { deleteTemplate } = await import("@/lib/repo/lab");
+  deleteTemplate(int(fd, "del_template")!);
+  const id = int(fd, "id");
+  if (id) back(id, "#products"); else revalidatePath("/lab");
 }
