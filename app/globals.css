@@ -1753,3 +1753,16 @@ textarea.vt-ghost::placeholder { color: transparent; }
 .pk-list small { display: block; color: var(--muted); font-size: 0.8125rem; }
 .pk-save { font-size: 0.875rem; color: var(--ok); }
 .pk-margin { font-size: 0.8125rem; }
+
+/* Конектор Meta: компактна шапка і групи */
+.mc-head { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; justify-content: space-between; }
+.mc-more { position: relative; }
+.mc-more > summary { list-style: none; cursor: pointer; }
+.mc-more > summary::-webkit-details-marker { display: none; }
+.mc-pop { position: absolute; right: 0; top: calc(100% + 0.375rem); z-index: 20; width: min(22rem, 86vw); gap: 0.625rem; }
+.mc-group { display: flex; flex-direction: column; }
+.mc-group > b, .mc-group > summary { margin: 0.5rem 0 0.25rem; }
+.mx-tabs .mono { margin-left: 0.375rem; font-size: 0.8125rem; }
+.mc-group .tg-chat .inline { flex-wrap: wrap; }
+.mc-group .tg-chat select { min-width: 0; max-width: 100%; }
+@media (max-width: 600px) { .mc-group .tg-chat > .inline { width: 100%; } .mc-group .tg-chat form.inline { flex: 1; min-width: 0; } .mc-group .tg-chat form.inline select { flex: 1; } }

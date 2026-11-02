@@ -128,6 +128,7 @@ export async function syncLeads(opts: { manual?: boolean } = {}): Promise<{ adde
     for (const p of pages) {
       if (!p.access_token) continue;
       const row = getPage(p.id);
+      if (row?.hidden) continue; // схована сторінка — не опитуємо
       try {
         if (refreshForms || !formsCache.has(p.id)) {
           const forms = await metaAll<Form>(`${p.id}/leadgen_forms`, { fields: "id,name,status,questions", limit: "100" }, p.access_token);

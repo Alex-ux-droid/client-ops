@@ -36,7 +36,7 @@ import VoiceTextarea from "@/components/VoiceTextarea";
 import LeadsSync from "@/components/LeadsSync";
 import { listPages } from "@/lib/repo/leads";
 import { missingLeadPerms } from "@/lib/metaLeads";
-import { leadsCopyOwnerAction, savePageAction } from "@/app/leads/actions";
+import { hideMetaAccountAction, hidePageAction, leadsCopyOwnerAction, savePageAction } from "@/app/leads/actions";
 import { MSG_RULES_DEFAULT } from "@/lib/clientMessage";
 import { listMsgTemplates, type MsgTemplate } from "@/lib/repo/msgTemplates";
 import { deleteMsgTemplateAction, saveMsgRulesAction, saveMsgTemplateAction } from "@/app/messages/actions";
@@ -72,7 +72,7 @@ async function modelOptions(key: string | null): Promise<{ id: string; name: str
   }
 }
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string; c?: string; msg?: string; ok?: string }> }) {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string; c?: string; m?: string; msg?: string; ok?: string }> }) {
   const sp = await searchParams;
   // старі посилання ?tab=google ведуть у конектор Google
   const conn = sp.tab === "google" ? "google" : sp.c;
@@ -86,7 +86,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {sp.msg && <div className="card" style={{ marginBottom: 16, borderColor: sp.ok ? "var(--ok)" : "var(--bad)" }}>{sp.msg}</div>}
       {tab === "general" && <General />}
       {tab === "agent" && <div className="stack" style={{ gap: "1rem" }}><Agent /><AgentMemory /></div>}
-      {tab === "connectors" && (conn === "google" ? <GoogleTab /> : conn === "voice" ? <VoiceTab /> : conn === "telegram" ? <TelegramTab /> : conn === "meta" ? <MetaTab /> : conn === "github" ? <GithubTab /> : <Connectors />)}
+      {tab === "connectors" && (conn === "google" ? <GoogleTab /> : conn === "voice" ? <VoiceTab /> : conn === "telegram" ? <TelegramTab /> : conn === "meta" ? <MetaTab view={sp.m} /> : conn === "github" ? <GithubTab /> : <Connectors />)}
       {tab === "caps" && <Caps />}
       {tab === "messages" && <Messages />}
       {tab === "catalog" && <Catalog />}
@@ -230,31 +230,113 @@ function Connectors() {
   );
 }
 
+// Конектор Meta: компактна шапка + дві вкладки (?m=accounts|leads); зайві кабінети і сторінки — «Сховати»
+async function MetaTab({ view }: { view?: string }) {
+  const token = metaToken();
+  const accounts = token ? listAccounts() : [];
+  const pages = token ? listPages() : [];
+  const clients = listClients().filter((c) => c.status !== "archived");
+  const synced = lastSync();
+  const m = view === "leads" ? "leads" : "accounts";
+  const linked = accounts.filter((a) => a.client_id), free = accounts.filter((a) => !a.client_id && !a.hidden), hiddenA = accounts.filter((a) => !a.client_id && a.hidden);
+  const base = "/settings?tab=connectors&c=meta";
+  if (!token) return (
+    <div className="stack" style={{ gap: "1rem" }}>
+      <Link href="/settings?tab=connectors" className="h-link">← Конектори</Link>
+      <div className="card stack">
+        <h2>Meta Ads — тільки читання</h2>
+        <div className="mono">Інструкція з усіма дозволами — у Базі знань «Заявки з лід-форм Meta → Telegram». Коротко: developers.facebook.com/tools/explorer → застосунок Client Ops → «Маркер користувача» → дозволи ads_read, business_management, pages_show_list, pages_read_engagement, pages_manage_ads, leads_retrieval → «Згенерувати» → debug/accesstoken → «Продовжити маркер» → встав сюди.</div>
+        <form action={connectMetaAction} className="inline">
+          <input name="token" type="password" placeholder="EAAG…" autoComplete="off" aria-label="Токен Meta" />
+          <button>Підключити</button>
+        </form>
+        <div className="mono" style={{ color: "var(--dim)" }}>Система нічого не змінює в кабінетах — лише читає. Токен лежить тільки в .env на сервері.</div>
+      </div>
+    </div>
+  );
+  const pagesOn = pages.filter((p) => p.leads_on).length;
+  return (
+    <div className="stack" style={{ gap: "1rem" }}>
+      <Link href="/settings?tab=connectors" className="h-link">← Конектори</Link>
+      <div className="card mc-head">
+        <div className="grow" style={{ minWidth: 0 }}>
+          <div className="inline" style={{ flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0 }}>Meta Ads</h2>
+            <span className="tag ok">Підключено</span>
+            {(tokenAgeDays() ?? 0) >= 50 && <span className="tag warn">токену {tokenAgeDays()} дн. — онови (живе ~60)</span>}
+          </div>
+          <div className="mono">Оновлення кожні 2 год{synced ? ` · востаннє ${fmtDate(synced)} ${new Date(synced).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Kyiv" })}` : ""}</div>
+        </div>
+        <div className="inline" style={{ flexWrap: "wrap" }}>
+          <form action={syncMetaAction}><SubmitButton className="ghost small">Оновити зараз</SubmitButton></form>
+          <details className="mc-more">
+            <summary className="btn ghost small">Токен</summary>
+            <div className="card mc-pop stack">
+              <form action={connectMetaAction} className="inline">
+                <input name="token" type="password" placeholder="новий маркер EAAG…" autoComplete="off" aria-label="Новий токен Meta" />
+                <button className="ghost small">Зберегти</button>
+              </form>
+              <form action={disconnectMetaAction}><button className="ghost small danger-text">Відключити Meta</button></form>
+            </div>
+          </details>
+        </div>
+      </div>
+      <nav className="mx-tabs">
+        <Link href={base} className={m === "accounts" ? "on" : ""}>Кабінети <span className="mono">{linked.length} привʼязано</span></Link>
+        <Link href={`${base}&m=leads`} className={m === "leads" ? "on" : ""}>Заявки <span className="mono">{pagesOn} надсилають</span></Link>
+      </nav>
+      {m === "accounts" ? (
+        <div className="card stack">
+          <div className="mono" style={{ color: "var(--dim)" }}>Привʼяжи кабінет до клієнта — цифри зʼявляться у вкладці Meta клієнта. Цифри тягнуться тільки для привʼязаних. Зайві — «Сховати».</div>
+          {linked.length > 0 && <div className="mc-group"><b>Привʼязані до клієнтів</b>{linked.map((a) => <AccountRow key={a.account_id} a={a} clients={clients} />)}</div>}
+          {free.length > 0 && <details className="mc-group" open={!linked.length}><summary className="h-link">Не привʼязані ({free.length}) — привʼяжи або сховай</summary>{free.map((a) => <AccountRow key={a.account_id} a={a} clients={clients} />)}</details>}
+          {!accounts.length && <div className="empty">Кабінетів не видно. Перевір, що токен має ads_read і доступ до кабінетів.</div>}
+          {hiddenA.length > 0 && <details className="mc-group"><summary className="h-link">Приховані ({hiddenA.length})</summary>{hiddenA.map((a) => <AccountRow key={a.account_id} a={a} clients={clients} />)}</details>}
+        </div>
+      ) : <LeadsCard clients={clients} />}
+    </div>
+  );
+}
+
+function AccountRow({ a, clients }: { a: ReturnType<typeof listAccounts>[number]; clients: { id: number; name: string }[] }) {
+  return (
+    <div className="tg-chat">
+      <div style={{ minWidth: 0 }}>
+        <b>{a.name}</b>
+        <div className="mono" style={{ color: a.last_error || (a.account_status && a.account_status !== 1) ? "var(--warn)" : "var(--dim)" }}>
+          {a.account_id.replace("act_", "")} · {a.currency}{a.account_status && a.account_status !== 1 ? ` · ${ACCOUNT_STATUS[a.account_status] ?? "проблема"}` : ""}{a.last_error ? ` · ${a.last_error}` : ""}
+        </div>
+      </div>
+      <div className="inline">
+        <form action={linkMetaAccountAction} className="inline">
+          <input type="hidden" name="account_id" value={a.account_id} />
+          <select name="client_id" defaultValue={a.client_id ?? ""} aria-label="Клієнт">
+            <option value="">— не привʼязано —</option>
+            {clients.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+          <SubmitButton className="ghost small">Ок</SubmitButton>
+        </form>
+        {!a.client_id && <form action={hideMetaAccountAction}><input type="hidden" name="account_id" value={a.account_id} /><input type="hidden" name="hidden" value={a.hidden ? "0" : "1"} /><button className="ghost small">{a.hidden ? "Показати" : "Сховати"}</button></form>}
+      </div>
+    </div>
+  );
+}
+
 async function LeadsCard({ clients }: { clients: { id: number; name: string }[] }) {
   const pages = listPages();
   const missing = await missingLeadPerms();
   const err = getSetting("leads.last_error");
   const last = getSetting("leads.last_sync");
-  return (
-    <div className="card stack" style={{ gridColumn: "1 / -1" }}>
-      <h2>Заявки з лід-форм</h2>
-      <div className="mono">Раз на хвилину система забирає нові заявки з форм Meta. Для сторінки з галочкою «надсилати» заявка йде клієнту з кнопками «Взяли в роботу / Якісна / Сміття»: у Telegram-групу з Джері і/або у власного бота клієнта (налаштовується в клієнта: Meta → «Заявки» → «Куди йдуть заявки»). Клієнта визначає за рекламним кабінетом, а якщо заявка не з реклами — за сторінкою.</div>
-      {missing && missing.length > 0 && (
-        <div className="callout" style={{ borderColor: "var(--warn)" }}>
-          <b>Токену бракує дозволів: {missing.join(", ")}.</b> Згенеруй новий маркер у Graph API Explorer: ті самі дозволи (ads_read) плюс ці, «Продовжити маркер» → встав у «Оновити токен» вище. Якщо сторінка в Business Manager — там же в «Доступ до лідів» (Leads Access) дай доступ собі.
-        </div>
-      )}
-      {err && <div className="callout" style={{ borderColor: "var(--warn)" }}>{err}</div>}
-      <div className="mono">{last ? `Востаннє перевірено ${new Date(last).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : "Ще не перевіряли"} · Перша перевірка сторінки тягне заявки за 30 днів у базу без надсилання.</div>
-      <LeadsSync />
-      {pages.length === 0 && <div className="empty">Сторінок ще не видно — натисни «Перевірити заявки зараз».</div>}
-      {pages.map((p) => (
-        <form key={p.page_id} action={savePageAction} className="tg-chat">
+  const active = pages.filter((p) => p.client_id || p.leads_on), other = pages.filter((p) => !p.client_id && !p.leads_on && !p.hidden), hidden = pages.filter((p) => !p.client_id && !p.leads_on && p.hidden);
+  const row = (p: (typeof pages)[number]) => (
+    <div key={p.page_id} className="tg-chat">
+      <div style={{ minWidth: 0 }}>
+        <b>{p.name}</b>
+        <div className="mono" style={{ color: p.last_error ? "var(--warn)" : "var(--dim)" }}>{p.last_error || (p.hidden ? "схована — заявки не перевіряються" : p.last_lead_time ? "заявки тягнуться" : "ще не перевірялась")}</div>
+      </div>
+      <div className="inline">
+        <form action={savePageAction} className="inline">
           <input type="hidden" name="page_id" value={p.page_id} />
-          <div style={{ minWidth: 0 }}>
-            <b>{p.name}</b>
-            <div className="mono" style={{ color: p.last_error ? "var(--warn)" : "var(--dim)" }}>{p.last_error || (p.last_lead_time ? "заявки тягнуться" : "ще не перевірялась")}</div>
-          </div>
           <select name="client_id" defaultValue={p.client_id ?? ""} aria-label="Клієнт">
             <option value="">— клієнт —</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -262,89 +344,31 @@ async function LeadsCard({ clients }: { clients: { id: number; name: string }[] 
           <label className="lp-check"><input type="checkbox" name="leads_on" defaultChecked={!!p.leads_on} /> надсилати</label>
           <button className="ghost small">Зберегти</button>
         </form>
-      ))}
+        {!p.client_id && !p.leads_on && <form action={hidePageAction}><input type="hidden" name="page_id" value={p.page_id} /><input type="hidden" name="hidden" value={p.hidden ? "0" : "1"} /><button className="ghost small">{p.hidden ? "Показати" : "Сховати"}</button></form>}
+      </div>
+    </div>
+  );
+  return (
+    <div className="card stack">
+      <div className="mono" style={{ color: "var(--dim)" }}>Раз на хвилину система забирає нові заявки з форм Meta. Обери клієнта для сторінки і постав «надсилати» — заявки підуть у його Telegram-групу і/або в бота клієнта (це налаштовується в клієнта: Meta → «Заявки» → «Куди йдуть заявки»).</div>
+      {missing && missing.length > 0 && (
+        <div className="callout" style={{ borderColor: "var(--warn)" }}>
+          <b>Токену бракує дозволів: {missing.join(", ")}.</b> Інструкція — База знань «Заявки з лід-форм Meta → Telegram».
+        </div>
+      )}
+      {err && <div className="callout" style={{ borderColor: "var(--warn)" }}>{err}</div>}
+      <div className="inline" style={{ flexWrap: "wrap", justifyContent: "space-between" }}>
+        <span className="mono">{last ? `Перевірено ${new Date(last).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : "Ще не перевіряли"} · перша перевірка сторінки тягне 30 днів у базу без надсилання</span>
+        <LeadsSync />
+      </div>
+      {!pages.length && <div className="empty">Сторінок ще не видно — натисни «Перевірити заявки зараз».</div>}
+      {active.length > 0 && <div className="mc-group"><b>Сторінки клієнтів</b>{active.map(row)}</div>}
+      {other.length > 0 && <details className="mc-group" open={!active.length}><summary className="h-link">Інші сторінки ({other.length}) — обери клієнта або сховай</summary>{other.map(row)}</details>}
+      {hidden.length > 0 && <details className="mc-group"><summary className="h-link">Приховані ({hidden.length})</summary>{hidden.map(row)}</details>}
       <form action={leadsCopyOwnerAction} className="inline">
         <label className="lp-check"><input type="checkbox" name="copy" defaultChecked={getSetting("leads.copy_owner") === "on"} /> Копію кожної заявки — мені в Telegram</label>
         <button className="ghost small">Зберегти</button>
       </form>
-    </div>
-  );
-}
-
-function MetaTab() {
-  const token = metaToken();
-  const accounts = token ? listAccounts() : [];
-  const clients = listClients().filter((c) => c.status !== "archived");
-  const synced = lastSync();
-  return (
-    <div className="stack" style={{ gap: "1rem" }}>
-      <Link href="/settings?tab=connectors" className="h-link">← Конектори</Link>
-      <div className="grid2">
-        <div className="card stack">
-          <h2>Meta Ads — тільки читання</h2>
-          {!token ? (
-            <>
-              <div className="mono">Найпростіше — <b>особистий токен</b>: бачить усі кабінети з усіх твоїх портфоліо, живе ~60 днів (система нагадає оновити).</div>
-              <ol className="steps">
-                <li><b>developers.facebook.com/apps</b> → Створити застосунок «Client Ops» → сценарій «Створення реклами і керування нею через Marketing API» (Create &amp; manage ads).</li>
-                <li><b>developers.facebook.com/tools/explorer</b> → справа обери застосунок Client Ops → «Маркер користувача» → дозвіл <b>ads_read</b> → «Згенерувати маркер» → дозволь.</li>
-                <li>Скопіюй маркер → <b>developers.facebook.com/tools/debug/accesstoken</b> → встав → «Налагодити» → внизу <b>«Продовжити маркер доступу»</b> → скопіюй новий довгий маркер.</li>
-                <li>Встав його сюди.</li>
-              </ol>
-              <form action={connectMetaAction} className="inline">
-                <input name="token" type="password" placeholder="EAAG…" autoComplete="off" aria-label="Токен Meta" />
-                <button>Підключити</button>
-              </form>
-              <div className="mono" style={{ color: "var(--dim)" }}>Система нічого не змінює в кабінетах — лише читає. Токен лежить тільки в .env на сервері.</div>
-            </>
-          ) : (
-            <>
-              <div className="inline" style={{ flexWrap: "wrap" }}>
-                <span className="tag ok">Підключено</span>
-                {(tokenAgeDays() ?? 0) >= 50 && <span className="tag warn">токену {tokenAgeDays()} дн. — якщо він особистий, онови (живе ~60)</span>}
-                <span className="mono">{accounts.length} кабінет(ів) · оновлення кожні 2 год{synced ? ` · востаннє ${fmtDate(synced)} ${new Date(synced).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Kyiv" })}` : ""}</span>
-              </div>
-              <div className="inline" style={{ flexWrap: "wrap" }}>
-                <form action={syncMetaAction}><SubmitButton className="ghost small">Оновити зараз</SubmitButton></form>
-                <form action={disconnectMetaAction}><button className="ghost small">Відключити</button></form>
-              </div>
-              <details>
-                <summary className="h-link">Оновити токен</summary>
-                <form action={connectMetaAction} className="inline" style={{ marginTop: "0.5rem" }}>
-                  <input name="token" type="password" placeholder="новий маркер EAAG…" autoComplete="off" aria-label="Новий токен Meta" />
-                  <button className="ghost">Зберегти</button>
-                </form>
-              </details>
-            </>
-          )}
-        </div>
-        {token && <LeadsCard clients={clients} />}
-        {token && (
-          <div className="card stack">
-            <h2>Кабінети</h2>
-            <div className="mono" style={{ color: "var(--dim)" }}>Привʼяжи кабінет до клієнта — цифри зʼявляться у вкладці Meta клієнта і Джері їх бачитиме. Кабінети, ID яких уже вписаний у картці клієнта, привʼязуються самі.</div>
-            {accounts.length === 0 && <div className="empty">Кабінетів не видно. Перевір, що системному користувачу призначені рекламні акаунти.</div>}
-            {accounts.map((a) => (
-              <form key={a.account_id} action={linkMetaAccountAction} className="tg-chat">
-                <input type="hidden" name="account_id" value={a.account_id} />
-                <div style={{ minWidth: 0 }}>
-                  <b>{a.name}</b>
-                  <div className="mono" style={{ color: a.last_error || (a.account_status && a.account_status !== 1) ? "var(--warn)" : "var(--dim)" }}>
-                    {a.account_id.replace("act_", "")} · {a.currency}{a.account_status && a.account_status !== 1 ? ` · ${ACCOUNT_STATUS[a.account_status] ?? "проблема"}` : ""}{a.last_error ? ` · ${a.last_error}` : ""}
-                  </div>
-                </div>
-                <div className="inline">
-                  <select name="client_id" defaultValue={a.client_id ?? ""} aria-label="Клієнт">
-                    <option value="">— не привʼязано —</option>
-                    {clients.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-                  </select>
-                  <SubmitButton className="ghost small">Ок</SubmitButton>
-                </div>
-              </form>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

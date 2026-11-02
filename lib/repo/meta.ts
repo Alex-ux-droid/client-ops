@@ -2,7 +2,7 @@ import { db } from "../db";
 
 export type MetaAccount = {
   account_id: string; name: string; currency: string; account_status: number | null; disable_reason: number | null; business_name: string;
-  client_id: number | null; client_name?: string | null; last_sync_at: string | null; last_error: string;
+  client_id: number | null; client_name?: string | null; last_sync_at: string | null; last_error: string; hidden: number;
 };
 export type MetaCampaign = { campaign_id: string; account_id: string; name: string; status: string; objective: string; daily_budget: number | null; lifetime_budget: number | null };
 export type MetaAd = { ad_id: string; account_id: string; campaign_id: string; name: string; status: string; thumbnail_url: string; body: string;
@@ -17,7 +17,7 @@ export const ACCOUNT_STATUS: Record<number, string> = {
   9: "пільговий період оплати", 100: "очікує закриття", 101: "закритий",
 };
 
-export function upsertAccount(a: Omit<MetaAccount, "client_id" | "last_sync_at" | "last_error">): void {
+export function upsertAccount(a: Omit<MetaAccount, "client_id" | "last_sync_at" | "last_error" | "hidden">): void {
   db().prepare(`INSERT INTO meta_accounts (account_id, name, currency, account_status, disable_reason, business_name)
     VALUES (@account_id, @name, @currency, @account_status, @disable_reason, @business_name)
     ON CONFLICT(account_id) DO UPDATE SET name = excluded.name, currency = excluded.currency, account_status = excluded.account_status,
@@ -195,4 +195,8 @@ export function getAnalysis(clientId: number): { data: MetaAnalysis; created_at:
 export function saveAnalysis(clientId: number, data: MetaAnalysis): void {
   db().prepare(`INSERT INTO meta_analysis (client_id, data_json, created_at) VALUES (?, ?, datetime('now'))
     ON CONFLICT(client_id) DO UPDATE SET data_json = excluded.data_json, created_at = excluded.created_at`).run(clientId, JSON.stringify(data));
+}
+
+export function setAccountHidden(id: string, hidden: boolean): void {
+  db().prepare("UPDATE meta_accounts SET hidden = ? WHERE account_id = ?").run(hidden ? 1 : 0, id);
 }

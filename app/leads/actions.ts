@@ -86,3 +86,16 @@ export async function leadBotTestAction(clientId: number) {
   for (const u of users) await tgCall(token, "sendMessage", { chat_id: u.tg_user_id, text: "🧪 Тестова заявка\n\n👤 Іван Тест\n📞 +380 00 000 00 00\n• Що цікавить: перевірка звʼязку\n\nЯкщо бачите це — заявки з реклами будуть приходити сюди." }).then(() => ok++).catch(() => {});
   return { ok: ok > 0, text: `Надіслано ${ok} з ${users.length}` };
 }
+
+export async function hidePageAction(fd: FormData) {
+  await requireUser();
+  const { setPageHidden } = await import("@/lib/repo/leads");
+  setPageHidden(String(fd.get("page_id") ?? ""), fd.get("hidden") === "1");
+  revalidatePath("/settings");
+}
+export async function hideMetaAccountAction(fd: FormData) {
+  await requireUser();
+  const { setAccountHidden } = await import("@/lib/repo/meta");
+  setAccountHidden(String(fd.get("account_id") ?? ""), fd.get("hidden") === "1");
+  revalidatePath("/settings");
+}
