@@ -138,9 +138,10 @@ export function useDictation(onText: (chunk: string) => void, onLive?: (text: st
         const liveText = lv ? await lv.stop() : "";
         stream.getTracks().forEach((t) => t.stop());
         if (discard.current) return;
-        if (liveText) { void finalize(liveText); return; }
+        // Живий текст — тільки щоб бачити, поки говориш. Остаточний текст — точне розпізнавання всього запису
+        // (Scribe по повному аудіо помітно точніше за потоковий). Не вийшло — лишаємо живий текст.
         const blob = new Blob(chunks, { type: mr.mimeType || type || "audio/webm" });
-        if (blob.size < 2000) { setError(ERRORS["no-speech"]); return; }
+        if (blob.size < 2000) { if (liveText) void finalize(liveText); else setError(ERRORS["no-speech"]); return; }
         setTranscribing(true);
         try {
           const fd = new FormData();
@@ -148,8 +149,9 @@ export function useDictation(onText: (chunk: string) => void, onLive?: (text: st
           const r = await fetch("/api/stt", { method: "POST", body: fd });
           const d = await r.json();
           if (!r.ok) throw new Error(d.error || "Не розпізнав");
-          if (d.text) void finalize(d.text); else setError(ERRORS["no-speech"]);
+          if (d.text) void finalize(d.text); else if (liveText) void finalize(liveText); else setError(ERRORS["no-speech"]);
         } catch (e) {
+          if (liveText) { void finalize(liveText); return; }
           setError(e instanceof Error ? e.message : "Не розпізнав");
         } finally {
           setTranscribing(false);

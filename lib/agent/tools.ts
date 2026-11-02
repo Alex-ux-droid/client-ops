@@ -130,6 +130,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "leads", description: "Заявки з лід-форм Meta по клієнту: імʼя, телефон, відповіді на питання форми, кампанія/оголошення, чи взяли в роботу, якість (👍/👎 з кнопок у Telegram-групі), + підсумок: скільки якісних, ціна якісної заявки. Для розбору реклами по ЯКОСТІ заявок, а не тільки кількості.", input_schema: obj({ client_id: int("ID клієнта"), days: int("За скільки днів (за замовчуванням 14)") }, ["client_id"]) },
   { name: "creative_prompt", description: "Промпти на креативи клієнта для Claude / Claude Code. action generate (format square|story|carousel|video, angle — кут, note — побажання; Джері пише ТЗ з даних реклами: що дає дешеві ліди, патерни, бренд, результати минулих промптів) | list (з цифрами привʼязаних оголошень) | update (prompt_id, ad_ids — ID оголошень Meta, що зроблені з промпту; verdict win|lose; notes). Після generate дай Саші промпт у блоці ```Промпт креативу``` щоб копіювався.", input_schema: obj({ action: { type: "string", enum: ["generate", "list", "update"] }, client_id: int("ID клієнта"), prompt_id: int("ID промпту"), format: { type: "string", enum: ["square", "story", "carousel", "video"] }, angle: str("Кут"), note: str("Побажання"), ad_ids: { type: "array", items: { type: "string" } }, verdict: { type: "string", enum: ["", "win", "lose"] }, notes: str("Нотатка") }, ["action"]) },
   { name: "ad_change", description: "Журнал змін реклами клієнта: що змінили → чому → чого чекаємо → що вийшло. action add (client_id, what, why, expect, at YYYY-MM-DD) | list (client_id) | result (change_id, result — через кілька днів, що вийшло за цифрами). Записуй кожну зміну, яку Саша зробив у рекламі; через 3–7 днів сам перевір цифри і допиши result.", input_schema: obj({ action: { type: "string", enum: ["add", "list", "result"] }, client_id: int("ID клієнта"), change_id: int("ID зміни"), what: str("Що змінили"), why: str("Чому"), expect: str("Чого чекаємо"), at: str("Дата"), result: str("Що вийшло") }, ["action"]) },
+  { name: "client_memory", description: "Памʼять по клієнту: де ми зараз, домовленості (гроші, обсяг, терміни), що вже зроблено, що далі, що важливо. action get | rewrite (text — повний новий текст з розділами ## Де ми зараз / ## Домовленості (гроші, обсяг, терміни) / ## Що вже зроблено / ## Що в роботі і далі / ## Важливо памʼятати). Коли Саша розповідає про зустріч, домовленість, запуск — одразу онови.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["get", "rewrite"] }, text: str("Повний текст памʼяті") }, ["client_id", "action"]) },
   { name: "client_money", description: "Гроші клієнта: абонплата, день оплати, БОРГ (прострочені оплати з сумами і датами), очікувані, останні отримані. Для повідомлення клієнту про заборгованість — це + message_templates (шаблон «Оплата»).", input_schema: obj({ client_id: int("ID клієнта") }, ["client_id"]) },
   { name: "comm_profile", description: "Профіль спілкування з клієнтом (звертання, хто вирішує, тон, що цікавить, чого уникати). action get — прочитати; build — скласти заново з переписки групи; save — записати текст (коли Саша сам каже, як з клієнтом говорити).", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["get", "build", "save"] }, profile: str("Текст профілю для save") }, ["client_id", "action"]) },
   { name: "message_templates", description: "Шаблони повідомлень клієнтам (Налаштування → Повідомлення): структура під подію (запуск реклами, звіт, що зробили, проблема, потрібно від клієнта, оплата) + загальні правила тону + приклад. ЗАВЖДИ викликай перед тим, як писати чернетку повідомлення клієнту, і пиши строго по структурі обраного шаблону. Без template_id — список; з template_id — повна структура.", input_schema: obj({ template_id: int("ID шаблону зі списку") }) },
@@ -496,6 +497,19 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const c = need(cr.getChange(need(id(input.change_id), "change_id обовʼязковий")), "Зміни нема");
       cr.updateChange(c.id, { result: s(input.result) });
       return { ok: true };
+    }
+
+    case "client_memory": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      need(getClientRow(cid), "Клієнта нема");
+      const { getClientMemory, setClientMemory } = await import("../repo/clientMemory");
+      if (input.action === "rewrite") {
+        const text = need(s(input.text), "text порожній");
+        setClientMemory(cid, text);
+        act("client", "Памʼять по клієнту оновлено", `/clients/${cid}`);
+        return { ok: true };
+      }
+      return getClientMemory(cid) ?? { text: "", hint: "Порожньо — збери стан (історія робіт, задачі, переписка) і запиши rewrite" };
     }
 
     case "client_money": {

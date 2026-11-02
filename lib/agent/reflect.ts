@@ -57,3 +57,54 @@ export async function reflect(exchange: { user: string; reply: string; actions: 
     g.__reflecting = false;
   }
 }
+
+// ── Памʼять по клієнту: після розмови про клієнта переписуємо його «стан справ», щоб наступного разу
+// Джері не починав з нуля (зустріч була, про гроші домовились, бота запустили…)
+export const CLIENT_MEMORY_TEMPLATE = `## Де ми зараз
+## Домовленості (гроші, обсяг, терміни)
+## Що вже зроблено
+## Що в роботі і далі
+## Важливо памʼятати`;
+
+const CLIENT_PROMPT = `Ти ведеш «памʼять по клієнту» для помічника Саші. Отримаєш поточну памʼять по клієнту, його дані з бази і останній обмін Саші з помічником.
+Онови памʼять, якщо в обміні є нові ФАКТИ про цього клієнта: що сталось (зустріч, дзвінок, запуск), про що домовились (гроші, обсяг робіт, терміни), що зроблено, що далі, рішення, проблеми, люди і ролі з боку клієнта.
+Правила:
+- Тільки факти, які прямо є в обміні чи даних. Не вигадуй, не роби висновків «можливо».
+- «Де ми зараз» — 1–3 рядки: етап співпраці і головне зараз.
+- Зроблене не видаляй (стисни старе в один рядок, якщо довго). Неактуальне «далі» перенось у «зроблено» або прибирай.
+- Дати пиши, якщо відомі. Пунктами «- ». Максимум 3500 символів. Ніяких паролів і ключів.
+Якщо нових фактів про ЦЬОГО клієнта нема — відповідай рівно: NO_CHANGE
+Інакше поверни ТІЛЬКИ повний новий текст памʼяті з розділами:
+${CLIENT_MEMORY_TEMPLATE}`;
+
+const busy = new Set<number>();
+export async function reflectClient(clientId: number, exchange: { user: string; reply: string; actions: string[] }): Promise<void> {
+  const key = getApiKey();
+  if (!key || busy.has(clientId) || !autoOn("client_memory")) return;
+  if (exchange.user.trim().length < 12 && !exchange.actions.length) return;
+  busy.add(clientId);
+  try {
+    const { getClientMemory, setClientMemory } = await import("../repo/clientMemory");
+    const { getClientRow } = await import("../repo/clients");
+    const c = getClientRow(clientId);
+    if (!c) return;
+    const res = await new Anthropic({ apiKey: key }).messages.create({
+      model: agentConfig().model,
+      max_tokens: 3000,
+      system: CLIENT_PROMPT,
+      output_config: { effort: "low" },
+      messages: [{
+        role: "user",
+        content: `КЛІЄНТ: ${c.name} (статус ${c.status}${c.next_step ? `, наступний крок у картці: ${c.next_step}` : ""})\n\nПОТОЧНА ПАМʼЯТЬ:\n${getClientMemory(clientId)?.text || "(порожньо)"}\n\nОСТАННІЙ ОБМІН:\nСаша: ${exchange.user.slice(0, 6000)}\n\nПомічник: ${exchange.reply.slice(0, 4000)}${exchange.actions.length ? `\n\nДії помічника: ${exchange.actions.join("; ")}` : ""}`,
+      }],
+    });
+    if (res.stop_reason === "refusal") return;
+    const text = res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("").trim();
+    if (!text || text.startsWith("NO_CHANGE") || !text.includes("##")) return;
+    setClientMemory(clientId, text);
+  } catch (e) {
+    logError("reflect-client", e);
+  } finally {
+    busy.delete(clientId);
+  }
+}

@@ -8,7 +8,8 @@ import { getApiKey } from "../secrets";
 import { agentConfig, agentMemory } from "./config";
 import { listChangelog } from "../repo/changelog";
 
-import { reflect } from "./reflect";
+import { reflect, reflectClient } from "./reflect";
+import { clientsMentioned } from "../repo/clientMemory";
 import { runTool, TOOLS } from "./tools";
 import { isToolImages } from "./images";
 import { autoOn, CAPS, capOn, toolAllowed } from "./caps";
@@ -75,6 +76,8 @@ const SYSTEM = `Тебе звати Джері. Ти — права рука О�
 - Факти бери тільки з бази через інструменти. Не вигадуй цифри, дати, імена. Чого нема в базі — так і скажи.
 - Перш ніж відповідати про клієнта — подивись його картку (get_client). Якщо не знаєш ID — search або list_clients.
 - Коли Саша каже щось зробити (створити задачу, закрити, записати, оновити) — роби це інструментами одразу і коротко підтвердь.
+- ПЛАН / НАСТУПНІ КРОКИ ПО КЛІЄНТУ — НІКОЛИ НЕ З НУЛЯ. Спершу прочитай <client>: «Памʼять по клієнту», історію робіт, закриті і відкриті задачі, переписку. План = від поточного етапу: що вже зроблено (не дублюй і не став задач на зроблене), що в роботі, що реально наступне. Якщо стан неясний — коротко назви, що знаєш, і спитай одне уточнення, а не перелічуй усе з початку. Перед create_task перевір, чи такої задачі вже нема.
+- Саша розповідає про клієнта (зустріч, домовленість про гроші, запуск, рішення) — онови client_memory і, якщо це зроблена робота, log_work.
 - Стартапи = «будинок» продукту (свій продукт або рішення для клієнта, напр. CRM для Аква Віти). Коли розібрали щось складне (підключення API — Binotel, Zadarma; що зламалось і як виправили; що побачили у відділі продажу) — одразу записуй у базу знань стартапу (startup_item kind knowledge, data.cat + data.fix) і кажи Саші «записав у базу знань». Помилки й відгуки, які шле продукт, — startup_issues; виправлення — через промпт для Claude Code (action prompt).
 - Реклама клієнта: Саша змінив щось у рекламі — запиши ad_change (що, чому, чого чекаємо); через 3–7 днів подивись цифри і допиши result. Креативи Саша робить через Claude — промпт на креатив тільки через creative_prompt generate; коли оголошення з промпту запущені — привʼяжи ad_ids, коли видно результат — verdict win/lose. Так ми вчимось, які промпти дають дешеві ліди.
 - Комерційна пропозиція клієнту — ТІЛЬКИ з лабораторії: тексти (lab_proposal) + послуги/пакети (lab_product, lab_package, choose) → lab_proposal_pdf (фірмовий шаблон A4, однаковий для всіх). Не роби пропозиції через make_pdf і не вигадуй інший дизайн. Для презентації в чаті Claude — кнопка «Промпт» у лабораторії.
@@ -106,7 +109,7 @@ const SYSTEM = `Тебе звати Джері. Ти — права рука О�
 - Коли Саша хоче «послухати» (підсумок дня, розкажи) — відповідь озвучується голосом: пиши живою розмовною мовою, як друг у навушниках, без списків, символів, id і посилань; 30–60 секунд мовлення.
 - Наприкінці дії — одне коротке тепле підтвердження, що зроблено, і за потреби одна пропозиція, що далі.`;
 
-function contextBlock(clientId: number | null, page: string, screen = "", taskId: number | null = null): string {
+function contextBlock(clientId: number | null, page: string, screen = "", taskId: number | null = null, userText = ""): string {
   const d = new Date();
   const today = `${ymd(d)} (${d.toLocaleDateString("uk-UA", { weekday: "long" })})`;
   const c = clientId ? getClientRow(clientId) : null;
@@ -123,7 +126,10 @@ function contextBlock(clientId: number | null, page: string, screen = "", taskId
     if (task) parts.push(`Саша зараз працює з цією задачею (відкрита або щойно була відкрита):\n<task>\n${task.text}\n</task>`);
     const cid = clientId ?? task?.clientId ?? null;
     if (cid) parts.push(`<client>\n${clientSnapshot(cid)}\n</client>`);
-    if (task || cid) parts.push("Це ти бачиш сам, без запитань: не проси Сашу «скинути», «подивитись» чи «сказати, що відмічено» — спирайся на конкретні галочки, назви кампаній, бюджети, цифри і креативи звідси. Глибше — meta_ads (сегменти, по днях), view_images (картинки креативів за ad_id), get_task.");
+    // Загальна розмова, але Саша згадав клієнта («план для Аквавіти») — підтягуємо його стан сам
+    const named = cid ? [] : clientsMentioned(userText);
+    for (const n of named) parts.push(`Саша згадав клієнта «${n.name}» (client_id ${n.id}) — ось його стан:\n<client>\n${clientSnapshot(n.id)}\n</client>`);
+    if (task || cid || named.length) parts.push("Це ти бачиш сам, без запитань: не проси Сашу «скинути», «подивитись» чи «сказати, що відмічено» — спирайся на конкретні галочки, назви кампаній, бюджети, цифри і креативи звідси. Глибше — meta_ads (сегменти, по днях), view_images (картинки креативів за ad_id), get_task.");
   }
   return parts.join("\n\n");
 }
@@ -166,7 +172,7 @@ export async function runAgent(clientId: number | null, userText: string, page =
   ].filter(Boolean).join("\n\n");
   const system: Anthropic.Beta.BetaTextBlockParam[] = [
     { type: "text", text: stable, cache_control: { type: "ephemeral" } },
-    { type: "text", text: contextBlock(clientId, page, screen, taskId) },
+    { type: "text", text: contextBlock(clientId, page, screen, taskId, userText) },
   ];
 
   const ctx = { actions: [] as ChatAction[], telegram: page.startsWith("Telegram") };
@@ -226,5 +232,8 @@ export async function runAgent(clientId: number | null, userText: string, page =
   addChat(clientId, "assistant", reply, ctx.actions);
   // У фоні: перечитати розмову і оновити пам'ять (відповідь Саші не чекає)
   void reflect({ user: userText, reply, actions: ctx.actions.map((a) => a.text) });
+  // Памʼять по клієнту: розмова в картці клієнта або клієнт згаданий у повідомленні
+  const memClients = clientId ? [clientId] : clientsMentioned(userText).map((x) => x.id);
+  for (const mc of memClients) void reflectClient(mc, { user: userText, reply, actions: ctx.actions.map((a) => a.text) });
   return { reply, actions: ctx.actions };
 }

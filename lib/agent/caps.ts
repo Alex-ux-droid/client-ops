@@ -8,7 +8,7 @@ export const CAPS = [
   { key: "startups", label: "Стартапи", desc: "записувати ідеї, створювати проєкти, заповнювати фундамент, план, гіпотези, рішення, ТЗ", tools: ["idea_capture", "startup_create", "startup_update", "startup_item", "startup_issues"] },
   { key: "write", label: "Створювати і змінювати", desc: "клієнти, задачі, історія, гроші, ідеї, матеріали, послуги, плейбуки", tools: ["create_client", "update_client", "create_task", "update_task", "task_subtasks", "complete_task", "reopen_task", "log_work", "add_idea", "set_idea", "add_material", "add_payment", "set_payment", "set_service", "checklist", "attach_playbook", "detach_playbook", "save_playbook", "set_folder"] },
   { key: "delete", label: "Видаляти", desc: "задачі, записи, послуги, клієнтів (клієнта — тільки з точною назвою)", tools: ["delete_task", "delete_record", "delete_client", "remove_service"] },
-  { key: "memory", label: "Памʼять", desc: "сам запамʼятовує і переписує, що знає про тебе і роботу", tools: ["memory_add", "memory_rewrite"] },
+  { key: "memory", label: "Памʼять", desc: "сам запамʼятовує і переписує, що знає про тебе і роботу", tools: ["memory_add", "memory_rewrite", "client_memory"] },
   { key: "files", label: "Робити файли (PDF)", desc: "звіти, інструкції, оновлення — PDF на А4", tools: ["make_pdf"] },
   { key: "telegram_send", label: "Писати тобі в Telegram", desc: "надіслати повідомлення або файл з будь-якої розмови", tools: ["telegram_send"] },
   { key: "groups", label: "Писати в групи клієнтів", desc: "повідомлення і файли (звіти, PDF) у Telegram-групу клієнта — тільки коли ти прямо попросив", tools: ["telegram_group_send"] },
@@ -43,6 +43,7 @@ export const AUTO = [
   { key: "leads_remind", label: "Нагадування про заявку без відповіді", desc: "якщо за 15 хв ніхто в групі не натиснув «Взяли в роботу» — бот нагадує (тільки 8:00–22:00)", setting: "auto.leads_remind" },
   { key: "startup_issues", label: "Проблеми з продуктів → мені в Telegram", desc: "коли продукт, який ми будуємо (стартап), надсилає нову помилку чи відгук користувача — коротке повідомлення тобі; самі звіти пишуться в стартап завжди", setting: "auto.startup_issues" },
   { key: "weekly_report", label: "Тижнева чернетка звіту клієнтам", desc: "щопонеділка о 10:00 — для кожного клієнта з рекламою Джері пише чернетку звіту (цифри, заявки, що змінили, план) і шле тобі в Telegram; ≈2–5 центів на клієнта", setting: "auto.weekly_report" },
+  { key: "client_memory", label: "Памʼять по кожному клієнту", desc: "після розмови про клієнта Джері записує: де ми зараз, домовленості, що зроблено, що далі — і наступного разу планує від цього, а не з нуля; ≈0.5–1 цент за розмову", setting: "auto.client_memory" },
   { key: "reflect", label: "Самонавчання Джері", desc: "після кожної розмови оновлює памʼять — коштує трохи кредитів", setting: "auto.reflect" },
 ] as const;
 
