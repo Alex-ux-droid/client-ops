@@ -40,6 +40,16 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
   // Джері на весь екран (на компʼютері); вибір запамʼятовується
   const [full, setFull] = useState(false);
   useEffect(() => { try { setFull(localStorage.getItem("dock.full") === "1"); } catch {} }, []);
+  // Реальна висота верхньої панелі на телефоні → вкладки клієнта прилипають точно під неї (не «плавають»)
+  useEffect(() => {
+    const bar = document.querySelector<HTMLElement>(".topbar");
+    if (!bar || typeof ResizeObserver === "undefined") return;
+    const set = () => document.documentElement.style.setProperty("--topbar-h", `${bar.getBoundingClientRect().height}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(bar);
+    return () => ro.disconnect();
+  }, []);
   const toggleFull = () => setFull((f) => { try { localStorage.setItem("dock.full", f ? "0" : "1"); } catch {} return !f; });
 
   // Інші сторінки відкривають помічника подією (напр. Лабораторія: «розгорни ідею»)
