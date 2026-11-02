@@ -30,7 +30,7 @@ const TEMPLATES: Record<LabCategory, [string, number][]> = {
 export type LabSession = {
   id: number; client_id: number | null; client_name: string | null; title: string; category: LabCategory; status: "open" | "done";
   brief: string; notes: string; conclusion: string; chosen_option_id: number | null; created_at: string; done_at: string | null;
-  proposal_json: string; chosen_scenario_id: number | null; mode: "choose" | "solution";
+  proposal_json: string; chosen_scenario_id: number | null; mode: "choose" | "solution"; chosen_package_id: number | null;
   options_count?: number;
 };
 export type LabCriterion = { id: number; session_id: number; name: string; weight: number };
@@ -54,7 +54,27 @@ export const parseProposal = (j: string | null | undefined): Proposal => { try {
 
 // Режим «рішення»: складові (продукти) з ціною для клієнта і собівартістю, етапи покроково
 export const PRODUCT_TYPES = { ours: "наша робота", service: "сервіс", contractor: "підрядник" } as const;
-export type LabProduct = { id: number; session_id: number; name: string; about: string; ptype: keyof typeof PRODUCT_TYPES; price_setup: number | null; price_month: number | null; cost_setup: number | null; cost_month: number | null; notes: string; position: number };
+export type LabProduct = { id: number; session_id: number; name: string; about: string; ptype: keyof typeof PRODUCT_TYPES; price_setup: number | null; price_month: number | null; cost_setup: number | null; cost_month: number | null; notes: string; position: number;
+  includes: string; market_setup: number | null; market_month: number | null };
+// Пакет послуг: набір послуг з однією ціною (null — сума послуг)
+export type LabPackage = { id: number; session_id: number; name: string; tagline: string; price_setup: number | null; price_month: number | null; highlight: number; position: number; product_ids: number[] };
+export type ServiceTemplate = { id: number; name: string; about: string; includes: string; ptype: string; price_setup: number | null; price_month: number | null; cost_setup: number | null; cost_month: number | null; market_setup: number | null; market_month: number | null; updated_at: string };
+export const includesList = (s: string) => s.split("\n").map((x) => x.replace(/^\s*([-*•]|\d+[.)])\s*/, "").trim()).filter(Boolean);
+// Ціна пакета: власна або сума послуг; ринкова — сума ринкових (де не вказано — ціна послуги); економія для клієнта
+export function packageCalc(pk: LabPackage, products: LabProduct[]) {
+  const items = products.filter((p) => pk.product_ids.includes(p.id));
+  const sum = (k: "price_setup" | "price_month" | "cost_setup" | "cost_month") => items.reduce((a, p) => a + (p[k] ?? 0), 0);
+  const setup = pk.price_setup ?? sum("price_setup"), month = pk.price_month ?? sum("price_month");
+  const mSetup = items.reduce((a, p) => a + (p.market_setup ?? p.price_setup ?? 0), 0);
+  const mMonth = items.reduce((a, p) => a + (p.market_month ?? p.price_month ?? 0), 0);
+  const hasMarket = items.some((p) => p.market_month != null || p.market_setup != null);
+  return {
+    items, setup, month, year: setup + month * 12, costSetup: sum("cost_setup"), costMonth: sum("cost_month"),
+    marginMonth: month - sum("cost_month"), marginYear: setup + month * 12 - sum("cost_setup") - sum("cost_month") * 12,
+    marketSetup: mSetup, marketMonth: mMonth, marketYear: mSetup + mMonth * 12, hasMarket,
+    saveYear: hasMarket ? mSetup + mMonth * 12 - (setup + month * 12) : 0,
+  };
+}
 export type LabStage = { id: number; session_id: number; title: string; steps_md: string; result: string; duration: string; product_id: number | null; position: number };
 // Чи етап прописаний: є кроки (2+), результат і термін
 export function stageGaps(st: LabStage): string[] {
@@ -77,6 +97,7 @@ export function labFinance(products: LabProduct[]) {
 export type LabFull = LabSession & {
   scenarios: LabScenario[];
   products: LabProduct[];
+  packages: LabPackage[];
   stages: LabStage[];
   proposal: Proposal;
   criteria: LabCriterion[];
@@ -118,8 +139,11 @@ export function getLab(id: number): LabFull | undefined {
   });
   const scenarios = db().prepare("SELECT * FROM lab_scenarios WHERE session_id = ? ORDER BY position, id").all(id) as LabScenario[];
   const products = db().prepare("SELECT * FROM lab_products WHERE session_id = ? ORDER BY position, id").all(id) as LabProduct[];
+  const packages = (db().prepare("SELECT * FROM lab_packages WHERE session_id = ? ORDER BY position, id").all(id) as Omit<LabPackage, "product_ids">[]).map((pk) => ({
+    ...pk, product_ids: (db().prepare("SELECT product_id FROM lab_package_items WHERE package_id = ?").all(pk.id) as { product_id: number }[]).map((r) => r.product_id),
+  }));
   const stages = db().prepare("SELECT * FROM lab_stages WHERE session_id = ? ORDER BY position, id").all(id) as LabStage[];
-  return { ...s, criteria, options, scenarios, products, stages, proposal: parseProposal(s.proposal_json) };
+  return { ...s, criteria, options, scenarios, products, stages, packages, proposal: parseProposal(s.proposal_json) };
 }
 
 export function createLab(input: { client_id: number | null; title: string; category: LabCategory; brief?: string }): number {
@@ -170,13 +194,55 @@ export function deleteScenario(id: number): void {
 export function setLabMode(id: number, mode: "choose" | "solution"): void {
   db().prepare("UPDATE lab_sessions SET mode = ? WHERE id = ?").run(mode, id);
 }
-const PR_F = ["name", "about", "ptype", "price_setup", "price_month", "cost_setup", "cost_month", "notes"] as const;
+const PR_F = ["name", "about", "ptype", "price_setup", "price_month", "cost_setup", "cost_month", "notes", "includes", "market_setup", "market_month"] as const;
 type PrIn = Partial<Pick<LabProduct, (typeof PR_F)[number]>>;
 const nextPos = (table: string, sid: number) => (db().prepare(`SELECT COALESCE(MAX(position), 0) p FROM ${table} WHERE session_id = ?`).get(sid) as { p: number }).p + 1;
 export function addProduct(sid: number, i: PrIn & { name: string }): number {
-  return Number(db().prepare(`INSERT INTO lab_products (session_id, name, about, ptype, price_setup, price_month, cost_setup, cost_month, notes, position) VALUES (?,?,?,?,?,?,?,?,?,?)`)
-    .run(sid, i.name.slice(0, 120), i.about ?? "", i.ptype && i.ptype in PRODUCT_TYPES ? i.ptype : "ours", i.price_setup ?? null, i.price_month ?? null, i.cost_setup ?? null, i.cost_month ?? null, i.notes ?? "", nextPos("lab_products", sid)).lastInsertRowid);
+  return Number(db().prepare(`INSERT INTO lab_products (session_id, name, about, ptype, price_setup, price_month, cost_setup, cost_month, notes, includes, market_setup, market_month, position) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(sid, i.name.slice(0, 120), i.about ?? "", i.ptype && i.ptype in PRODUCT_TYPES ? i.ptype : "ours", i.price_setup ?? null, i.price_month ?? null, i.cost_setup ?? null, i.cost_month ?? null, i.notes ?? "", i.includes ?? "", i.market_setup ?? null, i.market_month ?? null, nextPos("lab_products", sid)).lastInsertRowid);
 }
+
+// ── Пакети
+export function savePackage(sid: number, p: { id?: number | null; name: string; tagline?: string; price_setup?: number | null; price_month?: number | null; highlight?: boolean; product_ids?: number[] }): number {
+  const own = new Set((db().prepare("SELECT id FROM lab_products WHERE session_id = ?").all(sid) as { id: number }[]).map((r) => r.id));
+  let id = p.id ?? 0;
+  if (id) db().prepare("UPDATE lab_packages SET name = ?, tagline = ?, price_setup = ?, price_month = ?, highlight = ? WHERE id = ? AND session_id = ?").run(p.name.slice(0, 80), p.tagline ?? "", p.price_setup ?? null, p.price_month ?? null, p.highlight ? 1 : 0, id, sid);
+  else id = Number(db().prepare("INSERT INTO lab_packages (session_id, name, tagline, price_setup, price_month, highlight, position) VALUES (?,?,?,?,?,?,?)").run(sid, p.name.slice(0, 80), p.tagline ?? "", p.price_setup ?? null, p.price_month ?? null, p.highlight ? 1 : 0, nextPos("lab_packages", sid)).lastInsertRowid);
+  if (p.highlight) db().prepare("UPDATE lab_packages SET highlight = 0 WHERE session_id = ? AND id != ?").run(sid, id);
+  if (p.product_ids) {
+    db().prepare("DELETE FROM lab_package_items WHERE package_id = ?").run(id);
+    const ins = db().prepare("INSERT OR IGNORE INTO lab_package_items (package_id, product_id) VALUES (?, ?)");
+    for (const pid of p.product_ids) if (own.has(pid)) ins.run(id, pid);
+  }
+  return id;
+}
+export const getPackage = (id: number) => db().prepare("SELECT * FROM lab_packages WHERE id = ?").get(id) as Omit<LabPackage, "product_ids"> | undefined;
+export function deletePackage(id: number): void {
+  db().prepare("UPDATE lab_sessions SET chosen_package_id = NULL WHERE chosen_package_id = ?").run(id);
+  db().prepare("DELETE FROM lab_packages WHERE id = ?").run(id);
+}
+export function choosePackage(sid: number, id: number | null): void {
+  db().prepare("UPDATE lab_sessions SET chosen_package_id = ? WHERE id = ?").run(id, sid);
+}
+
+// ── Мої послуги (шаблони)
+export function listTemplates(): ServiceTemplate[] {
+  return db().prepare("SELECT * FROM service_templates ORDER BY name").all() as ServiceTemplate[];
+}
+export const getTemplate = (id: number) => db().prepare("SELECT * FROM service_templates WHERE id = ?").get(id) as ServiceTemplate | undefined;
+// Зберегти послугу з лабораторії як шаблон (та сама назва — оновити)
+export function productToTemplate(p: LabProduct): number {
+  const ex = db().prepare("SELECT id FROM service_templates WHERE name = ?").get(p.name) as { id: number } | undefined;
+  const v = [p.about, p.includes, p.ptype, p.price_setup, p.price_month, p.cost_setup, p.cost_month, p.market_setup, p.market_month];
+  if (ex) { db().prepare("UPDATE service_templates SET about=?, includes=?, ptype=?, price_setup=?, price_month=?, cost_setup=?, cost_month=?, market_setup=?, market_month=?, updated_at=datetime('now') WHERE id=?").run(...v, ex.id); return ex.id; }
+  return Number(db().prepare("INSERT INTO service_templates (name, about, includes, ptype, price_setup, price_month, cost_setup, cost_month, market_setup, market_month) VALUES (?,?,?,?,?,?,?,?,?,?)").run(p.name, ...v).lastInsertRowid);
+}
+export function templateToProduct(sid: number, tplId: number): number | null {
+  const t = getTemplate(tplId);
+  if (!t) return null;
+  return addProduct(sid, { name: t.name, about: t.about, includes: t.includes, ptype: (t.ptype in PRODUCT_TYPES ? t.ptype : "ours") as LabProduct["ptype"], price_setup: t.price_setup, price_month: t.price_month, cost_setup: t.cost_setup, cost_month: t.cost_month, market_setup: t.market_setup, market_month: t.market_month });
+}
+export const deleteTemplate = (id: number) => db().prepare("DELETE FROM service_templates WHERE id = ?").run(id);
 export function updateProduct(id: number, p: PrIn): void {
   const keys = PR_F.filter((k) => p[k] !== undefined);
   if (keys.length) db().prepare(`UPDATE lab_products SET ${keys.map((k) => `${k} = @${k}`).join(", ")} WHERE id = @id`).run({ ...p, id });
