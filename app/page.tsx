@@ -3,8 +3,8 @@ import { addTask } from "@/app/actions";
 import TaskItem from "@/components/TaskItem";
 import { money } from "@/lib/config";
 import { ymd } from "@/lib/dates";
-import { monthLabel, STAGE_LABEL } from "@/lib/labels";
-import { clientFlags, LEAD_STAGES, listClients } from "@/lib/repo/clients";
+import { monthLabel } from "@/lib/labels";
+import { clientFlags, listClients } from "@/lib/repo/clients";
 import { moneySummary, receivedByMonth } from "@/lib/repo/payments";
 import { listTasks, taskCounts, weekPlan } from "@/lib/repo/tasks";
 
@@ -21,8 +21,6 @@ export default function Home() {
   const focus = [...listTasks("overdue"), ...listTasks("today")];
   const clients = listClients();
   const active = clients.filter((c) => c.status === "active");
-  const leads = clients.filter((c) => c.status === "lead");
-  const potential = leads.reduce((s, l) => s + l.fee_monthly, 0);
   const attention = clients
     .filter((c) => c.status === "active" || c.status === "lead")
     .map((c) => ({ c, flags: clientFlags(c) }))
@@ -74,11 +72,11 @@ export default function Home() {
           <div className="bar"><i style={{ width: m.overdue ? "100%" : "0%", background: "var(--bad)" }} /></div>
           <div className="kpi-sub">{m.overdue ? `${m.overdueCount} оплат прострочено` : `ще очікую ${money(m.expected)}`}</div>
         </Link>
-        <Link href="/pipeline" className="kpi-tile">
-          <div className="kpi-label">Клієнти · воронка</div>
-          <div className="kpi-value">{active.length}<small> + {leads.length} лідів</small></div>
-          <div className="bar"><i style={{ width: `${clients.length ? Math.round((active.length / Math.max(1, active.length + leads.length)) * 100) : 0}%`, background: "var(--link)" }} /></div>
-          <div className="kpi-sub">{potential ? `потенціал ${money(potential)}/міс` : "лідів з оцінкою нема"}</div>
+        <Link href="/clients" className="kpi-tile">
+          <div className="kpi-label">Клієнти</div>
+          <div className="kpi-value">{active.length}<small> активних</small></div>
+          <div className="bar"><i style={{ width: `${clients.length ? Math.round((active.length / clients.length) * 100) : 0}%`, background: "var(--link)" }} /></div>
+          <div className="kpi-sub">{m.mrr ? `разом ${money(m.mrr)}/міс` : "вкажи щомісячну оплату клієнтам"}</div>
         </Link>
       </section>
 
@@ -131,7 +129,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Колонка 3: увага і воронка */}
+        {/* Колонка 3: увага */}
         <div className="panel-stack">
           <div className="panel panel-grow">
             <div className="panel-head"><h2>Потребують уваги</h2><span className="mono">{attention.length}</span></div>
@@ -153,25 +151,6 @@ export default function Home() {
                 <div className="panel-empty row-empty"><span>Клієнтів ще нема</span><Link href="/clients/new" className="btn small">+ Перший клієнт</Link></div>
               )}
             </div>
-          </div>
-          <div className="panel">
-            <div className="panel-head"><h2>Воронка</h2><Link href="/pipeline">відкрити →</Link></div>
-            {!leads.length ? (
-              <div className="panel-empty row-empty"><span>Лідів поки нема</span><Link href="/clients/new?lead=1" className="btn ghost small">+ Лід</Link></div>
-            ) : <div className="funnel">
-              {LEAD_STAGES.map((s) => {
-                const items = leads.filter((l) => l.stage === s);
-                const pot = items.reduce((a, l) => a + l.fee_monthly, 0);
-                return (
-                  <Link key={s} href="/pipeline" className="funnel-row">
-                    <span className="funnel-label">{STAGE_LABEL[s]}</span>
-                    <span className="funnel-bar"><i style={{ width: `${leads.length ? (items.length / leads.length) * 100 : 0}%` }} /></span>
-                    <span className="funnel-n">{items.length}</span>
-                    <span className="funnel-pot">{pot ? money(pot) : ""}</span>
-                  </Link>
-                );
-              })}
-            </div>}
           </div>
         </div>
       </section>

@@ -59,7 +59,6 @@ const CLIENT_PROPS = {
   name: str("Назва клієнта"),
   niche: str("Ніша"),
   status: { type: "string", enum: [...CLIENT_STATUSES], description: "lead — потенційний, active — працюємо, paused, archived" },
-  stage: { type: "string", enum: [...LEAD_STAGES], description: "Етап воронки для ліда: new, contacted, proposal (КП), negotiation" },
   fee_monthly: num("Скільки клієнт платить Саші щомісяця"),
   pay_day: int("День місяця оплати 1-31"),
   next_step: str("Наступний крок"),
