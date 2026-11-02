@@ -14,6 +14,7 @@ import type { AssistantSeed } from "./assistant";
 import Bot from "./Bot";
 import Drafts from "./Drafts";
 import JerryTip from "./JerryTip";
+import SessionGuard from "./SessionGuard";
 import { useHoldToTalk } from "./useHoldToTalk";
 import Icon from "./Icon";
 import { SECTIONS, type Counts } from "./nav";
@@ -162,6 +163,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
       <Suspense fallback={null}><TaskModal /></Suspense>
       <ClientMessage />
       <JerryTip hidden={dock || search || add} />
+      <SessionGuard />
     </div>
   );
 }

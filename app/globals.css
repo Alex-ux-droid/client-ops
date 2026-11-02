@@ -1766,3 +1766,8 @@ textarea.vt-ghost::placeholder { color: transparent; }
 .mc-group .tg-chat .inline { flex-wrap: wrap; }
 .mc-group .tg-chat select { min-width: 0; max-width: 100%; }
 @media (max-width: 600px) { .mc-group .tg-chat > .inline { width: 100%; } .mc-group .tg-chat form.inline { flex: 1; min-width: 0; } .mc-group .tg-chat form.inline select { flex: 1; } }
+.login-remember { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--text); margin: 0; cursor: pointer; }
+.login-form .login-remember input { width: 1rem; height: 1rem; padding: 0; border-radius: 4px; flex: none; }
+.login-remember { justify-content: center; }
+.login-hint { text-align: center; }
+.login-hint { font-size: 0.8125rem; color: var(--muted); margin-top: -0.25rem; }

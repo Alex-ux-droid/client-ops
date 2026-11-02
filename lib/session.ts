@@ -18,22 +18,35 @@ function sign(payload: string, key: string): string {
   return createHmac("sha256", key).update(payload).digest("base64url");
 }
 
-export function createSession(): string | null {
+export const IDLE_MIN = 30;
+
+// Кука: "термін.режим.підпис". Режим r — «запамʼятати пристрій» (30 днів), i — чужий компʼютер:
+// живе 30 хв і продовжується на кожен запит (proxy), без дій — вихід. Старі куки "термін.підпис" = r.
+export function createSession(remember = false): string | null {
   const key = secret();
   if (!key) return null;
-  const expires = String(Date.now() + SESSION_DAYS * 86400_000);
-  return `${expires}.${sign(expires, key)}`;
+  const mode = remember ? "r" : "i";
+  const expires = String(Date.now() + (remember ? SESSION_DAYS * 86400_000 : IDLE_MIN * 60_000));
+  return `${expires}.${mode}.${sign(`${expires}.${mode}`, key)}`;
+}
+
+export function parseSession(token: string | undefined): { ok: boolean; mode: "r" | "i"; expires: number } {
+  const bad = { ok: false, mode: "r" as const, expires: 0 };
+  const key = secret();
+  if (!key || !token) return bad;
+  const parts = token.split(".");
+  const [expires, mode, sig] = parts.length === 3 ? parts : [parts[0], "", parts[1]];
+  if (!expires || !sig || Number(expires) < Date.now()) return bad;
+  const payload = mode ? `${expires}.${mode}` : expires;
+  const a = Buffer.from(sig);
+  const b = Buffer.from(sign(payload, key));
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return bad;
+  return { ok: true, mode: mode === "i" ? "i" : "r", expires: Number(expires) };
 }
 
 export function verifySession(token: string | undefined): boolean {
   if (authDisabled()) return true;
-  const key = secret();
-  if (!key || !token) return false;
-  const [expires, sig] = token.split(".");
-  if (!expires || !sig || Number(expires) < Date.now()) return false;
-  const a = Buffer.from(sig);
-  const b = Buffer.from(sign(expires, key));
-  return a.length === b.length && timingSafeEqual(a, b);
+  return parseSession(token).ok;
 }
 
 // Окремий ключ доступу для Claude (заголовок Authorization: Bearer ...). Пароль входу йому не потрібен.

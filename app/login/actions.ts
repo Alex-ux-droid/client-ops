@@ -23,12 +23,14 @@ export async function login(_: string | null, fd: FormData): Promise<string | nu
     return "Невірний пароль.";
   }
   f.n = 0;
-  (await cookies()).set(SESSION_COOKIE, createSession()!, {
+  const remember = fd.get("remember") === "on";
+  // запамʼятати пристрій — 30 днів; інакше кука до закриття браузера і вихід після 30 хв без дій
+  (await cookies()).set(SESSION_COOKIE, createSession(remember)!, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: SESSION_DAYS * 86400,
+    ...(remember ? { maxAge: SESSION_DAYS * 86400 } : {}),
   });
   redirect("/");
 }
