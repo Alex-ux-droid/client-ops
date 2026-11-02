@@ -1641,3 +1641,24 @@ textarea.vt-ghost::placeholder { color: transparent; }
 .pp-n { width: 2.25rem; height: 2.25rem; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--link); font-weight: 600; }
 .pp-sec label { font-weight: 600; display: block; margin-bottom: 0.125rem; }
 .pp-sec small { color: var(--dim); display: block; margin-bottom: 0.375rem; font-size: 0.8125rem; }
+
+/* Вікно задачі статичне: шапка і низ на місці, гортається тільки вміст усередині */
+.tm-box { overflow: hidden; }
+.tm-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 0.375rem; margin-right: -0.375rem; }
+.tm-head, .tm-meta, .tm-foot { flex: none; }
+.tm-close { flex: none; max-height: 40vh; overflow-y: auto; }
+.tm-flow { flex: 1 1 auto; min-height: 0; grid-template-rows: auto minmax(0, 1fr); }
+.tm-pane { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 0.375rem; }
+.tm-box.tm-box-flow { height: 92dvh; }
+@media (min-width: 900px) {
+  .tm-box.tm-box-flow { height: calc(100dvh - 3rem); min-height: 0; }
+  .tm-flow { grid-template-rows: minmax(0, 1fr); }
+  .tm-steps { position: static; max-height: none; height: 100%; align-self: stretch; overflow-y: auto; }
+}
+.tm-full-btn { display: none; }
+@media (min-width: 900px) {
+  .tm-full-btn { display: inline-grid; place-items: center; }
+  .tm-over.full { padding: 0; }
+  .tm-box.full, .tm-box.full.tm-box-flow { max-width: none; width: 100vw; height: 100dvh; max-height: none; border-radius: 0; border: 0; padding: 1.25rem max(1.5rem, calc((100vw - 88rem) / 2)); }
+}
+.tm-sec-head .tm-step-title > span:last-child { color: var(--text); font-size: 1.125rem; }

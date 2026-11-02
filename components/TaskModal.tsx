@@ -8,6 +8,7 @@ import { openAssistant } from "./assistant";
 import Markdown from "./Markdown";
 import { OPEN_TASK } from "./tasks";
 import VoiceTextarea from "./VoiceTextarea";
+import Icon from "./Icon";
 import { setStepDone, splitSteps, toggleLine } from "@/lib/taskSteps";
 
 type Data = { task: TaskRow; items: TaskItem[]; links: TaskLink[]; drive_url: string; folder: { title: string; url: string } | null; folder_urls: string[]; calendar: "ok" | "reconnect" | "off" };
@@ -42,6 +43,10 @@ export default function TaskModal() {
   const [busy, setBusy] = useState(false);
   const [calMsg, setCalMsg] = useState("");
   const [step, setStep] = useState(0);
+  // Вікно задачі на весь екран (компʼютер), вибір запамʼятовується
+  const [full, setFull] = useState(false);
+  useEffect(() => { try { setFull(localStorage.getItem("task.full") === "1"); } catch {} }, []);
+  const toggleFull = () => setFull((f) => { try { localStorage.setItem("task.full", f ? "0" : "1"); } catch {} return !f; });
   // На телефоні вкладки кроків — смужкою: активна завжди на виду
   useEffect(() => { document.querySelector(".tm-steps .on")?.scrollIntoView({ inline: "center", block: "nearest" }); }, [step]);
   const newItem = useRef<HTMLTextAreaElement>(null);
@@ -112,8 +117,8 @@ export default function TaskModal() {
   const allDone = totalAll > 0 && doneAll === totalAll;
 
   return (
-    <div className="tm-over" onClick={close} role="dialog" aria-modal>
-      <div className={`tm-box ${d && splitSteps(d.task.details ?? "").steps.length >= 2 && !editDetails ? "tm-box-flow" : ""}`} onClick={(e) => e.stopPropagation()}>
+    <div className={`tm-over ${full ? "full" : ""}`} onClick={close} role="dialog" aria-modal>
+      <div className={`tm-box ${full ? "full" : ""} ${d && splitSteps(d.task.details ?? "").steps.length >= 2 && !editDetails ? "tm-box-flow" : ""}`} onClick={(e) => e.stopPropagation()}>
         {!d ? (
           <div className="tm-loading">{err || "Відкриваю…"}{err && <button type="button" className="ghost small" onClick={close}>Закрити</button>}</div>
         ) : (
@@ -124,6 +129,7 @@ export default function TaskModal() {
               <input key={`t${t!.id}${t!.title}`} className="tm-title" defaultValue={t!.title} aria-label="Назва задачі"
                 onBlur={(e) => e.target.value.trim() && e.target.value !== t!.title && run(() => taskPatch(id, { title: e.target.value }))}
                 onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
+              <button type="button" className="ghost small tm-x tm-full-btn" onClick={toggleFull} aria-label={full ? "Згорнути у вікно" : "На весь екран"} title={full ? "Згорнути у вікно" : "На весь екран"}><Icon name={full ? "minimize" : "maximize"} size={16} /></button>
               <button type="button" className="ghost small tm-x" onClick={close} aria-label="Закрити">✕</button>
             </div>
 
