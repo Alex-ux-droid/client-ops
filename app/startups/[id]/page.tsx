@@ -23,6 +23,7 @@ import {
   addItemAction, addStartupTaskAction, deleteItemAction, deleteStartupAction, saveStartupAction, updateItemAction,
 } from "../actions";
 import Monitor from "./Monitor";
+import ExtractButton from "@/components/ExtractButton";
 import ProductMap from "./views/ProductMap";
 import { IssuesView, KnowledgeView } from "./views/BuildViews";
 import { openIssueCount } from "@/lib/repo/startupIssues";
@@ -278,6 +279,7 @@ function Overview({ s, items }: { s: Startup; items: StartupItem[] }) {
           <b>Джері</b>
           <div className="inline" style={{ flexWrap: "wrap", gap: "0.375rem" }}>
             <AskAssistant text="Подивись на цей стартап цілком: що зараз найважливіше зробити і чому? Онови «наступний крок».">Що далі?</AskAssistant>
+            <ExtractButton scope={`стартап / продукт «${s.name}» (startup_id ${s.id})`} kind="startup" id={s.id} />
             <AskAssistant text="Чого не вистачає цьому стартапу, щоб перейти на наступну стадію? Чесно, з ризиками.">Чого бракує?</AskAssistant>
             <AskAssistant text="Склади або онови план етапами з задачами для цього стартапу.">Склади план</AskAssistant>
             <AskAssistant text="Подивись на всі чотири опори цього стартапу (startup_get → steps): що з кожної ще не зроблено, що з цього ти можеш зробити зараз — зроби; що потребує мене (розмови з клієнтами, цифри, рішення) — запиши як питання і скажи коротко.">Добудуй опори</AskAssistant>

@@ -6,6 +6,7 @@ import type { ChatMessage } from "@/lib/repo/chat";
 import type { AssistantSeed } from "./assistant";
 import Bot from "./Bot";
 import Icon from "./Icon";
+import { contextText, copyLater, extractPrompt, scopeFromPage } from "./extractPrompt";
 import DictOverlay from "./DictOverlay";
 import { readChatFile, type ChatFile } from "./chatFiles";
 import { useDictation } from "./useDictation";
@@ -67,6 +68,7 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
   const [heard, setHeard] = useState("");
   const [files, setFiles] = useState<ChatFile[]>([]);
   const [menu, setMenu] = useState(false);
+  const [copiedExtract, setCopiedExtract] = useState(false);
   const [prefs, setPrefs] = useState<{ web: boolean; context: boolean }>({ web: true, context: true });
   const fileIn = useRef<HTMLInputElement>(null);
   const camIn = useRef<HTMLInputElement>(null);
@@ -214,6 +216,13 @@ export default function Chat({ clientId, page, initial, hasKey: hasKeyProp, comp
                 <button type="button" role="menuitemcheckbox" aria-checked={prefs.context} onClick={() => togglePref("context")}><span className="chat-menu-ico">👁</span><span>Бачить задачу і рекламу<small>з кожним повідомленням</small></span><i className={`chat-sw ${prefs.context ? "on" : ""}`} /></button>
                 {voice.supported && <button type="button" role="menuitemcheckbox" aria-checked={voice.enabled} onClick={voice.toggle}><Icon name={voice.enabled ? "volume" : "mute"} size={18} /><span>Читати відповіді вголос</span><i className={`chat-sw ${voice.enabled ? "on" : ""}`} /></button>}
                 <hr />
+                <button type="button" role="menuitem" onClick={async () => {
+                  // на сторінці клієнта/стартапу — повний контекст + інструкція витяжки; деінде — тільки витяжка
+                  const m = location.pathname.match(/^\/(clients|startups)\/(\d+)/);
+                  const base = extractPrompt(scopeFromPage());
+                  const ok = await copyLater(() => (m ? contextText(m[1] === "clients" ? "client" : "startup", Number(m[2]), base) : Promise.resolve(base)));
+                  if (ok) { setCopiedExtract(true); setTimeout(() => setCopiedExtract(false), 2500); }
+                }}><span className="chat-menu-ico">⇄</span><span>{copiedExtract ? "Скопійовано ✓" : "Промпт для іншого чату"}<small>з контекстом клієнта/проєкту; відповідь з міткою кинь сюди</small></span></button>
                 <button type="button" role="menuitem" disabled={busy || !msgs.length} onClick={() => { setMenu(false); void clear(); }}><span className="chat-menu-ico">✦</span><span>Нова розмова</span></button>
               </div>
             </>

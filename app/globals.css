@@ -1864,3 +1864,4 @@ textarea.vt-ghost::placeholder { color: transparent; }
   .tm-foot > button, .tm-foot > .btn, .tm-foot > a { min-width: 0; padding: 0.5rem 0.5rem; font-size: 0.8125rem; text-align: center; justify-content: center; white-space: normal; line-height: 1.2; }
   .tm-foot > span[style] { display: none; }
 }
+.ov-extract { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: -0.75rem; }
