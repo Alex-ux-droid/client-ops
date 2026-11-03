@@ -13,6 +13,7 @@ import { clientMessages } from "@/lib/repo/telegram";
 import { listWork } from "@/lib/repo/worklog";
 import { SERVICES, type ServiceType } from "@/lib/services";
 import Markdown from "@/components/Markdown";
+import ExtractButton from "@/components/ExtractButton";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import { getClientMemory } from "@/lib/repo/clientMemory";
@@ -38,7 +39,11 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
         </div>
       )}
 
-      <ClientMemoryCard clientId={id} />
+      <div className="ov-extract">
+        <ExtractButton scope={`клієнт «${c.name}» (client_id ${id})`} kind="client" id={id} />
+        <span className="mono">працюєш над клієнтом в іншому чаті (Claude, ChatGPT)? — контекст туди, витяжку з міткою — Джері</span>
+      </div>
+      <ClientMemoryCard clientId={id} clientName={c.name} />
 
       <div className="ov-now card">
         <div className="ov-now-row">
@@ -142,7 +147,7 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
 }
 
 // Що Джері памʼятає про клієнта: де ми, домовленості, зроблене, далі. Від цього він планує, а не з нуля.
-function ClientMemoryCard({ clientId }: { clientId: number }) {
+function ClientMemoryCard({ clientId }: { clientId: number; clientName: string }) {
   const mem = getClientMemory(clientId);
   return (
     <details className="card cm-mem" open={!mem?.text}>
