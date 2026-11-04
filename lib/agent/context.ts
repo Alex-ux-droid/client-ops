@@ -10,6 +10,7 @@ import { ymd } from "../dates";
 import { getComm } from "../repo/comm";
 import { leadStats } from "../repo/leads";
 import { getClientMemory } from "../repo/clientMemory";
+import { strategySnapshot } from "../strategy";
 import { listWork } from "../repo/worklog";
 import { clientMessages } from "../repo/telegram";
 import { listChanges } from "../repo/creatives";
@@ -63,6 +64,8 @@ export function clientSnapshot(clientId: number): string {
   // Головне спершу: де ми з клієнтом зараз і що вже зроблено — план будуємо ВІД ЦЬОГО, а не з нуля
   const mem = getClientMemory(clientId);
   out.push(mem?.text ? `ПАМʼЯТЬ ПО КЛІЄНТУ (де ми, домовленості, що зроблено, що далі; оновлено ${mem.updated_at.slice(0, 16)}):\n${mem.text}` : "Памʼяті по клієнту ще нема — збери стан з історії робіт, задач і переписки (get_client, telegram_messages) і запиши client_memory.");
+  const strat = strategySnapshot(clientId);
+  if (strat) out.push(`СТРАТЕГІЯ КЛІЄНТА (вкладка «Стратегія»; плани і поради — в її рамках, кроки пиши strategy_item):\n${strat}`);
   const card = [
     `Статус: ${c.status}${c.fee_monthly ? `, абонплата ${c.fee_monthly}/міс` : ""}${c.work_since ? `, працюємо з ${c.work_since}` : ""}.`,
     c.next_step && `Наступний крок (картка): ${c.next_step}`,

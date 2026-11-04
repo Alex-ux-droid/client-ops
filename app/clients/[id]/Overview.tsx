@@ -6,7 +6,7 @@ import { money } from "@/lib/config";
 import { fmtDate } from "@/lib/dates";
 import type { ClientRow } from "@/lib/repo/clients";
 import { listIdeas } from "@/lib/repo/ideas";
-import { listLabForClient } from "@/lib/repo/lab";
+import { getStrategy } from "@/lib/repo/strategy";
 import type { ClientService } from "@/lib/repo/services";
 import { listTasks } from "@/lib/repo/tasks";
 import { clientMessages } from "@/lib/repo/telegram";
@@ -28,7 +28,7 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
   const work = listWork(id, 5);
   const ideas = listIdeas({ clientId: id, status: "new" }).slice(0, 4);
   const tg = clientMessages(id, { limit: 4 });
-  const labs = listLabForClient(id).slice(0, 3);
+  const st = getStrategy(id);
   const lastTg = tg.at(-1)?.sent_at ?? null;
 
   return (
@@ -122,12 +122,17 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
           </form>
           <div className="list">{ideas.length ? ideas.map((i) => <div key={i.id} className="row"><div className="row-main"><div className="row-title">{i.text}</div></div></div>) : <div className="empty">Ідей нема.</div>}</div>
         </section>
-        {labs.length > 0 && (
-          <section>
-            <h2 className="ov-h">Рішення з Лабораторії</h2>
-            <div className="list">{labs.map((l) => <Link key={l.id} href={`/lab/${l.id}`} className="row"><div className="row-main"><div className="row-title">{l.title}</div><div className="mono">{l.status === "done" ? "завершено" : "в роботі"} · {fmtDate(l.created_at)}</div></div></Link>)}</div>
-          </section>
-        )}
+        <section>
+          <h2 className="ov-h">Стратегія</h2>
+          {st.where_now || st.goal || st.focus ? (
+            <dl className="kv">
+              {st.where_now && <><dt>Де ми</dt><dd>{st.where_now.split("\n")[0]}</dd></>}
+              {st.goal && <><dt>Куди йдемо</dt><dd>{st.goal.split("\n")[0]}</dd></>}
+              {st.focus && <><dt>Фокус</dt><dd>{st.focus.split("\n")[0]}</dd></>}
+            </dl>
+          ) : <div className="empty">Стратегії ще нема.</div>}
+          <Link href={`/clients/${id}?tab=strategy`} className="h-link">Відкрити стратегію →</Link>
+        </section>
       </div>
 
       <details className="card ov-contacts">

@@ -130,6 +130,11 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "leads", description: "Заявки з лід-форм Meta по клієнту: імʼя, телефон, відповіді на питання форми, кампанія/оголошення, чи взяли в роботу, якість (👍/👎 з кнопок у Telegram-групі), + підсумок: скільки якісних, ціна якісної заявки. Для розбору реклами по ЯКОСТІ заявок, а не тільки кількості.", input_schema: obj({ client_id: int("ID клієнта"), days: int("За скільки днів (за замовчуванням 14)") }, ["client_id"]) },
   { name: "creative_prompt", description: "Промпти на креативи клієнта для Claude / Claude Code. action generate (format square|story|carousel|video, angle — кут, note — побажання; Джері пише ТЗ з даних реклами: що дає дешеві ліди, патерни, бренд, результати минулих промптів) | list (з цифрами привʼязаних оголошень) | update (prompt_id, ad_ids — ID оголошень Meta, що зроблені з промпту; verdict win|lose; notes). Після generate дай Саші промпт у блоці ```Промпт креативу``` щоб копіювався.", input_schema: obj({ action: { type: "string", enum: ["generate", "list", "update"] }, client_id: int("ID клієнта"), prompt_id: int("ID промпту"), format: { type: "string", enum: ["square", "story", "carousel", "video"] }, angle: str("Кут"), note: str("Побажання"), ad_ids: { type: "array", items: { type: "string" } }, verdict: { type: "string", enum: ["", "win", "lose"] }, notes: str("Нотатка") }, ["action"]) },
   { name: "ad_change", description: "Журнал змін реклами клієнта: що змінили → чому → чого чекаємо → що вийшло. action add (client_id, what, why, expect, at YYYY-MM-DD) | list (client_id) | result (change_id, result — через кілька днів, що вийшло за цифрами). Записуй кожну зміну, яку Саша зробив у рекламі; через 3–7 днів сам перевір цифри і допиши result.", input_schema: obj({ action: { type: "string", enum: ["add", "list", "result"] }, client_id: int("ID клієнта"), change_id: int("ID зміни"), what: str("Що змінили"), why: str("Чому"), expect: str("Чого чекаємо"), at: str("Дата"), result: str("Що вийшло") }, ["action"]) },
+  { name: "strategy_get", description: "Стратегія клієнта (вкладка «Стратегія» в картці): конспект (де ми / куди йдемо / фокус), частини екосистеми з part_id (що будуємо, що надаємо, сервіси), план тиждень/місяць/далі з item_id, висновки. Перед планом по клієнту — дивись сюди.", input_schema: obj({ client_id: int("ID клієнта"), part_id: int("Деталі однієї частини: склад, плюси/мінуси, знання, рішення, хроніка") }, ["client_id"]) },
+  { name: "strategy_update", description: "Оновити конспект стратегії клієнта: where_now (де ми), goal (куди йдемо: місяці/роки), focus (головне зараз), insights (висновки/патерни — ПОВНИЙ текст пунктами). Передавай тільки те, що міняєш.", input_schema: obj({ client_id: int("ID клієнта"), where_now: str("Де ми зараз"), goal: str("Куди йдемо"), focus: str("Головне зараз"), insights: str("Висновки повністю") }, ["client_id"]) },
+  { name: "strategy_part", description: "Частина екосистеми клієнта. action add | update | delete. kind: build (будуємо: CRM, сайт, бот) | service (надаємо: реклама, навчання) | tool (сервіси й інтеграції). status: plan|building|live|improving|paused. stack/pros/cons — по рядку, ПОВНИЙ перелік. Не створюй частини, про які Саша не казав.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["add", "update", "delete"] }, part_id: int("Для update/delete"), title: str("Назва"), kind: { type: "string", enum: ["build", "service", "tool"] }, status: { type: "string", enum: ["plan", "building", "live", "improving", "paused"] }, summary: str("Що це, 1–2 речення"), stack: str("З чого складається, по рядку"), pros: str("Плюси, по рядку"), cons: str("Мінуси/ризики, по рядку"), next_step: str("Наступний крок") }, ["client_id", "action"]) },
+  { name: "strategy_item", description: "Запис у стратегії клієнта. action add | update | delete | done | to_task. kind: plan (крок плану, horizon week|month|later) | log (хроніка: що зроблено) | knowledge (cat fix|integration|lesson) | decision | idea. part_id — привʼязка до частини. to_task — зробити з кроку задачу.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["add", "update", "delete", "done", "to_task"] }, item_id: int("Для update/delete/done/to_task"), kind: { type: "string", enum: ["plan", "log", "knowledge", "decision", "idea"] }, title: str("Заголовок"), body: str("Деталі"), horizon: { type: "string", enum: ["week", "month", "later", "done"] }, cat: { type: "string", enum: ["fix", "integration", "lesson"] }, part_id: int("ID частини") }, ["client_id", "action"]) },
+  { name: "strategy_import", description: "Розкласти витяжку з іншого чату / Claude Code (мітка [CLIENT-OPS:СТРАТЕГІЯ]) по стратегії клієнта: частина, хроніка, знання, рішення, план, висновки. text — уся витяжка як є.", input_schema: obj({ client_id: int("ID клієнта"), text: str("Текст витяжки") }, ["client_id", "text"]) },
   { name: "client_memory", description: "Памʼять по клієнту: де ми зараз, домовленості (гроші, обсяг, терміни), що вже зроблено, що далі, що важливо. action get | rewrite (text — повний новий текст з розділами ## Де ми зараз / ## Домовленості (гроші, обсяг, терміни) / ## Що вже зроблено / ## Що в роботі і далі / ## Важливо памʼятати). Коли Саша розповідає про зустріч, домовленість, запуск — одразу онови.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["get", "rewrite"] }, text: str("Повний текст памʼяті") }, ["client_id", "action"]) },
   { name: "client_money", description: "Гроші клієнта: абонплата, день оплати, БОРГ (прострочені оплати з сумами і датами), очікувані, останні отримані. Для повідомлення клієнту про заборгованість — це + message_templates (шаблон «Оплата»).", input_schema: obj({ client_id: int("ID клієнта") }, ["client_id"]) },
   { name: "comm_profile", description: "Профіль спілкування з клієнтом (звертання, хто вирішує, тон, що цікавить, чого уникати). action get — прочитати; build — скласти заново з переписки групи; save — записати текст (коли Саша сам каже, як з клієнтом говорити).", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["get", "build", "save"] }, profile: str("Текст профілю для save") }, ["client_id", "action"]) },
@@ -497,6 +502,89 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const c = need(cr.getChange(need(id(input.change_id), "change_id обовʼязковий")), "Зміни нема");
       cr.updateChange(c.id, { result: s(input.result) });
       return { ok: true };
+    }
+
+    case "strategy_get": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      need(getClientRow(cid), "Клієнта нема");
+      const st = await import("../strategy");
+      const pid = id(input.part_id);
+      if (pid) {
+        const r = await import("../repo/strategy");
+        const p = need(r.getPart(pid), "Частини нема");
+        return { part: st.partDetail(p) };
+      }
+      return { strategy: st.strategySnapshot(cid, true) || "Порожньо — стратегію ще не вели" };
+    }
+
+    case "strategy_update": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      need(getClientRow(cid), "Клієнта нема");
+      const r = await import("../repo/strategy");
+      const patch: Record<string, string> = {};
+      for (const k of ["where_now", "goal", "focus", "insights"] as const) if (input[k] != null) patch[k] = s(input[k]);
+      r.saveStrategy(cid, patch);
+      act("client", "Стратегію оновлено", `/clients/${cid}?tab=strategy`);
+      return { ok: true };
+    }
+
+    case "strategy_part": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      need(getClientRow(cid), "Клієнта нема");
+      const r = await import("../repo/strategy");
+      const f: Record<string, string> = {};
+      for (const k of ["title", "summary", "stack", "pros", "cons", "next_step"] as const) if (input[k] != null) f[k] = s(input[k]);
+      if (input.kind && s(input.kind) in r.PART_KINDS) f.kind = s(input.kind);
+      if (input.status && s(input.status) in r.PART_STATUS) f.status = s(input.status);
+      if (input.action === "add") {
+        const pid = r.addPart(cid, { ...f, title: need(f.title, "title обовʼязковий") } as Parameters<typeof r.addPart>[1]);
+        act("client", `Стратегія: частина «${f.title}»`, `/clients/${cid}?tab=strategy&sv=part&p=${pid}`);
+        return { ok: true, part_id: pid };
+      }
+      const p = need(r.getPart(need(id(input.part_id), "part_id обовʼязковий")), "Частини нема");
+      if (p.client_id !== cid) throw new Error("Частина іншого клієнта");
+      if (input.action === "delete") { r.deletePart(p.id); act("client", `Стратегія: частину «${p.title}» видалено`, `/clients/${cid}?tab=strategy&sv=systems`); return { ok: true }; }
+      r.updatePart(p.id, f as Parameters<typeof r.updatePart>[1]);
+      act("client", `Стратегія: «${p.title}» оновлено`, `/clients/${cid}?tab=strategy&sv=part&p=${p.id}`);
+      return { ok: true };
+    }
+
+    case "strategy_item": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      need(getClientRow(cid), "Клієнта нема");
+      const r = await import("../repo/strategy");
+      const href = `/clients/${cid}?tab=strategy&sv=plan`;
+      if (input.action === "add") {
+        const kind = (r.ITEM_KINDS as readonly string[]).includes(s(input.kind)) ? (s(input.kind) as (typeof r.ITEM_KINDS)[number]) : "plan";
+        const iid = r.addItem(cid, { kind, title: need(s(input.title), "title обовʼязковий"), body: s(input.body), part_id: id(input.part_id), horizon: s(input.horizon) || (kind === "plan" ? "week" : ""), cat: s(input.cat), source: "jerry" });
+        act("client", `Стратегія: ${s(input.title)}`, href);
+        return { ok: true, item_id: iid };
+      }
+      const it = need(r.getItem(need(id(input.item_id), "item_id обовʼязковий")), "Запису нема");
+      if (it.client_id !== cid) throw new Error("Запис іншого клієнта");
+      if (input.action === "delete") { r.deleteItem(it.id); return { ok: true }; }
+      if (input.action === "done") { r.updateItem(it.id, { horizon: "done" }); act("client", `Зроблено: ${it.title}`, href); return { ok: true }; }
+      if (input.action === "to_task") {
+        const tid = createTask({ client_id: cid, title: it.title, details: it.body || "" });
+        r.updateItem(it.id, { task_id: tid });
+        act("task", `Задача: ${it.title}`, `/tasks?task=${tid}`);
+        return { ok: true, task_id: tid };
+      }
+      const patch: Record<string, unknown> = {};
+      for (const k of ["title", "body", "horizon", "cat"] as const) if (input[k] != null) patch[k] = s(input[k]);
+      if (input.part_id != null) patch.part_id = id(input.part_id);
+      r.updateItem(it.id, patch);
+      return { ok: true };
+    }
+
+    case "strategy_import": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      need(getClientRow(cid), "Клієнта нема");
+      const { importExtract } = await import("../strategy");
+      const res = await importExtract(cid, s(input.text));
+      if (!res.ok) return { error: res.error };
+      act("client", `Стратегія: ${res.summary.join(", ") || "без змін"}`, res.partId ? `/clients/${cid}?tab=strategy&sv=part&p=${res.partId}` : `/clients/${cid}?tab=strategy`);
+      return { ok: true, recorded: res.summary };
     }
 
     case "client_memory": {

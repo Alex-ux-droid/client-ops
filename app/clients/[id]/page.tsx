@@ -16,13 +16,14 @@ import MailTab from "./MailTab";
 import TelegramTab from "./TelegramTab";
 import { googleConnected } from "@/lib/google";
 import Overview from "./Overview";
+import StrategyTab from "./strategy/StrategyTab";
 import SetupTab from "./SetupTab";
 import { clientSections } from "./sections";
 import ServiceTab from "./ServiceTab";
 import { HistoryTab, MaterialsTab, MoneyTab, PlaybooksTab, TasksTab } from "./tabs";
 
 
-export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; new?: string; m?: string; err?: string; sent?: string; edit?: string; saved?: string; q?: string; n?: string; mv?: string }> }) {
+export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; new?: string; m?: string; err?: string; sent?: string; edit?: string; saved?: string; q?: string; n?: string; mv?: string; sv?: string; p?: string }> }) {
   const id = Number((await params).id);
   const c = getClientRow(id);
   if (!c) notFound();
@@ -93,6 +94,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       {tab !== "overview" && <h1 className="desk-only section-title">{tabs.find((t) => t.k === tab)?.label}</h1>}
 
       {tab === "overview" && <Overview c={c} services={services} paidTotal={paidTotal} isNew={sp.new === "1"} cplText={cplText} />}
+      {tab === "strategy" && <StrategyTab clientId={id} sv={sp.sv} p={sp.p} />}
       {tab === "setup" && <SetupTab c={c} services={services} />}
       {service && <ServiceTab clientId={id} service={service} edit={sp.edit === "1"} saved={sp.saved === "1"} mv={sp.mv} err={sp.err} />}
       {tab === "tasks" && <TasksTab id={id} />}
