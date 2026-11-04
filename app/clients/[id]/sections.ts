@@ -20,6 +20,7 @@ export function clientSections(c: ClientRow, services: ClientService[]): Section
   const pbs = clientPlaybooks(c.id).length;
   return [
     { k: "overview", label: "Огляд", ico: "home", group: "" },
+    { k: "strategy", label: "Стратегія", ico: "zap", group: "" },
     ...services.map((s) => ({ k: s.type, label: SERVICES[s.type as ServiceType].label, ico: SVC_ICO[s.type] ?? "zap", group: "Послуги", svc: true })),
     ...(chatsForClient(c.id).length ? [{ k: "telegram", label: "Telegram", ico: "send", group: "Звʼязок" }] : []),
     // Пошта — тільки якщо в клієнта є email (і підключено Google)
