@@ -24,6 +24,7 @@ export const CAPS = [
   { key: "access", label: "Доступи клієнтів", desc: "додавати і змінювати записи «де лежить доступ» (сервіс, логін, назва в Bitwarden, 2FA) — паролів не бачить і не зберігає", tools: ["access_save"] },
   { key: "tips", label: "Поради дня (запис)", desc: "записує в базу порад корисне, що виникло в розмові", tools: ["tip_add"] },
   { key: "strategy", label: "Стратегія клієнта", desc: "веде стратегію в картці клієнта: конспект, системи, план тиждень/місяць/далі, знання; розкладає витяжки з Claude Code (≈1–3 цента за витяжку)", tools: ["strategy_update", "strategy_part", "strategy_item", "strategy_import"] },
+  { key: "products", label: "Продукти і розвиток", desc: "вести паспорти наших продуктів (що це, як працює, знання, юридичне, хроніка), розкладати витяжки з Claude Code, план розвитку організації (≈1–3 цента за витяжку)", tools: ["product_save", "product_item", "product_import", "org_update", "org_item"] },
   { key: "lab", label: "Лабораторія (стара)", desc: "вести сесії вибору інструментів", tools: ["lab_create", "lab_update", "lab_add_option", "lab_update_option", "lab_add_criterion", "lab_set_scores", "lab_finish", "lab_scenario", "lab_proposal", "lab_package", "lab_proposal_pdf", "lab_product", "lab_stage", "lab_delete_option"] },
 ] as const;
 
@@ -47,6 +48,7 @@ export const AUTO = [
   { key: "client_memory", label: "Памʼять по кожному клієнту", desc: "після розмови про клієнта Джері записує: де ми зараз, домовленості, що зроблено, що далі — і наступного разу планує від цього, а не з нуля; ≈0.5–1 цент за розмову", setting: "auto.client_memory" },
   { key: "crm_sync", label: "CRM клієнта: продажі", desc: "приймає події з CRM (новий лід, етап, продаж, оплата, відмова) і раз на 30 хв дозабирає зміни — щоб бачити продажі й гроші по кожному оголошенню; безкоштовно", setting: "auto.crm_sync" },
   { key: "crm_notify", label: "Продаж у CRM → мені в Telegram", desc: "коротке повідомлення, коли менеджер закрив продаж або прийшла оплата: сума, менеджер, з якої реклами", setting: "auto.crm_notify" },
+  { key: "product_alerts", label: "Помилки й відгуки з наших програм → мені в Telegram", desc: "програма, підключена через Client Ops Connect, повідомила про помилку або відгук користувача — коротко тобі", setting: "auto.product_alerts" },
   { key: "reflect", label: "Самонавчання Джері", desc: "після кожної розмови оновлює памʼять — коштує трохи кредитів", setting: "auto.reflect" },
 ] as const;
 

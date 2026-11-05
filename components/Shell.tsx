@@ -25,7 +25,7 @@ const MOBILE = ["/", "/tasks", "/clients"];
 
 const PAGE_NAMES: [RegExp, string][] = [
   [/^\/$/, "Центр"], [/^\/tasks/, "Задачі"], [/^\/clients\/\d+/, "картка клієнта"], [/^\/clients/, "Клієнти"],
-  [/^\/journal/, "Журнал системи"], [/^\/pipeline/, "Воронка"], [/^\/money/, "Гроші"], [/^\/playbooks/, "Плейбуки"], [/^\/ideas/, "Ідеї"], [/^\/settings/, "Налаштування"], [/^\/lab/, "Лабораторія"], [/^\/kb/, "База знань"], [/^\/startups/, "Стартапи"],
+  [/^\/journal/, "Журнал системи"], [/^\/pipeline/, "Воронка"], [/^\/money/, "Гроші"], [/^\/playbooks/, "Плейбуки"], [/^\/ideas/, "Ідеї"], [/^\/settings/, "Налаштування"], [/^\/lab/, "Лабораторія"], [/^\/kb/, "Розвиток"], [/^\/products/, "Продукти"], [/^\/startups/, "Стартапи"],
 ];
 
 export default function Shell({ counts, clients, children }: { counts: Counts; clients: Opt[]; children: React.ReactNode }) {

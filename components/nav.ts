@@ -11,12 +11,13 @@ export const SECTIONS: { title: string; items: { href: string; label: string; ic
       { href: "/startups", label: "Стартапи", ico: "rocket" },
       { href: "/money", label: "Гроші", ico: "wallet", count: "debts", bad: true },
       { href: "/ads", label: "Реклама", ico: "megaphone" },
+      { href: "/products", label: "Продукти", ico: "box" },
     ],
   },
   {
     title: "Знання",
     items: [
-      { href: "/kb", label: "База знань", ico: "file" },
+      { href: "/kb", label: "Розвиток", ico: "compass" },
       { href: "/playbooks", label: "Плейбуки", ico: "book" },
       { href: "/ideas", label: "Ідеї", ico: "bulb", count: "ideas" },
       { href: "/journal", label: "Журнал системи", ico: "wrench", count: "journal" },
