@@ -5,7 +5,7 @@ import { useState } from "react";
 import { copyLater } from "@/components/extractPrompt";
 import { productImportAction, productPromptAction } from "./actions";
 
-export function ProductPrompt({ productId, label, mode = "full", primary }: { productId: number | null; label: string; mode?: "full" | "update"; primary?: boolean }) {
+export function ProductPrompt({ productId, label, mode = "full", primary }: { productId: number | null; label: string; mode?: "full" | "update" | "fix"; primary?: boolean }) {
   const [msg, setMsg] = useState("");
   return (
     <span className="inline" style={{ gap: "0.375rem" }}>

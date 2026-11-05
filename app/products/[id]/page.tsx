@@ -8,12 +8,12 @@ import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import { CopyText } from "@/app/startups/[id]/CopyText";
 import { fmtDate } from "@/lib/dates";
-import { appSecret, kitText } from "@/lib/products";
+import { appSecret, kitText, productIssues } from "@/lib/products";
 import { listClients } from "@/lib/repo/clients";
 import { getProduct, listPItems, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productEventCounts, productEvents, productTimeline, productUpdates, nextUpdateVer, hasPassport, type PItem } from "@/lib/repo/products";
 import { getSetting } from "@/lib/repo/settings";
 import { lines } from "@/lib/repo/strategy";
-import { productClientAction, productItemAction, productSecretAction, saveProductAction } from "../actions";
+import { issuesDoneAction, productClientAction, productItemAction, productSecretAction, saveProductAction } from "../actions";
 import { CopyBig, ProductImport, ProductPrompt } from "../ProductClient";
 
 export const dynamic = "force-dynamic";
@@ -166,8 +166,29 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
     const url = `${host}/api/app/${id}`;
     const once = getSetting(`app.secret_once.${id}`) || "";
     const ev = productEvents(id, 25), cnt = productEventCounts(id, 7);
+    const iss = productIssues(id);
+    const found = listPItems(id, "idea").filter((x) => x.source === "app" && !x.done);
+    const total = iss.errors.length + iss.feedback.length + found.length;
     return (
       <div className="stack" style={{ gap: "1rem" }}>
+        <div className={`card stack${total ? " dv-focus" : ""}`} style={{ gap: "0.5rem" }}>
+          <b>Що виправити{total ? ` · ${total}` : ""}</b>
+          <div className="mono">Помилки і відгуки з програми{iss.since ? ` після ${fmtDate(iss.since)}` : ""} + знахідки самоаудиту (однакові згруповані).</div>
+          {total ? (
+            <>
+              <div className="st-grid">
+                {[...iss.errors.map((x) => ({ ...x, k: "помилка" })), ...iss.feedback.map((x) => ({ ...x, k: "відгук" }))].slice(0, 12).map((x, i) => (
+                  <div key={i} className="pv"><div className="pv-t">{x.summary}</div><div className="pv-m">{x.k}{x.n > 1 ? ` · ×${x.n}` : ""} · {fmtDate(x.last)}</div></div>
+                ))}
+                {found.slice(0, 6).map(item)}
+              </div>
+              <div className="inline" style={{ flexWrap: "wrap" }}>
+                <ProductPrompt productId={id} mode="fix" primary label="Промпт: виправити все це" />
+                <form action={issuesDoneAction}>{hid}<button className="ghost small">Розібрано — почати з нуля</button></form>
+              </div>
+            </>
+          ) : <p className="mono">Поки чисто.</p>}
+        </div>
         <div className="card stack" style={{ gap: "0.5rem" }}>
           <b>Програма → Client Ops (події)</b>
           <div className="mono">Програма, підключена набором «Client Ops Connect», шле сюди помилки, відгуки, релізи, використання. PRODUCT_ID = {id}.</div>

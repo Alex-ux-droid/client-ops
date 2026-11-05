@@ -5,10 +5,11 @@ import { agentConfig } from "./agent/config";
 import { autoOn } from "./agent/caps";
 import { logError } from "./log";
 import {
-  addPItem, addProduct, addProductEvent, getOrg, getProduct, listPItems, listProducts, ORG_FIELDS, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productTimeline, productUpdates, nextUpdateVer, hasPassport, updateProduct,
+  addPItem, addProduct, addProductEvent, getOrg, getProduct, listPItems, listProducts, ORG_FIELDS, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productEvents, productTimeline, productUpdates, nextUpdateVer, hasPassport, updateProduct,
   type Product, type ProductKind, type ProductStatus,
 } from "./repo/products";
 import { lines } from "./repo/strategy";
+import { getSetting } from "./repo/settings";
 import { getApiKey, setEnvVar } from "./secrets";
 
 export const PRODUCT_MARK = "[CLIENT-OPS:ПРОДУКТ]";
@@ -253,12 +254,57 @@ export async function appWebhook(productId: number, raw: string, h: Headers): Pr
   const at = !Number.isNaN(Date.parse(s(b.occurred_at))) ? new Date(s(b.occurred_at)).toISOString() : new Date().toISOString();
   if (!addProductEvent({ event_id: eventId, product_id: productId, event, summary, data_json: JSON.stringify(data).slice(0, 8000), occurred_at: at })) return { status: 200, body: { ok: true, duplicate: true } };
   if (event === "app.release") addPItem(productId, { kind: "log", title: `Реліз ${s(data.version)}`.trim(), body: s(data.notes).slice(0, 2000), source: "extract" });
+  // Самоаудит програми: знахідки (незручності, повільні місця, часті помилки) → ідеї продукту, без дублів
+  if (event === "app.insight" && Array.isArray(data.items)) {
+    const have = new Set(listPItems(productId, "idea").map((x) => x.title.toLowerCase()));
+    for (const it of (data.items as Record<string, unknown>[]).slice(0, 20)) {
+      const t = s(it.title).trim().slice(0, 200);
+      if (!t || have.has(t.toLowerCase())) continue;
+      addPItem(productId, { kind: "idea", title: t, source: "app", body: [it.severity && `**Важливість:** ${s(it.severity)}`, it.area && `**Де:** ${s(it.area)}`, it.why && `**Чому:** ${s(it.why)}`, it.fix && `**Як виправити:** ${s(it.fix)}`].filter(Boolean).join("\n\n") });
+      have.add(t.toLowerCase());
+    }
+  }
   if ((event === "app.error" || event === "app.feedback") && autoOn("product_alerts")) void (async () => {
     const { tg, tgOwner } = await import("./telegram");
     const owner = tgOwner();
     if (owner) await tg("sendMessage", { chat_id: owner, text: `${event === "app.error" ? "⚠️ Помилка" : "💬 Відгук"} · ${p.name}\n${summary}` });
   })().catch((e) => logError("product-alert", e));
   return { status: 200, body: { ok: true } };
+}
+
+// Промпт «виправити»: свіжі помилки, відгуки і знахідки самоаудиту → одне завдання для Claude Code + витяжка-оновлення
+export function fixPrompt(productId: number): string {
+  const p = getProduct(productId);
+  if (!p) return "";
+  const { since, errors, feedback } = productIssues(productId);
+  const ideas = listPItems(productId, "idea").filter((x) => x.source === "app" && !x.done).slice(0, 25);
+  const ver = nextUpdateVer(productId);
+  const lst = (xs: { summary: string; n: number; last: string }[]) => xs.map((x) => `- ${x.summary}${x.n > 1 ? ` (×${x.n})` : ""} — останній раз ${x.last.slice(0, 16)}`).join("\n");
+  return `Продукт «${p.name}». Нижче — що програма сама повідомила в мою систему Client Ops${since ? ` після ${since.slice(0, 10)}` : ""}: помилки, відгуки користувачів і знахідки самоаудиту. Розбери і виправ по важливості. Не ламай те, що працює; на кожну помилку — знайди причину, а не гаси симптом.
+${errors.length ? `\nПомилки:\n${lst(errors)}\n` : ""}${feedback.length ? `\nВідгуки користувачів:\n${lst(feedback)}\n` : ""}${ideas.length ? `\nЗнахідки самоаудиту (незручності, повільні місця):\n${ideas.map((x) => `- ${x.title}${x.body ? ` — ${x.body.replace(/\*\*/g, "").replace(/\s+/g, " ").slice(0, 200)}` : ""}`).join("\n")}\n` : ""}
+<product>
+${productMd(p, false)}
+</product>
+
+Порядок: 1) що ламає роботу менеджерів або гроші; 2) часті помилки; 3) незручності. Що не варто робити — скажи чому. Після роботи видай оновлення СТРОГО в такому блоці (тільки факти, без ключів):
+
+${updateTemplate(p.name, ver, since.slice(0, 10))}`;
+}
+
+// Що програма повідомила після останнього «Розібрано»: однакові згруповані з лічильником
+export function productIssues(productId: number): { since: string; errors: { summary: string; n: number; last: string }[]; feedback: { summary: string; n: number; last: string }[] } {
+  const since = getSetting(`app.fixed_at.${productId}`) ?? "";
+  const ev = productEvents(productId, 500).filter((e) => (e.event === "app.error" || e.event === "app.feedback") && (!since || e.received_at > since));
+  const group = (kind: string) => {
+    const m = new Map<string, { summary: string; n: number; last: string }>();
+    for (const e of ev.filter((x) => x.event === kind)) {
+      const k = e.summary.replace(/\d+/g, "#").toLowerCase();
+      const g = m.get(k);
+      if (g) g.n++; else m.set(k, { summary: e.summary, n: 1, last: e.received_at });
+    }
+    return [...m.values()].sort((a, b) => b.n - a.n).slice(0, 30);
+  };
+  return { since, errors: group("app.error"), feedback: group("app.feedback") };
 }
 
 // Коротко про організацію і продукти — у системний промпт Джері
