@@ -268,3 +268,17 @@ export function badAds(accountId: string): BadAd[] {
   try { return r ? (JSON.parse(r.value) as BadAd[]) : []; } catch { return []; }
 }
 export function badAdsForClient(clientId: number): BadAd[] { return ids(clientId).flatMap(badAds); }
+
+export type AdTotal = { ad_id: string; ad_name: string; campaign_name: string; spend: number; leads: number };
+export function saveAdTotals(accountId: string, rows: AdTotal[]): void {
+  db().transaction(() => {
+    db().prepare("DELETE FROM meta_ad_total WHERE account_id = ?").run(accountId);
+    const ins = db().prepare("INSERT OR REPLACE INTO meta_ad_total (account_id, ad_id, ad_name, campaign_name, spend, leads) VALUES (@account_id, @ad_id, @ad_name, @campaign_name, @spend, @leads)");
+    for (const r of rows) ins.run({ ...r, account_id: accountId });
+  })();
+}
+export function adTotalsForClient(clientId: number): AdTotal[] {
+  const acc = ids(clientId);
+  if (!acc.length) return [];
+  return db().prepare(`SELECT ad_id, ad_name, campaign_name, spend, leads FROM meta_ad_total WHERE account_id IN (${inList(acc.length)})`).all(...acc) as AdTotal[];
+}
