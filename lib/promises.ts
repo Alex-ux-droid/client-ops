@@ -29,7 +29,12 @@ export async function extractPromises(text: string): Promise<Found[]> {
   try {
     const r = await new Anthropic({ apiKey: key, timeout: 20000, maxRetries: 0 }).messages.create({ model: MODEL, max_tokens: 500, system, messages: [{ role: "user", content: t.slice(0, 4000) }] });
     const out = r.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("");
-    const arr = JSON.parse(out.slice(out.indexOf("["), out.lastIndexOf("]") + 1)) as { what?: unknown; due?: unknown }[];
+    // Модель інколи відповідає словами без списку — це означає «обіцянок нема», а не помилка
+    const a = out.indexOf("["), z = out.lastIndexOf("]");
+    if (a < 0 || z <= a) return [];
+    let arr: { what?: unknown; due?: unknown }[];
+    try { arr = JSON.parse(out.slice(a, z + 1)); } catch { return []; }
+    if (!Array.isArray(arr)) return [];
     const max = addDays(60);
     return arr.filter((x) => x && typeof x.what === "string" && x.what.trim()).slice(0, 5).map((x) => {
       const due = typeof x.due === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x.due) && x.due >= today && x.due <= max ? x.due : addDays(2);
