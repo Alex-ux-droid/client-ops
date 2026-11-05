@@ -130,8 +130,11 @@ async function notify(id: number): Promise<void> {
   }
   const owner = tgOwner();
   const copy = getSetting("leads.copy_owner") === "on";
-  if (owner && (copy || (!delivered && page?.leads_on))) {
-    const why = !l.client_id ? "\n\n⚠️ Не знаю, чий це клієнт — привʼяжи сторінку в Налаштування → Конектори → Meta." : !delivered && page?.leads_on ? "\n\n⚠️ Заявку нікуди не доставлено (нема групи з ботом і нема підписаних у боті клієнта) — тому шлю тобі." : "";
+  // Запасна доставка Саші — тільки коли канал увімкнений, але не спрацював. Вимкнув обидва (група і бот) — значить свідомо, мовчимо.
+  const wanted = !!route && (!!route.to_group || !!route.to_bot);
+  const lost = !!page?.leads_on && !delivered && (!l.client_id || wanted);
+  if (owner && (copy || lost)) {
+    const why = !l.client_id && page?.leads_on ? "\n\n⚠️ Не знаю, чий це клієнт — привʼяжи сторінку в Налаштування → Конектори → Meta." : lost ? "\n\n⚠️ Заявку нікуди не доставлено (у групі нема бота або в боті клієнта нема підписаних) — тому шлю тобі." : "";
     await tg("sendMessage", { chat_id: owner, text: leadText(l) + why }).catch((e) => logError("leads-tg", e));
   }
   setLead(id, { notified_at: new Date().toISOString().slice(0, 19).replace("T", " "), ...(firstGroup ? { tg_chat_id: firstGroup.chat, tg_message_id: firstGroup.msg } : {}) });
