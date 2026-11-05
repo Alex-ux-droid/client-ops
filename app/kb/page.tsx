@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AskAssistant from "@/components/AskAssistant";
+import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import { orgItemAction, saveOrgAction } from "@/app/products/actions";
@@ -47,10 +48,15 @@ function Dev() {
     <div className="stack" style={{ gap: "1rem" }}>
       <div className="st-grid">
         {keys.map((k) => (
-          <div key={k} className={`card stack st-box${k === "focus" ? " dv-focus" : ""}`}>
-            <b>{ORG_FIELDS[k].label}</b>
-            {o[k] ? <div className="tm-details" style={{ whiteSpace: "pre-wrap" }}>{o[k]}</div> : <p className="mono">{ORG_FIELDS[k].hint}</p>}
-          </div>
+          <Pop key={k} className={`pop-card stack st-box${k === "focus" ? " dv-focus" : ""}`} title={ORG_FIELDS[k].label} trigger={
+            <><b>{ORG_FIELDS[k].label}</b>{o[k] ? <div className="pv-s l4" style={{ whiteSpace: "pre-wrap" }}>{o[k]}</div> : <p className="mono" style={{ margin: 0 }}>{ORG_FIELDS[k].hint}</p>}</>
+          }>
+            {o[k] ? <div className="tm-details" style={{ whiteSpace: "pre-wrap" }}>{o[k]}</div> : <p className="mono">Порожньо. {ORG_FIELDS[k].hint}.</p>}
+            <form action={saveOrgAction} className="stack" style={{ gap: "0.5rem", marginTop: "0.75rem" }}>
+              <VoiceTextarea name={k} defaultValue={o[k]} placeholder={ORG_FIELDS[k].hint} style={{ minHeight: "6rem" }} />
+              <div><SubmitButton className="small">Зберегти</SubmitButton></div>
+            </form>
+          </Pop>
         ))}
         <div className="card stack st-box">
           <b>Наші можливості зараз</b>
@@ -91,7 +97,12 @@ function Dev() {
       </div>
       {(["decision", "lesson", "idea"] as const).map((k) => {
         const xs = items.filter((i) => i.kind === k);
-        return xs.length ? <div key={k} className="card stack st-box"><b>{k === "decision" ? "Рішення" : k === "lesson" ? "Уроки" : "Ідеї"} · {xs.length}</b>{xs.map((i) => <div key={i.id} className="inline" style={{ justifyContent: "space-between" }}><span>{i.title}{i.body && <small className="mono"> — {i.body}</small>}</span>{del(i)}</div>)}</div> : null;
+        return xs.length ? <div key={k} className="card stack st-box"><b>{k === "decision" ? "Рішення" : k === "lesson" ? "Уроки" : "Ідеї"} · {xs.length}</b><div className="st-grid">{xs.map((i) => (
+          <Pop key={i.id} title={i.title} sub={fmtDate(i.created_at)} trigger={<div className="pv"><div className="pv-t">{i.title}</div>{i.body && <div className="pv-s">{i.body}</div>}</div>}>
+            {i.body ? <div className="tm-details" style={{ whiteSpace: "pre-wrap" }}>{i.body}</div> : <p className="mono">Деталей нема.</p>}
+            <div style={{ marginTop: "0.75rem" }}>{del(i)}</div>
+          </Pop>
+        ))}</div></div> : null;
       })}
       {plan("done").length > 0 && <details className="card"><summary><b>Зроблено · {plan("done").length}</b></summary><ul className="st-list">{plan("done").map((i) => <li key={i.id}>{i.title} <small>{i.done_at ? fmtDate(i.done_at) : ""}</small></li>)}</ul></details>}
     </div>

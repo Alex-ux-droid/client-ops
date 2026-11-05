@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Pop from "@/components/Pop";
 import { analyzeMetaAction } from "@/app/actions";
 import AskAssistant from "@/components/AskAssistant";
 import { BarChart } from "@/components/Charts";
@@ -541,18 +542,19 @@ function Changes({ clientId }: { clientId: number }) {
         <input name="at" type="date" aria-label="Коли" />
         <div><SubmitButton className="small">Записати зміну</SubmitButton></div>
       </form>
-      {list.map((c) => (
-        <div key={c.id} className="card cg-change">
-          <div><b>{fmtDate(c.at)}</b> · {c.what}</div>
-          {(c.why || c.expect) && <div className="mono">{c.why && `Чому: ${c.why}`}{c.why && c.expect ? " · " : ""}{c.expect && `Чекаємо: ${c.expect}`}</div>}
-          <form action={changeAction} className="inline" style={{ flexWrap: "wrap" }}>
+      <div className="st-grid">{list.map((c) => (
+        <Pop key={c.id} title={c.what} sub={fmtDate(c.at)} trigger={
+          <div className="pv"><div className="pv-t">{c.what}</div><div className="pv-s" style={{ color: c.result ? "var(--ok)" : undefined }}>{c.result ? `→ ${c.result}` : c.expect ? `чекаємо: ${c.expect}` : "результат ще не записано"}</div><div className="pv-m">{fmtDate(c.at)}</div></div>
+        }>
+          {c.why && <p><b>Чому:</b> {c.why}</p>}
+          {c.expect && <p><b>Чекаємо:</b> {c.expect}</p>}
+          <form action={changeAction} className="stack" style={{ gap: "0.5rem" }}>
             <input type="hidden" name="change_id" value={c.id} /><input type="hidden" name="client_id" value={clientId} />
             <input name="result" defaultValue={c.result} placeholder="Що вийшло (через кілька днів)" />
-            <SubmitButton className="ghost small">Зберегти</SubmitButton>
-            <button name="delete" value="1" className="ghost small danger-text">×</button>
+            <div className="inline"><SubmitButton className="ghost small">Зберегти</SubmitButton><button name="delete" value="1" className="ghost small danger-text">Видалити</button></div>
           </form>
-        </div>
-      ))}
+        </Pop>
+      ))}</div>
     </section>
   );
 }
@@ -561,7 +563,11 @@ function Analysis({ clientId, m, err }: { clientId: number; m: Fmt; err?: string
   const ins = metaInsights(clientId, m);
   const a = getAnalysis(clientId);
   const List = ({ title, items, tone }: { title: string; items?: string[]; tone: string }) =>
-    items?.length ? <div className={`card mx-list ${tone}`}><b>{title}</b><ul>{items.map((x) => <li key={x}>{x}</li>)}</ul></div> : null;
+    items?.length ? (
+      <Pop className={`pop-card mx-list ${tone}`} title={title} trigger={<><b>{title} · {items.length}</b><ul>{items.slice(0, 2).map((x) => <li key={x}>{x}</li>)}</ul>{items.length > 2 && <div className="pv-m">ще {items.length - 2} — відкрити →</div>}</>}>
+        <ul className="st-list">{items.map((x) => <li key={x}>{x}</li>)}</ul>
+      </Pop>
+    ) : null;
   return (
     <>
       {err && <div className="callout" style={{ borderColor: "var(--bad)" }}>{err}</div>}

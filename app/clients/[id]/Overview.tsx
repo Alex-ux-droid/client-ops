@@ -13,6 +13,7 @@ import { clientMessages } from "@/lib/repo/telegram";
 import { listWork } from "@/lib/repo/worklog";
 import { SERVICES, type ServiceType } from "@/lib/services";
 import Markdown from "@/components/Markdown";
+import Pop from "@/components/Pop";
 import ExtractButton from "@/components/ExtractButton";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
@@ -155,9 +156,13 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
 function ClientMemoryCard({ clientId }: { clientId: number; clientName: string }) {
   const mem = getClientMemory(clientId);
   return (
-    <details className="card cm-mem" open={!mem?.text}>
-      <summary><b>Що Джері памʼятає про клієнта</b> <span className="mono">{mem ? `оновлено ${fmtDate(mem.updated_at)} · сам після розмов` : "ще порожньо"}</span></summary>
-      {mem?.text ? <div className="tm-details"><Markdown md={mem.text} /></div> : <p className="mono">Розкажи Джері, де ви з клієнтом (зустріч, домовленості, що вже зроблено) — або натисни «Зібрати», він збере з історії, задач і переписки.</p>}
+    <div className="card cm-mem stack" style={{ gap: "0.5rem" }}>
+      <div><b>Що Джері памʼятає про клієнта</b> <span className="mono">{mem ? `оновлено ${fmtDate(mem.updated_at)} · сам після розмов` : "ще порожньо"}</span></div>
+      {mem?.text ? (
+        <Pop wide title="Що Джері памʼятає про клієнта" sub={`оновлено ${fmtDate(mem.updated_at)}`} trigger={<div className="pv"><div className="pv-s l4">{mem.text.replace(/^#+\s*/gm, "").replace(/\*\*/g, "")}</div><div className="pv-m">відкрити повністю →</div></div>}>
+          <div className="tm-details"><Markdown md={mem.text} /></div>
+        </Pop>
+      ) : <p className="mono">Розкажи Джері, де ви з клієнтом (зустріч, домовленості, що вже зроблено) — або натисни «Зібрати», він збере з історії, задач і переписки.</p>}
       <div className="inline" style={{ flexWrap: "wrap" }}>
         <AskAssistant text={`Клієнт client_id ${clientId}: збери памʼять по клієнту з усього, що є (історія робіт, задачі, переписка в групі, заявки, лабораторія, наші розмови) і запиши client_memory rewrite: де ми зараз, домовленості (гроші, обсяг, терміни), що вже зроблено, що в роботі і далі, що важливо. Потім коротко покажи мені.`}>Джері, зібрати / оновити</AskAssistant>
       </div>
@@ -169,6 +174,6 @@ function ClientMemoryCard({ clientId }: { clientId: number; clientName: string }
           <div><SubmitButton className="small">Зберегти</SubmitButton></div>
         </form>
       </details>
-    </details>
+    </div>
   );
 }

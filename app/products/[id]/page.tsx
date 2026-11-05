@@ -2,13 +2,15 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import Markdown from "@/components/Markdown";
+import Pop from "@/components/Pop";
+import Timeline from "@/components/Timeline";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import { CopyText } from "@/app/startups/[id]/CopyText";
 import { fmtDate } from "@/lib/dates";
 import { appSecret, kitText } from "@/lib/products";
 import { listClients } from "@/lib/repo/clients";
-import { getProduct, listPItems, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productEventCounts, productEvents, type PItem } from "@/lib/repo/products";
+import { getProduct, listPItems, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productEventCounts, productEvents, productTimeline, type PItem } from "@/lib/repo/products";
 import { getSetting } from "@/lib/repo/settings";
 import { lines } from "@/lib/repo/strategy";
 import { productClientAction, productItemAction, productSecretAction, saveProductAction } from "../actions";
@@ -16,7 +18,7 @@ import { CopyBig, ProductImport, ProductPrompt } from "../ProductClient";
 
 export const dynamic = "force-dynamic";
 
-const VIEWS = [{ k: "overview", label: "Паспорт" }, { k: "knowledge", label: "Знання" }, { k: "log", label: "Хроніка і план" }, { k: "kit", label: "Набір" }, { k: "connect", label: "Звʼязок" }, { k: "edit", label: "Змінити" }] as const;
+const VIEWS = [{ k: "overview", label: "Паспорт" }, { k: "log", label: "Хронологія і план" }, { k: "knowledge", label: "Знання" }, { k: "kit", label: "Набір" }, { k: "connect", label: "Звʼязок" }, { k: "edit", label: "Змінити" }] as const;
 
 export default async function ProductPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ v?: string }> }) {
   const id = Number((await params).id);
@@ -30,16 +32,21 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
   const host = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host") ?? ""}`;
   const hid = <input type="hidden" name="product_id" value={id} />;
   const List = ({ t, xs }: { t: string; xs: string[] }) => (xs.length ? <div className="card stack st-box"><b>{t}</b><ul className="st-list">{xs.map((x, i) => <li key={i}>{x}</li>)}</ul></div> : null);
-  const item = (i: PItem) => (
-    <details key={i.id} className="st-k">
-      <summary>{i.done ? <s>{i.title}</s> : i.title} <small className="mono">{fmtDate(i.created_at)}{i.source === "extract" ? " · з витяжки" : i.source === "jerry" ? " · Джері" : ""}</small></summary>
-      {i.body && <div className="tm-details"><Markdown md={i.body} /></div>}
-      <div className="inline">
-        {(i.kind === "plan") && <form action={productItemAction}>{hid}<input type="hidden" name="item_id" value={i.id} /><input type="hidden" name="op" value="toggle" /><button className="ghost small">{i.done ? "↺ повернути" : "✓ зроблено"}</button></form>}
-        <form action={productItemAction}>{hid}<input type="hidden" name="item_id" value={i.id} /><input type="hidden" name="op" value="delete" /><button className="ghost small">Прибрати</button></form>
-      </div>
-    </details>
+  const src = (i: PItem) => `${fmtDate(i.created_at)}${i.source === "extract" ? " · з витяжки" : i.source === "jerry" ? " · Джері" : ""}`;
+  const acts = (i: PItem) => (
+    <>
+      {i.kind === "plan" && <form action={productItemAction}>{hid}<input type="hidden" name="item_id" value={i.id} /><input type="hidden" name="op" value="toggle" /><button className="ghost small">{i.done ? "↺ повернути" : "✓ зроблено"}</button></form>}
+      <form action={productItemAction}>{hid}<input type="hidden" name="item_id" value={i.id} /><input type="hidden" name="op" value="delete" /><button className="ghost small">Прибрати</button></form>
+    </>
   );
+  // Плитка: коротко на екрані, повністю — у попапі
+  const item = (i: PItem) => (
+    <Pop key={i.id} title={i.title} sub={src(i)} trigger={<div className="pv"><div className="pv-t">{i.done ? <s>{i.title}</s> : i.title}</div>{i.body && <div className="pv-s">{i.body.replace(/\*\*/g, "")}</div>}<div className="pv-m">{src(i)}</div></div>}>
+      {i.body ? <div className="tm-details"><Markdown md={i.body} /></div> : <p className="mono">Деталей нема.</p>}
+      <div className="inline" style={{ marginTop: "0.75rem" }}>{acts(i)}</div>
+    </Pop>
+  );
+  const tl = () => productTimeline(id).map((l) => ({ id: l.id, at: l.created_at, title: l.title, body: l.body, tag: l.source === "extract" ? "з витяжки" : l.source === "jerry" ? "Джері" : undefined, actions: acts(l) }));
 
   return (
     <section className="st stack">
@@ -81,7 +88,11 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
           {lines(p!.links).length > 0 && <div className="card stack st-box"><b>Посилання</b><ul className="st-list">{lines(p!.links).map((l, i) => { const u = l.match(/https?:\/\/\S+/)?.[0]; return <li key={i}>{u ? <a href={u} target="_blank" rel="noreferrer" className="h-link">{l.replace(u, "").replace(/[—-]\s*$/, "").trim() || u}</a> : l}</li>; })}</ul></div>}
           {plan.length > 0 && <div className="card stack st-box"><b>Відкриті кроки</b><ul className="st-list">{plan.map((x) => <li key={x.id}>{x.title}</li>)}</ul></div>}
         </div>
-        {kn.length > 0 && <div className="card stack st-box"><div className="mx-main-head"><b>Що знаємо (останнє)</b><Link href={`${base}?v=knowledge`}>усе →</Link></div>{kn.map((k) => <div key={k.id}><small className="mono">{P_KNOW[k.cat as keyof typeof P_KNOW] ?? "знання"}</small> {k.title}</div>)}</div>}
+        <div className="card stack" style={{ gap: "0.75rem" }}>
+          <div className="mx-main-head"><b>Хронологія — як ми сюди дійшли</b><Link href={`${base}?v=log`}>план і додати →</Link></div>
+          <Timeline items={tl()} empty="Ще порожньо. Встав витяжку з Claude Code — етапи стануть блоками." />
+        </div>
+        {kn.length > 0 && <div className="card stack st-box"><div className="mx-main-head"><b>Що знаємо (останнє)</b><Link href={`${base}?v=knowledge`}>усе →</Link></div><div className="st-grid">{kn.map(item)}</div></div>}
         <div className="card stack" style={{ gap: "0.5rem" }}>
           <b>Клієнти, які користуються</b>
           {cl.length ? cl.map((c) => (
@@ -108,9 +119,9 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
           <VoiceTextarea name="body" placeholder="Деталі: що сталось → чому → як вирішили / що знати наперед" style={{ minHeight: "4rem" }} className="wide" />
           <div><SubmitButton className="small">Записати</SubmitButton></div>
         </form>
-        {Object.entries(P_KNOW).map(([k, t]) => { const xs = kn.filter((i) => (i.cat || "lesson") === k); return xs.length ? <div key={k} className="card stack st-box"><b>{t} · {xs.length}</b>{xs.map(item)}</div> : null; })}
-        {dec.length > 0 && <div className="card stack st-box"><b>Рішення · {dec.length}</b>{dec.map(item)}</div>}
-        {ideas.length > 0 && <div className="card stack st-box"><b>Ідеї · {ideas.length}</b>{ideas.map(item)}</div>}
+        {Object.entries(P_KNOW).map(([k, t]) => { const xs = kn.filter((i) => (i.cat || "lesson") === k); return xs.length ? <div key={k} className="card stack st-box"><b>{t} · {xs.length}</b><div className="st-grid">{xs.map(item)}</div></div> : null; })}
+        {dec.length > 0 && <div className="card stack st-box"><b>Рішення · {dec.length}</b><div className="st-grid">{dec.map(item)}</div></div>}
+        {ideas.length > 0 && <div className="card stack st-box"><b>Ідеї · {ideas.length}</b><div className="st-grid">{ideas.map(item)}</div></div>}
         {!kn.length && !dec.length && !ideas.length && <p className="mono">Поки порожньо. Сюди — що ламалось і як виправили, як підключали інтеграції, юридичні моменти, доступи, платежі.</p>}
       </div>
     );
@@ -122,12 +133,13 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
       <div className="stack" style={{ gap: "1rem" }}>
         <form action={productItemAction} className="card mk-form">
           {hid}
-          <select name="kind" defaultValue="plan"><option value="plan">Крок плану</option><option value="log">Що зроблено</option></select>
-          <input name="title" required placeholder="Коротко" className="wide" />
+          <select name="kind" defaultValue="log"><option value="log">Етап хронології</option><option value="plan">Крок плану</option></select>
+          <input name="title" required placeholder="Що зробили (або крок плану)" className="wide" />
+          <VoiceTextarea name="body" placeholder="До чого дійшли, деталі" style={{ minHeight: "3rem" }} className="wide" />
           <div><SubmitButton className="small">Додати</SubmitButton></div>
         </form>
-        {plan.length > 0 && <div className="card stack st-box"><b>План</b>{plan.map(item)}</div>}
-        {log.length ? <div className="card stack st-box"><b>Хроніка</b>{log.map(item)}</div> : <p className="mono">Хроніка порожня. Кожна витяжка і кожен реліз програми лягають сюди.</p>}
+        {plan.length > 0 && <div className="card stack st-box"><b>План</b><div className="st-grid">{plan.map(item)}</div></div>}
+        <div className="card stack" style={{ gap: "0.75rem" }}><b>Хронологія · {log.length}</b><Timeline items={tl()} empty="Хронологія порожня. Кожна витяжка і кожен реліз програми лягають сюди." /></div>
       </div>
     );
   }

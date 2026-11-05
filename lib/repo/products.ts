@@ -40,9 +40,12 @@ export function listPItems(productId: number, kind?: PItemKind, limit = 200): PI
     ? db().prepare("SELECT * FROM product_items WHERE product_id = ? AND kind = ? ORDER BY id DESC LIMIT ?").all(productId, kind, limit)
     : db().prepare("SELECT * FROM product_items WHERE product_id = ? ORDER BY id DESC LIMIT ?").all(productId, limit)) as PItem[];
 }
+// Хронологія по порядку (найстаріше спершу)
+export const productTimeline = (productId: number) => db().prepare("SELECT * FROM product_items WHERE product_id = ? AND kind = 'log' ORDER BY created_at, id").all(productId) as PItem[];
 export const getPItem = (id: number) => db().prepare("SELECT * FROM product_items WHERE id = ?").get(id) as PItem | undefined;
-export function addPItem(productId: number, i: { kind: PItemKind; title: string; body?: string; cat?: string; source?: string }): number {
-  const id = Number(db().prepare("INSERT INTO product_items (product_id, kind, cat, title, body, source) VALUES (?, ?, ?, ?, ?, ?)").run(productId, i.kind, i.cat ?? "", i.title, i.body ?? "", i.source ?? "manual").lastInsertRowid);
+export function addPItem(productId: number, i: { kind: PItemKind; title: string; body?: string; cat?: string; source?: string; at?: string | null }): number {
+  const at = i.at && /^\d{4}-\d{2}-\d{2}/.test(i.at) ? i.at.slice(0, 10) + " 12:00:00" : null;
+  const id = Number(db().prepare("INSERT INTO product_items (product_id, kind, cat, title, body, source, created_at) VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))").run(productId, i.kind, i.cat ?? "", i.title, i.body ?? "", i.source ?? "manual", at).lastInsertRowid);
   db().prepare("UPDATE products SET updated_at = datetime('now') WHERE id = ?").run(productId);
   return id;
 }

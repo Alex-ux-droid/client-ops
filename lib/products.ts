@@ -5,7 +5,7 @@ import { agentConfig } from "./agent/config";
 import { autoOn } from "./agent/caps";
 import { logError } from "./log";
 import {
-  addPItem, addProduct, addProductEvent, getOrg, getProduct, listPItems, listProducts, ORG_FIELDS, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, updateProduct,
+  addPItem, addProduct, addProductEvent, getOrg, getProduct, listPItems, listProducts, ORG_FIELDS, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productTimeline, updateProduct,
   type Product, type ProductKind, type ProductStatus,
 } from "./repo/products";
 import { lines } from "./repo/strategy";
@@ -28,6 +28,8 @@ export const EXTRACT_TEMPLATE = `${PRODUCT_MARK}
 - …
 Посилання (прод, репозиторій, адмінка):
 - …
+Хронологія роботи (по порядку від початку; кожен етап окремим рядком: [дата, якщо відома] що робили → до чого дійшли):
+- [2026-10-01] Етап → результат
 Плюси:
 - …
 Мінуси / ризики:
@@ -65,7 +67,7 @@ export function productMd(p: Product, full = true): string {
     dec.length ? `Рішення:\n${dec.map((d) => `- ${d.title}${d.body ? ` — ${d.body.replace(/\s+/g, " ").slice(0, 200)}` : ""}`).join("\n")}` : "",
     plan.length ? `Відкриті кроки: ${plan.map((x) => x.title).join("; ")}` : "",
     ideas.length ? `Ідеї: ${ideas.map((x) => x.title).join("; ")}` : "",
-    log.length ? `Останнє в хроніці:\n${log.map((l) => `- ${l.created_at.slice(0, 10)}: ${l.title}`).join("\n")}` : "",
+    log.length ? `Хронологія (по порядку):\n${productTimeline(p.id).slice(full ? -40 : -6).map((l) => `- ${l.created_at.slice(0, 10)}: ${l.title}${full && l.body ? ` — ${l.body.replace(/\*\*/g, "").replace(/\s+/g, " ").slice(0, 200)}` : ""}`).join("\n")}` : "",
     p.next_step && `Наступний крок: ${p.next_step}`,
   ].filter(Boolean).join("\n\n");
 }
@@ -98,6 +100,7 @@ ${EXTRACT_TEMPLATE.replace("Продукт: назва програми", `Пр�
 type Ops = {
   product?: { name?: string; kind?: string; status?: string; summary?: string; how?: string; features?: string; stack?: string; links?: string; pros?: string; cons?: string; next_step?: string } | null;
   log?: { title: string; body?: string } | null;
+  timeline?: { at?: string; title: string; result?: string; body?: string }[];
   knowledge?: { cat?: string; title: string; body?: string }[];
   decisions?: { title: string; body?: string }[];
   plan?: string[];
@@ -115,7 +118,8 @@ export async function importProduct(text: string, productId: number | null): Pro
   const system = `Ти розкладаєш витяжку з Claude Code у паспорт продукту системи Client Ops. Дають поточний паспорт (або null — новий продукт), список наявних продуктів і витяжку.
 Поверни ТІЛЬКИ JSON:
 {"product": {"name": "...", "kind": "app|kit|service", "status": "idea|building|live|improving|paused", "summary": "...", "how": "...", "features": "ПОВНИЙ перелік по рядку", "stack": "ПОВНИЙ перелік по рядку", "links": "по рядку «Назва — url»", "pros": "по рядку", "cons": "по рядку", "next_step": "..."},
- "log": {"title": "що зроблено — одним рядком", "body": "коротко пунктами"} або null,
+ "timeline": [{"at": "YYYY-MM-DD або порожньо", "title": "етап — коротко", "result": "до чого дійшли", "body": "деталі пунктами"}] — ВСІ етапи з хронології витяжки по порядку, крім тих, що вже є в existing_timeline (порівнюй за змістом),
+ "log": {"title": "що зроблено цього разу — одним рядком", "body": "коротко пунктами"} або null (якщо це вже покрито timeline — null),
  "knowledge": [{"cat": "fix|integration|legal|lesson", "title": "...", "body": "причина → рішення / що знати наперед"}],
  "decisions": [{"title": "...", "body": "чому"}],
  "plan": ["наступний крок", ...], "ideas": ["...", ...]}
@@ -123,7 +127,7 @@ export async function importProduct(text: string, productId: number | null): Pro
   try {
     const r = await new Anthropic({ apiKey: key, timeout: 120000, maxRetries: 1 }).messages.create({
       model: agentConfig().model, max_tokens: 8000, system, output_config: { effort: "low" },
-      messages: [{ role: "user", content: `ПАСПОРТ:\n${JSON.stringify(state)}\n\nНАЯВНІ ПРОДУКТИ:\n${JSON.stringify(all)}\n\nВИТЯЖКА:\n${text.slice(0, 30000)}` }],
+      messages: [{ role: "user", content: `ПАСПОРТ:\n${JSON.stringify(state)}\n\nEXISTING_TIMELINE:\n${JSON.stringify(cur ? productTimeline(cur.id).map((x) => ({ at: x.created_at.slice(0, 10), title: x.title })) : [])}\n\nНАЯВНІ ПРОДУКТИ:\n${JSON.stringify(all)}\n\nВИТЯЖКА:\n${text.slice(0, 30000)}` }],
     });
     const out = r.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("");
     const a = out.indexOf("{"), z = out.lastIndexOf("}");
@@ -149,7 +153,15 @@ export function applyProductOps(ops: Ops, productId: number | null): { id: numbe
   if (!id && patch.name) id = listProducts().find((p) => p.name.toLowerCase() === patch.name!.toLowerCase())?.id ?? 0;
   if (id) { updateProduct(id, patch); sum.push("Паспорт оновлено"); }
   else { id = addProduct({ ...patch, name: patch.name || "Новий продукт" }); sum.push(`Новий продукт «${patch.name || "Новий продукт"}»`); }
-  if (ops.log?.title) { addPItem(id, { kind: "log", title: ops.log.title, body: ops.log.body, source: "extract" }); sum.push("Хроніка +1"); }
+  const have = new Set(productTimeline(id).map((x) => x.title.trim().toLowerCase()));
+  let nt = 0;
+  for (const t of ops.timeline ?? []) {
+    if (!t?.title?.trim() || have.has(t.title.trim().toLowerCase())) continue;
+    addPItem(id, { kind: "log", title: t.title.trim(), body: [t.result && `**До чого дійшли:** ${t.result}`, t.body].filter(Boolean).join("\n\n"), source: "extract", at: t.at });
+    have.add(t.title.trim().toLowerCase()); nt++;
+  }
+  if (ops.log?.title && !have.has(ops.log.title.trim().toLowerCase())) { addPItem(id, { kind: "log", title: ops.log.title, body: ops.log.body, source: "extract" }); nt++; }
+  if (nt) sum.push(`Хронологія +${nt}`);
   for (const k of ops.knowledge ?? []) if (k.title) addPItem(id, { kind: "knowledge", cat: k.cat && k.cat in P_KNOW ? k.cat : "lesson", title: k.title, body: k.body, source: "extract" });
   if (ops.knowledge?.length) sum.push(`Знання +${ops.knowledge.length}`);
   for (const d of ops.decisions ?? []) if (d.title) addPItem(id, { kind: "decision", title: d.title, body: d.body, source: "extract" });
