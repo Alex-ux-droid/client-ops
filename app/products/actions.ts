@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { capOn } from "@/lib/agent/caps";
-import { importProduct, newAppSecret, productPrompt, updatePrompt } from "@/lib/products";
+import { fixPrompt, importProduct, newAppSecret, productPrompt, updatePrompt } from "@/lib/products";
 import {
-  addOrgItem, addPItem, addProduct, deleteOrgItem, deletePItem, deleteProduct, getPItem, ORG_FIELDS, P_ITEM_KINDS, saveOrg, setProductClient, updateOrgItem, updatePItem, updateProduct,
+  addOrgItem, addPItem, listPItems, addProduct, deleteOrgItem, deletePItem, deleteProduct, getPItem, ORG_FIELDS, P_ITEM_KINDS, saveOrg, setProductClient, updateOrgItem, updatePItem, updateProduct,
   type PItemKind, type ProductPatch,
 } from "@/lib/repo/products";
 import { setSetting } from "@/lib/repo/settings";
@@ -64,9 +64,19 @@ export async function productImportAction(productId: number | null, text: string
   return r;
 }
 
-export async function productPromptAction(productId: number | null, mode: "full" | "update" = "full"): Promise<string> {
+export async function productPromptAction(productId: number | null, mode: "full" | "update" | "fix" = "full"): Promise<string> {
   await requireUser();
+  if (productId && mode === "fix") return fixPrompt(productId);
   return mode === "update" && productId ? updatePrompt(productId) : productPrompt(productId);
+}
+
+// «Розібрано»: наступний промпт «виправити» бере тільки нове
+export async function issuesDoneAction(fd: FormData) {
+  await requireUser();
+  const pid = Number(fd.get("product_id"));
+  setSetting(`app.fixed_at.${pid}`, new Date().toISOString().slice(0, 19).replace("T", " "));
+  for (const x of listPItems(pid, "idea")) if (x.source === "app" && !x.done) updatePItem(x.id, { done: 1 });
+  re(pid);
 }
 
 // ---- Розвиток організації
