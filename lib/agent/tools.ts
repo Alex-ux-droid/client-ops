@@ -23,6 +23,8 @@ import { chatsForClient, clientMessages, linkChat, listChats } from "../repo/tel
 import { getFile, readFile, saveFile } from "../repo/files";
 import type { ItemKind, Stage } from "../repo/startups";
 import { capOfTool, toolAllowed } from "./caps";
+import { adMore, adsetMore } from "../metaExtra";
+import { badAdsForClient, monthlyForClient } from "../repo/meta";
 import { accountsForClient, ACCOUNT_STATUS, listAccounts, adsetsForClient, breakdowns, campaignsWithStats, dailySeries, getAnalysis, kyivDay, metaAlerts, topAds, totals } from "../repo/meta";
 import { label as cutLabel } from "../metaInsights";
 import { listChangelog } from "../repo/changelog";
@@ -166,7 +168,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "tip_add", description: "Записати пораду в базу «Поради від Джері» (Саша побачить її під час роботи). Коли в розмові виникло щось корисне про бізнес, маркетинг, рекламу, продажі, переговори, термін чи факт — або Саша попросив «запамʼятай як пораду». Коротко: заголовок до 60 символів, текст 2–4 речення, тільки перевірені факти.", input_schema: obj({ topic: { type: "string", enum: Object.keys(TIP_TOPICS) }, title: str("Заголовок"), body: str("Текст поради: думка + як застосувати") }, ["topic", "title", "body"]) },
   { name: "tips_stats", description: "Поради дня: скільки показано, як Саша реагує по темах (знав / нове / не цікаво / детальніше) і які саме поради зачепили чи були відомі. Дивись, щоб розуміти його рівень і інтереси.", input_schema: obj({}) },
   { name: "system_updates", description: "Журнал оновлень системи: що Claude додав або змінив і коли (твої нові можливості). Дивись, коли не впевнений, чи щось уже вміє система.", input_schema: obj({ limit: int("Скільки останніх, за замовчуванням 20") }, []) },
-  { name: "meta_ads", description: "Живі цифри Meta Ads клієнта (оновлюються самі кожні 2 год, тільки читання): підсумок за N днів і попередні N днів (витрати, покази, кліки, ліди, ціна ліда, CTR), по днях, кампанії з бюджетами і статусами, топ креативів за 30 днів, тривоги. Змінювати рекламу ти не можеш — тільки радити.", input_schema: obj({ client_id: int("ID клієнта"), days: int("Період у днях, за замовчуванням 7") }, ["client_id"]) },
+  { name: "meta_ads", description: "Живі цифри Meta Ads клієнта (оновлюються самі кожні 2 год, тільки читання): підсумок за N днів і попередні N днів (витрати, покази, кліки, ліди, ціна ліда, CTR), по днях, кампанії з бюджетами і статусами, топ креативів за 30 днів (відео: хук/утримання; покупки і ROAS, якщо є піксель; ціна ліда 7д проти попередніх 7 — вигорання), групи з фазою навчання і таргетингом, відхилені оголошення, 12 місяців по місяцях, тривоги. Змінювати рекламу ти не можеш — тільки радити.", input_schema: obj({ client_id: int("ID клієнта"), days: int("Період у днях, за замовчуванням 7") }, ["client_id"]) },
   { name: "meta_accounts", description: "Усі рекламні кабінети Meta, які бачить система: id, назва, валюта, статус (активний/закритий/борг), до якого клієнта привʼязаний.", input_schema: obj({}) },
   { name: "meta_link", description: "Привʼязати рекламний кабінет Meta до клієнта (або відвʼязати: client_id = 0) і одразу підтягнути цифри. Закриті кабінети не привʼязуй. Якщо не впевнений, який кабінет чий, — спитай Сашу, не вгадуй.", input_schema: obj({ account_id: str("ID кабінету, напр. act_123…"), client_id: int("ID клієнта; 0 — відвʼязати") }, ["account_id", "client_id"]) },
   { name: "telegram_chats", description: "Усі Telegram-групи, де є бот Джері або які імпортовані з Telegram Desktop: id, назва, до якого клієнта привʼязана, скільки повідомлень.", input_schema: obj({}) },
@@ -812,13 +814,15 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
         campaigns: campaignsWithStats(cid, kyivDay(29)).filter((c) => c.spend > 0 || c.status === "ACTIVE").slice(0, 15)
           .map((c) => ({ name: c.name, status: c.status, daily_budget: c.daily_budget, spend_30d: +c.spend.toFixed(2), leads_30d: c.leads, cpl_30d: c.leads ? +(c.spend / c.leads).toFixed(2) : null })),
         adsets_30d: adsetsForClient(cid).filter((a) => a.spend_30d > 0).slice(0, 15)
-          .map((a) => ({ name: a.name, status: a.status, spend: a.spend_30d, leads: a.leads_30d, cpl: a.leads_30d ? +(a.spend_30d / a.leads_30d).toFixed(2) : null, frequency: a.reach_30d ? +(a.impressions_30d / a.reach_30d).toFixed(1) : null })),
-        top_ads_30d: topAds(cid, 10).map((a) => ({ name: a.name, type: a.kind, spend: a.spend_30d, leads: a.leads_30d, ctr: a.impressions_30d ? +((a.clicks_30d / a.impressions_30d) * 100).toFixed(2) : null, frequency: a.reach_30d ? +(a.impressions_30d / a.reach_30d).toFixed(1) : null, text: a.body.slice(0, 200) })),
+          .map((a) => ({ name: a.name, status: a.status, spend: a.spend_30d, leads: a.leads_30d, cpl: a.leads_30d ? +(a.spend_30d / a.leads_30d).toFixed(2) : null, frequency: a.reach_30d ? +(a.impressions_30d / a.reach_30d).toFixed(1) : null, ...adsetMore(a) })),
+        top_ads_30d: topAds(cid, 10).map((a) => ({ name: a.name, type: a.kind, spend: a.spend_30d, leads: a.leads_30d, ctr: a.impressions_30d ? +((a.clicks_30d / a.impressions_30d) * 100).toFixed(2) : null, frequency: a.reach_30d ? +(a.impressions_30d / a.reach_30d).toFixed(1) : null, text: a.body.slice(0, 200), ...adMore(a) })),
+        rejected_ads: badAdsForClient(cid),
+        months_12: monthlyForClient(cid).map((m) => ({ ...m, spend: +m.spend.toFixed(2), cpl: m.leads ? +(m.spend / m.leads).toFixed(2) : null })),
         segments_30d: Object.fromEntries(["placement", "age_gender", "region", "device"].map((k) => [k, breakdowns(cid, k).slice(0, 8)
           .map((b) => ({ segment: cutLabel(k, b.key), spend: +b.spend.toFixed(2), leads: b.leads, cpl: b.leads ? +(b.spend / b.leads).toFixed(2) : null }))])),
         last_review: getAnalysis(cid)?.data.summary,
         alerts: metaAlerts(cid).map((x) => x.text),
-        note: "Сьогоднішні цифри неповні; остаточні дані за день — наступного дня.",
+        note: "Сьогоднішні цифри неповні; остаточні дані за день — наступного дня. hook_rate = 3-сек перегляди/покази (норма 25–35%+), hold_rate = досмотри/3-сек перегляди. Висновки по оголошенню з <20 лідів — гіпотеза, не факт.",
       };
     }
 

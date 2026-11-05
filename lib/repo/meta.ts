@@ -6,9 +6,9 @@ export type MetaAccount = {
 };
 export type MetaCampaign = { campaign_id: string; account_id: string; name: string; status: string; objective: string; daily_budget: number | null; lifetime_budget: number | null };
 export type MetaAd = { ad_id: string; account_id: string; campaign_id: string; name: string; status: string; thumbnail_url: string; body: string;
-  image_url: string; kind: string; video_id: string; images_json: string; preview_url: string; adset_id: string; reach_30d: number; spend_30d: number; impressions_30d: number; clicks_30d: number; leads_30d: number };
+  image_url: string; kind: string; video_id: string; images_json: string; preview_url: string; adset_id: string; reach_30d: number; spend_30d: number; impressions_30d: number; clicks_30d: number; leads_30d: number; extra_json?: string };
 export type MetaAdset = { adset_id: string; account_id: string; campaign_id: string; name: string; status: string; daily_budget: number | null; lifetime_budget: number | null;
-  optimization_goal: string; spend_30d: number; impressions_30d: number; clicks_30d: number; leads_30d: number; reach_30d: number };
+  optimization_goal: string; spend_30d: number; impressions_30d: number; clicks_30d: number; leads_30d: number; reach_30d: number; extra_json?: string };
 export type Breakdown = { kind: string; key: string; spend: number; impressions: number; clicks: number; leads: number; reach: number };
 export type Totals = { spend: number; impressions: number; clicks: number; leads: number };
 
@@ -126,6 +126,10 @@ export function metaAlerts(clientId: number): { level: "bad" | "warn"; text: str
   for (const a of accs) if (a.account_status && a.account_status !== 1) out.push({ level: "bad", text: `кабінет: ${ACCOUNT_STATUS[a.account_status] ?? "проблема"}` });
   const last3 = totals(clientId, day(3), day(1));
   const prev = totals(clientId, day(30), day(4));
+  for (const a of accs) {
+    const bad = badAds(a.account_id);
+    if (bad.length) out.push({ level: "warn", text: `оголошень відхилено / з проблемою: ${bad.length}` });
+  }
   if (last3.spend > 0 && last3.leads === 0 && prev.leads > 0) out.push({ level: "warn", text: "реклама 3 дні без лідів" });
   if (last3.leads > 0 && prev.leads > 0) {
     const now = last3.spend / last3.leads, before = prev.spend / prev.leads;
@@ -200,3 +204,67 @@ export function saveAnalysis(clientId: number, data: MetaAnalysis): void {
 export function setAccountHidden(id: string, hidden: boolean): void {
   db().prepare("UPDATE meta_accounts SET hidden = ? WHERE account_id = ?").run(hidden ? 1 : 0, id);
 }
+
+// ---- Глибші дані (міграція 082): відео, покупки, проблеми, навчання, таргетинг, дні оголошень, місяці
+export type AdExtra = { v3s?: number; thru?: number; p25?: number; p50?: number; p75?: number; p100?: number; avg_sec?: number; purchases?: number; revenue?: number; issues?: string };
+export type AdsetExtra = { learning?: string; targeting?: string };
+export type Monthly = { month: string; spend: number; impressions: number; clicks: number; reach: number; leads: number; purchases: number; revenue: number };
+export type AdDay = { ad_id: string; date: string; spend: number; impressions: number; clicks: number; leads: number };
+
+const mergeExtra = (table: "meta_ads" | "meta_adsets", key: "ad_id" | "adset_id", map: Record<string, object>) => {
+  const get = db().prepare(`SELECT extra_json FROM ${table} WHERE ${key} = ?`);
+  const set = db().prepare(`UPDATE ${table} SET extra_json = ? WHERE ${key} = ?`);
+  db().transaction(() => {
+    for (const [id, x] of Object.entries(map)) {
+      const r = get.get(id) as { extra_json: string } | undefined;
+      if (r) set.run(JSON.stringify({ ...(JSON.parse(r.extra_json || "{}") as object), ...x }), id);
+    }
+  })();
+};
+export const saveAdExtra = (map: Record<string, AdExtra>) => mergeExtra("meta_ads", "ad_id", map);
+export const saveAdsetExtra = (map: Record<string, AdsetExtra>) => mergeExtra("meta_adsets", "adset_id", map);
+export const adExtra = (a: { extra_json?: string }): AdExtra => { try { return JSON.parse(a.extra_json || "{}") as AdExtra; } catch { return {}; } };
+export const adsetExtra = (a: { extra_json?: string }): AdsetExtra => { try { return JSON.parse(a.extra_json || "{}") as AdsetExtra; } catch { return {}; } };
+
+export function saveAdDaily(accountId: string, since: string, rows: AdDay[]): void {
+  db().transaction(() => {
+    db().prepare("DELETE FROM meta_ad_daily WHERE account_id = ? AND date >= ?").run(accountId, since);
+    db().prepare("DELETE FROM meta_ad_daily WHERE date < date('now', '-40 days')").run();
+    const ins = db().prepare(`INSERT OR REPLACE INTO meta_ad_daily (account_id, ad_id, date, spend, impressions, clicks, leads) VALUES (@account_id, @ad_id, @date, @spend, @impressions, @clicks, @leads)`);
+    for (const r of rows) ins.run({ ...r, account_id: accountId });
+  })();
+}
+export function adDaily(adId: string): AdDay[] {
+  return db().prepare("SELECT ad_id, date, spend, impressions, clicks, leads FROM meta_ad_daily WHERE ad_id = ? ORDER BY date").all(adId) as AdDay[];
+}
+// Ціна ліда / CTR оголошення: останні 7 днів проти 7 перед ними — видно «вигорання»
+export function adTrend(adId: string): { cpl7: number | null; cplPrev: number | null; ctr7: number | null; ctrPrev: number | null; spend7: number } {
+  const rows = adDaily(adId);
+  const cut = day(7), cut2 = day(14);
+  const sum = (xs: AdDay[]) => xs.reduce((s, x) => ({ spend: s.spend + x.spend, imp: s.imp + x.impressions, cl: s.cl + x.clicks, ld: s.ld + x.leads }), { spend: 0, imp: 0, cl: 0, ld: 0 });
+  const a = sum(rows.filter((r) => r.date >= cut)), b = sum(rows.filter((r) => r.date >= cut2 && r.date < cut));
+  const r2 = (v: number) => +v.toFixed(2);
+  return { cpl7: a.ld ? r2(a.spend / a.ld) : null, cplPrev: b.ld ? r2(b.spend / b.ld) : null, ctr7: a.imp ? r2((a.cl / a.imp) * 100) : null, ctrPrev: b.imp ? r2((b.cl / b.imp) * 100) : null, spend7: r2(a.spend) };
+}
+
+export function saveMonthly(accountId: string, rows: Monthly[]): void {
+  db().transaction(() => {
+    db().prepare("DELETE FROM meta_monthly WHERE account_id = ?").run(accountId);
+    const ins = db().prepare(`INSERT OR REPLACE INTO meta_monthly (account_id, month, spend, impressions, clicks, reach, leads, purchases, revenue)
+      VALUES (@account_id, @month, @spend, @impressions, @clicks, @reach, @leads, @purchases, @revenue)`);
+    for (const r of rows) ins.run({ ...r, account_id: accountId });
+  })();
+}
+export function monthlyForClient(clientId: number): Monthly[] {
+  const acc = ids(clientId);
+  if (!acc.length) return [];
+  return db().prepare(`SELECT month, SUM(spend) spend, SUM(impressions) impressions, SUM(clicks) clicks, SUM(reach) reach, SUM(leads) leads, SUM(purchases) purchases, SUM(revenue) revenue
+    FROM meta_monthly WHERE account_id IN (${inList(acc.length)}) GROUP BY month ORDER BY month`).all(...acc) as Monthly[];
+}
+
+export type BadAd = { id: string; name: string; status: string; why: string };
+export function badAds(accountId: string): BadAd[] {
+  const r = db().prepare("SELECT value FROM settings WHERE key = ?").get(`meta.bad_ads.${accountId}`) as { value: string } | undefined;
+  try { return r ? (JSON.parse(r.value) as BadAd[]) : []; } catch { return []; }
+}
+export function badAdsForClient(clientId: number): BadAd[] { return ids(clientId).flatMap(badAds); }

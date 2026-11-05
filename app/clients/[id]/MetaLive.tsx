@@ -18,6 +18,8 @@ import { reportToken } from "@/lib/clientReport";
 import { headers } from "next/headers";
 import { brandOf, FORMATS, promptStats } from "@/lib/creativeLab";
 import { adIdsOf, listChanges, listPrompts } from "@/lib/repo/creatives";
+import { adMore } from "@/lib/metaExtra";
+import { adsetExtra, badAdsForClient, monthlyForClient } from "@/lib/repo/meta";
 import { leadBotDisconnectAction, leadBotInviteAction, leadBotUserAction, leadRouteAction, rateLeadAction } from "@/app/leads/actions";
 import { botUsers, clientLeads, getRoute, leadFields, leadStats, listPages } from "@/lib/repo/leads";
 import { chatsForClient } from "@/lib/repo/telegram";
@@ -100,7 +102,9 @@ function Overview({ clientId, m, base }: { clientId: number; m: Fmt; base: strin
   const series = dailySeries(clientId, kyivDay(29));
   const camps = campaignsWithStats(clientId, kyivDay(29)).filter((c) => c.spend > 0 || c.status === "ACTIVE");
   const ins = metaInsights(clientId, m);
-  const top = [...ins.cons.slice(0, 2).map((x) => ({ t: "bad" as Tone, x })), ...ins.tips.slice(0, 2).map((x) => ({ t: "" as Tone, x })), ...ins.pros.slice(0, 1).map((x) => ({ t: "good" as Tone, x }))];
+  const months = monthlyForClient(clientId);
+  const bad = badAdsForClient(clientId);
+  const top = [...bad.slice(0, 3).map((x) => ({ t: "bad" as Tone, x: `Оголошення «${x.name}» — ${x.status}${x.why ? `: ${x.why}` : ""}` })), ...ins.cons.slice(0, 2).map((x) => ({ t: "bad" as Tone, x })), ...ins.tips.slice(0, 2).map((x) => ({ t: "" as Tone, x })), ...ins.pros.slice(0, 1).map((x) => ({ t: "good" as Tone, x }))];
 
   return (
     <>
@@ -157,6 +161,23 @@ function Overview({ clientId, m, base }: { clientId: number; m: Fmt; base: strin
                   <td>{m(c.spend)}</td>
                   <td>{fmtN(c.leads)}</td>
                   <td>{m(cplOf(c))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {months.length > 1 && <div className="mono">По місяцях (до 12) — сезонність і динаміка</div>}
+      {months.length > 1 && (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Місяць</th><th>Витрати</th><th>Ліди</th><th>Ціна ліда</th><th>CTR</th>{months.some((x) => x.purchases) && <><th>Покупки</th><th>ROAS</th></>}</tr></thead>
+            <tbody>
+              {[...months].reverse().map((x) => (
+                <tr key={x.month}>
+                  <td>{x.month}</td><td>{m(x.spend)}</td><td>{fmtN(x.leads)}</td><td>{m(cplOf(x))}</td><td>{pct(ctrOf(x))}</td>
+                  {months.some((y) => y.purchases) && <><td>{fmtN(x.purchases)}</td><td>{x.spend ? (x.revenue / x.spend).toFixed(2) : "—"}</td></>}
                 </tr>
               ))}
             </tbody>
@@ -222,7 +243,7 @@ function Tree({ clientId, m }: { clientId: number; m: Fmt }) {
                 {sets.filter((s: MetaAdset) => s.spend_30d > 0 || s.status === "ACTIVE").map((s) => (
                   <details key={s.adset_id} className="mx-node" open>
                     <summary>
-                      <span className="mx-name"><b>{s.name}</b><small>група · {STATUS[s.status] ?? s.status.toLowerCase()}{s.daily_budget ? ` · ${m(s.daily_budget)}/день` : ""}{s.reach_30d ? ` · частота ${freqOf(s.impressions_30d, s.reach_30d)?.toFixed(1)}` : ""}</small></span>
+                      <span className="mx-name"><b>{s.name}</b><small>група · {STATUS[s.status] ?? s.status.toLowerCase()}{s.daily_budget ? ` · ${m(s.daily_budget)}/день` : ""}{s.reach_30d ? ` · частота ${freqOf(s.impressions_30d, s.reach_30d)?.toFixed(1)}` : ""}{adsetExtra(s).learning ? ` · ${adsetExtra(s).learning}` : ""}</small>{adsetExtra(s).targeting && <small>кому: {adsetExtra(s).targeting}</small>}</span>
                       <Share part={s.spend_30d} total={total} color={color(i)} />
                       <span className="mx-num">{m(s.spend_30d)}</span>
                       <span className="mx-num">{s.leads_30d} лід.</span>
@@ -241,6 +262,18 @@ function Tree({ clientId, m }: { clientId: number; m: Fmt }) {
       </div>
     </>
   );
+}
+
+// Відео, покупки, вигорання — тільки якщо є
+function moreStats(a: MetaAd, m: Fmt): { l: string; v: string }[] {
+  const o = adMore(a), out: { l: string; v: string }[] = [];
+  if (o.hook_rate_pct != null) out.push({ l: "хук (3 с)", v: `${o.hook_rate_pct}%` });
+  if (o.hold_rate_pct != null) out.push({ l: "дивляться далі", v: `${o.hold_rate_pct}%` });
+  if (o.avg_watch_sec != null) out.push({ l: "сер. перегляд", v: `${o.avg_watch_sec} с` });
+  if (o.purchases != null) out.push({ l: "покупки", v: `${o.purchases} · ${m(Number(o.revenue))}` }, { l: "ROAS", v: String(o.roas ?? "—") });
+  if (o.cpl_7d_vs_prev) out.push({ l: "ціна ліда 7д / попер.", v: String(o.cpl_7d_vs_prev) });
+  if (o.issues) out.push({ l: "проблема", v: String(o.issues) });
+  return out;
 }
 
 // ---------- Креативи: маленькі плитки, наведення — збільшення, клік — на весь екран
@@ -265,6 +298,7 @@ function Creatives({ clientId, m }: { clientId: number; m: Fmt }) {
       { l: "ціна кліку", v: m(a.clicks_30d ? a.spend_30d / a.clicks_30d : null) },
       { l: "показів", v: fmtN(a.impressions_30d) },
       { l: "частота", v: freqOf(a.impressions_30d, a.reach_30d)?.toFixed(1) ?? "—" },
+      ...moreStats(a, m),
     ],
     verdicts: creativeVerdict(a, avg),
     opinion: ai[a.ad_id] ?? "",

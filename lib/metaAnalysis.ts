@@ -3,6 +3,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { agentConfig } from "./agent/config";
 import { getApiKey } from "./secrets";
+import { adMore, adsetMore } from "./metaExtra";
+import { badAdsForClient, monthlyForClient } from "./repo/meta";
 import { accountsForClient, adsForClient, adsetsForClient, breakdowns, campaignsWithStats, kyivDay, saveAnalysis, totals, type MetaAnalysis } from "./repo/meta";
 import { cplOf, ctrOf, freqOf, label } from "./metaInsights";
 import { listChanges, listPrompts } from "./repo/creatives";
@@ -14,6 +16,7 @@ const PROMPT = `Ти — Джері, сильний таргетолог і пр
 Пиши українською, коротко, простими словами, без води і без загальних порад «тестуйте більше». Кожна порада — конкретна дія з назвою кампанії/креативу/сегмента.
 Цифри бери тільки з даних, нічого не вигадуй. Якщо даних мало для висновку — так і скажи.
 Шукай ПАТЕРНИ: що спільного в креативах з дешевими лідами і в тих, що зливають. Враховуй журнал змін (changes: що Саша змінював і що вийшло) і результати промптів креативів (creative_prompts) — оціни, чи зміни спрацювали.
+Відео: hook_rate_pct (3-сек перегляди/покази; <20% — слабкий перший кадр) і hold_rate_pct (досмотри/3-сек; низький — губимо після хука). cpl_7d_vs_prev / ctr_7d_vs_prev — вигорання креативу. У групах: learning (фаза навчання; «обмежене навчання» = мало результатів на бюджет) і targeting (кого налаштовано). purchases/revenue/roas — якщо є піксель покупок. months_12 — сезонність і динаміка. rejected_ads — відхилені оголошення. Висновок по оголошенню з <20 лідів подавай як гіпотезу.
 
 Відповідай ТІЛЬКИ JSON без markdown:
 {"summary": "2-3 речення: як справи загалом",
@@ -42,9 +45,11 @@ export async function analyzeMeta(clientId: number): Promise<void> {
     campaigns: campaignsWithStats(clientId, kyivDay(29)).filter((c) => c.spend > 0 || c.status === "ACTIVE")
       .map((c) => ({ name: c.name, status: c.status, objective: c.objective, daily_budget: c.daily_budget, spend: r2(c.spend), leads: c.leads, cpl: r2(cplOf(c)) })),
     adsets: adsetsForClient(clientId).filter((a) => a.spend_30d > 0).slice(0, 20)
-      .map((a) => ({ name: a.name, status: a.status, goal: a.optimization_goal, spend: r2(a.spend_30d), leads: a.leads_30d, cpl: r2(cplOf({ spend: a.spend_30d, leads: a.leads_30d })), frequency: r2(freqOf(a.impressions_30d, a.reach_30d)) })),
+      .map((a) => ({ name: a.name, status: a.status, goal: a.optimization_goal, spend: r2(a.spend_30d), leads: a.leads_30d, cpl: r2(cplOf({ spend: a.spend_30d, leads: a.leads_30d })), frequency: r2(freqOf(a.impressions_30d, a.reach_30d)), ...adsetMore(a) })),
     ads: ads.slice(0, 25).map((a) => ({ ad_id: a.ad_id, name: a.name, type: a.kind, status: a.status, text: a.body.slice(0, 300), spend: r2(a.spend_30d), leads: a.leads_30d,
-      cpl: r2(cplOf({ spend: a.spend_30d, leads: a.leads_30d })), ctr: r2(ctrOf({ clicks: a.clicks_30d, impressions: a.impressions_30d })), frequency: r2(freqOf(a.impressions_30d, a.reach_30d)) })),
+      cpl: r2(cplOf({ spend: a.spend_30d, leads: a.leads_30d })), ctr: r2(ctrOf({ clicks: a.clicks_30d, impressions: a.impressions_30d })), frequency: r2(freqOf(a.impressions_30d, a.reach_30d)), ...adMore(a) })),
+    months_12: monthlyForClient(clientId),
+    rejected_ads: badAdsForClient(clientId),
     placements: cut("placement"), age_gender: cut("age_gender"), regions: cut("region"), devices: cut("device"),
     changes: listChanges(clientId, 15).map((x) => ({ at: x.at, what: x.what, why: x.why || undefined, expect: x.expect || undefined, result: x.result || undefined })),
     creative_prompts: listPrompts(clientId, 15).filter((p) => p.ad_ids).map((p) => { const st = promptStats(p, ads); return { title: p.title, angle: p.angle, format: p.format, verdict: p.verdict || undefined, spend: r2(st.spend), leads: st.leads, cpl: r2(st.cpl), ctr: r2(st.ctr) }; }),

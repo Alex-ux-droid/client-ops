@@ -2,6 +2,8 @@
 // реклама Meta (кабінет, кампанії з бюджетами, групи, активні креативи з текстами й цифрами, тривоги, останній розбір) і задачі в роботі.
 // Збирається з бази на кожне повідомлення — завжди актуально. Тумблер auto.context.
 import { getClientRow } from "../repo/clients";
+import { adMoreText, adsetMoreText } from "../metaExtra";
+import { monthlyForClient } from "../repo/meta";
 import { accountsForClient, adsForClient, adsetsForClient, campaignsWithStats, getAnalysis, kyivDay, metaAlerts, totals } from "../repo/meta";
 import { getTask, listTasks, taskItems, taskLinks } from "../repo/tasks";
 import { stepsSummary } from "../taskSteps";
@@ -90,9 +92,11 @@ export function clientSnapshot(clientId: number): string {
     const camps = campaignsWithStats(clientId, kyivDay(29)).filter((x) => x.status === "ACTIVE" || x.spend > 0).slice(0, 10);
     if (camps.length) out.push(`Кампанії (30 днів):\n${camps.map((x) => `- «${x.name}» [${x.status}] ціль ${x.objective || "?"}${x.daily_budget ? `, бюджет ${x.daily_budget}/день` : ""} — витрати ${r2(x.spend)}, ліди ${x.leads}, ціна ліда ${cpl(x.spend, x.leads) ?? "—"}`).join("\n")}`);
     const sets = adsetsForClient(clientId).filter((x) => x.status === "ACTIVE" || x.spend_30d > 0).slice(0, 12);
-    if (sets.length) out.push(`Групи оголошень:\n${sets.map((x) => `- «${x.name}» [${x.status}] оптимізація ${x.optimization_goal || "?"}${x.daily_budget ? `, ${x.daily_budget}/день` : ""} — 30д: ${r2(x.spend_30d)} витрат, ${x.leads_30d} лідів, частота ${x.reach_30d ? r2(x.impressions_30d / x.reach_30d) : "—"}`).join("\n")}`);
+    if (sets.length) out.push(`Групи оголошень:\n${sets.map((x) => `- «${x.name}» [${x.status}] оптимізація ${x.optimization_goal || "?"}${x.daily_budget ? `, ${x.daily_budget}/день` : ""} — 30д: ${r2(x.spend_30d)} витрат, ${x.leads_30d} лідів, частота ${x.reach_30d ? r2(x.impressions_30d / x.reach_30d) : "—"}${adsetMoreText(x)}`).join("\n")}`);
     const ads = adsForClient(clientId).filter((x) => x.status === "ACTIVE" || x.spend_30d > 0).slice(0, 15);
-    if (ads.length) out.push(`Креативи (ad_id — щоб подивитись картинку через view_images):\n${ads.map((x) => `- ${x.ad_id} «${x.name}» [${x.status}, ${x.kind}] 30д: ${r2(x.spend_30d)} витрат, ${x.leads_30d} лідів, CTR ${x.impressions_30d ? r2((x.clicks_30d / x.impressions_30d) * 100) : "—"}%${x.body ? ` · текст: ${x.body.replace(/\s+/g, " ").slice(0, 140)}` : ""}`).join("\n")}`);
+    if (ads.length) out.push(`Креативи (ad_id — щоб подивитись картинку через view_images):\n${ads.map((x) => `- ${x.ad_id} «${x.name}» [${x.status}, ${x.kind}] 30д: ${r2(x.spend_30d)} витрат, ${x.leads_30d} лідів, CTR ${x.impressions_30d ? r2((x.clicks_30d / x.impressions_30d) * 100) : "—"}%${adMoreText(x)}${x.body ? ` · текст: ${x.body.replace(/\s+/g, " ").slice(0, 140)}` : ""}`).join("\n")}`);
+    const months = monthlyForClient(clientId).slice(-6);
+    if (months.length > 1) out.push(`По місяцях: ${months.map((m) => `${m.month} ${r2(m.spend)}/${m.leads} лідів${m.leads ? ` (${cpl(m.spend, m.leads)})` : ""}`).join("; ")}`);
     const al = metaAlerts(clientId);
     if (al.length) out.push(`Тривоги: ${al.map((x) => x.text).join("; ")}`);
     const an = getAnalysis(clientId);
