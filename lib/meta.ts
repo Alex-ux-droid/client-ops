@@ -2,6 +2,7 @@
 // Цифри тягнемо самі за розкладом (вебхуків на витрати в Meta нема).
 import { logError } from "./log";
 import { autoOn } from "./agent/caps";
+import { saveAdDaily, saveAdExtra, saveAdsetExtra, saveMonthly, type AdExtra, type AdsetExtra } from "./repo/meta";
 import { autoLinkFromServices, getAnalysis, kyivDay, totals, saveSync, setSyncResult, upsertAccount, listAccounts, type Breakdown, type MetaAd, type MetaAdset, type MetaCampaign } from "./repo/meta";
 import { getSetting, setSetting } from "./repo/settings";
 import { enableService, getService } from "./repo/services";
@@ -196,6 +197,119 @@ async function loadCreatives(accountId: string, adIds: string[]): Promise<Record
   return out;
 }
 
+// Сума значень дії за типами: беремо перший тип, що є (щоб не рахувати двічі ту саму покупку)
+function pick(actions: Action[] | undefined, types: string[]): number {
+  for (const t of types) { const a = actions?.find((x) => x.action_type === t); if (a) return num(a.value); }
+  return 0;
+}
+const PURCHASE = ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase", "onsite_web_purchase"];
+const VIDEO = ["video_view"];
+const vsum = (a?: Action[]) => (a ?? []).reduce((s, x) => s + num(x.value), 0);
+
+// Таргетинг групи коротким текстом: вік, стать, гео, інтереси, аудиторії
+type Named = { name?: string };
+type Targeting = {
+  age_min?: number; age_max?: number; genders?: number[];
+  geo_locations?: { countries?: string[]; regions?: Named[]; cities?: (Named & { radius?: number })[]; custom_locations?: unknown[] };
+  flexible_spec?: Record<string, Named[]>[]; exclusions?: Record<string, Named[]>;
+  custom_audiences?: Named[]; excluded_custom_audiences?: Named[]; targeting_automation?: { advantage_audience?: number };
+};
+export function targetingText(t?: Targeting): string {
+  if (!t) return "";
+  const out: string[] = [];
+  if (t.age_min || t.age_max) out.push(`вік ${t.age_min ?? 18}–${t.age_max ?? 65}`);
+  if (t.genders?.length === 1) out.push(t.genders[0] === 1 ? "чоловіки" : "жінки");
+  const g = t.geo_locations;
+  const geo = [...(g?.countries ?? []), ...(g?.regions ?? []).map((x) => x.name), ...(g?.cities ?? []).map((x) => `${x.name}${x.radius ? ` +${x.radius}км` : ""}`)].filter(Boolean);
+  if (geo.length) out.push(`гео: ${geo.slice(0, 8).join(", ")}`);
+  if (g?.custom_locations?.length) out.push(`точки на карті: ${g.custom_locations.length}`);
+  const interests = (t.flexible_spec ?? []).flatMap((f) => Object.values(f).flat().map((x) => x?.name)).filter(Boolean);
+  if (interests.length) out.push(`інтереси/поведінка: ${interests.slice(0, 12).join(", ")}`);
+  const ex = Object.values(t.exclusions ?? {}).flat().map((x) => x?.name).filter(Boolean);
+  if (ex.length) out.push(`виключено: ${ex.slice(0, 8).join(", ")}`);
+  if (t.custom_audiences?.length) out.push(`аудиторії: ${t.custom_audiences.map((x) => x.name).filter(Boolean).join(", ")}`);
+  if (t.excluded_custom_audiences?.length) out.push(`без аудиторій: ${t.excluded_custom_audiences.map((x) => x.name).filter(Boolean).join(", ")}`);
+  if (t.targeting_automation?.advantage_audience) out.push("Advantage+ аудиторія (Meta розширює сама)");
+  if (!interests.length && !t.custom_audiences?.length && !t.targeting_automation?.advantage_audience) out.push("широка (без інтересів)");
+  return out.join("; ");
+}
+
+const LEARNING: Record<string, string> = { LEARNING: "навчається", SUCCESS: "навчання пройдено", FAIL: "обмежене навчання (мало результатів)" };
+
+// Глибші дані — кожен крок окремо: збій одного не ламає синхронізацію
+async function syncExtras(accountId: string, adIds: string[], range: string, since: string): Promise<void> {
+  type R = Record<string, string | Action[] | undefined> & { ad_id?: string; date_start?: string; actions?: Action[]; action_values?: Action[] };
+  // 1) Відео (3-сек перегляди, досмотри, утримання) і покупки по оголошеннях
+  try {
+    const rows = await metaAll<R>(`${accountId}/insights`, {
+      level: "ad", time_range: range, limit: "500",
+      fields: "ad_id,actions,action_values,video_thruplay_watched_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,video_avg_time_watched_actions",
+    });
+    const map: Record<string, AdExtra> = {};
+    for (const x of rows) {
+      if (!x.ad_id) continue;
+      const v = (k: string) => vsum(x[k] as Action[] | undefined);
+      map[x.ad_id] = {
+        v3s: pick(x.actions, VIDEO), thru: v("video_thruplay_watched_actions"), p25: v("video_p25_watched_actions"), p50: v("video_p50_watched_actions"),
+        p75: v("video_p75_watched_actions"), p100: v("video_p100_watched_actions"), avg_sec: v("video_avg_time_watched_actions"),
+        purchases: pick(x.actions, PURCHASE), revenue: +pick(x.action_values, PURCHASE).toFixed(2),
+      };
+    }
+    saveAdExtra(map);
+  } catch (e) { logError(`meta-video ${accountId}`, e); }
+  // 2) Проблеми оголошень: відхилено, обмежено
+  if (adIds.length) try {
+    const issues: Record<string, AdExtra> = {};
+    for (let i = 0; i < adIds.length; i += 50) {
+      type A = { id: string; effective_status?: string; issues_info?: { error_summary?: string; error_message?: string }[]; ad_review_feedback?: { global?: Record<string, string> } };
+      const list = await metaAll<A>(`${accountId}/ads`, { fields: "id,effective_status,issues_info,ad_review_feedback", filtering: JSON.stringify([{ field: "id", operator: "IN", value: adIds.slice(i, i + 50) }]), limit: "50" });
+      for (const a of list) {
+        const t = [
+          ...(a.issues_info ?? []).map((x) => x.error_summary || x.error_message || ""),
+          ...Object.entries(a.ad_review_feedback?.global ?? {}).map(([k, v]) => `${k}: ${v}`),
+        ].filter(Boolean).join("; ").slice(0, 400);
+        issues[a.id] = { issues: a.effective_status === "DISAPPROVED" ? `ВІДХИЛЕНО${t ? `: ${t}` : ""}` : t };
+      }
+    }
+    saveAdExtra(issues);
+  } catch (e) { logError(`meta-issues ${accountId}`, e); }
+  // 2б) Відхилені / з проблемами — навіть ті, що ще не витратили (інакше їх не видно)
+  try {
+    type A = { id: string; name?: string; effective_status?: string; issues_info?: { error_summary?: string }[] };
+    const bad = await metaAll<A>(`${accountId}/ads`, { fields: "id,name,effective_status,issues_info", filtering: JSON.stringify([{ field: "effective_status", operator: "IN", value: ["DISAPPROVED", "WITH_ISSUES"] }]), limit: "50" });
+    setSetting(`meta.bad_ads.${accountId}`, JSON.stringify(bad.slice(0, 20).map((a) => ({ id: a.id, name: a.name ?? "", status: a.effective_status === "DISAPPROVED" ? "відхилено" : "з проблемою", why: (a.issues_info ?? []).map((x) => x.error_summary).filter(Boolean).join("; ").slice(0, 200) }))));
+  } catch (e) { logError(`meta-bad-ads ${accountId}`, e); }
+  // 3) Групи: фаза навчання і таргетинг
+  try {
+    type S = { id: string; learning_stage_info?: { status?: string }; targeting?: Targeting };
+    const list = await metaAll<S>(`${accountId}/adsets`, { fields: "id,learning_stage_info,targeting", limit: "200" });
+    const map: Record<string, AdsetExtra> = {};
+    for (const a of list) map[a.id] = { learning: LEARNING[a.learning_stage_info?.status ?? ""] ?? "", targeting: targetingText(a.targeting) };
+    saveAdsetExtra(map);
+  } catch (e) { logError(`meta-adset-extra ${accountId}`, e); }
+  // 4) Кожне оголошення по днях за 30 днів
+  try {
+    const rows = await metaAll<R>(`${accountId}/insights`, { level: "ad", fields: "ad_id,spend,impressions,clicks,actions", time_range: range, time_increment: "1", limit: "500" });
+    saveAdDaily(accountId, since, rows.filter((x) => x.ad_id && num(x.spend) > 0).map((x) => ({
+      ad_id: x.ad_id!, date: String(x.date_start), spend: num(x.spend), impressions: num(x.impressions), clicks: num(x.clicks), leads: leadsOf(x.actions),
+    })));
+  } catch (e) { logError(`meta-ad-daily ${accountId}`, e); }
+  // 5) 12 місяців по місяцях (раз на добу досить)
+  const key = `meta.monthly_at.${accountId}`;
+  if (Date.now() - +new Date(getSetting(key) || 0) > 20 * 3600_000) try {
+    const d = new Date(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - 11);
+    const rows = await metaAll<R>(`${accountId}/insights`, {
+      level: "account", fields: "spend,impressions,clicks,reach,actions,action_values", time_increment: "monthly", limit: "50",
+      time_range: JSON.stringify({ since: d.toISOString().slice(0, 10), until: kyivDay(0) }),
+    });
+    saveMonthly(accountId, rows.map((x) => ({
+      month: String(x.date_start).slice(0, 7), spend: num(x.spend), impressions: num(x.impressions), clicks: num(x.clicks), reach: num(x.reach),
+      leads: leadsOf(x.actions), purchases: pick(x.actions, PURCHASE), revenue: +pick(x.action_values, PURCHASE).toFixed(2),
+    })));
+    setSetting(key, new Date().toISOString());
+  } catch (e) { logError(`meta-monthly ${accountId}`, e); }
+}
+
 // Один кабінет: кампанії з бюджетами, цифри по днях за 30 днів, оголошення з креативами
 export async function syncAccount(accountId: string): Promise<void> {
   const since = kyivDay(29), until = kyivDay(0);
@@ -268,6 +382,7 @@ export async function syncAccount(accountId: string): Promise<void> {
       since, campaigns, ads, adsets, breakdowns,
       daily: daily.map((x) => ({ campaign_id: x.campaign_id ?? "", date: x.date_start, spend: num(x.spend), impressions: num(x.impressions), clicks: num(x.clicks), leads: leadsOf(x.actions) })),
     });
+    await syncExtras(accountId, adIds, range, since);
     setSyncResult(accountId, "");
   } catch (e) {
     setSyncResult(accountId, e instanceof Error ? e.message : "помилка");
