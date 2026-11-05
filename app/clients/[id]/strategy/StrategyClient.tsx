@@ -31,7 +31,7 @@ export function ImportBox({ clientId, compact }: { clientId: number; compact?: b
       <div className="mono">Блок [CLIENT-OPS:СТРАТЕГІЯ] з Claude Code або будь-який підсумок роботи — Джері розкладе: частина екосистеми, план, хроніка, знання, рішення, висновки.</div>
       <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="[CLIENT-OPS:СТРАТЕГІЯ] …" style={{ minHeight: "8rem" }} aria-label="Витяжка" />
       <div className="inline" style={{ flexWrap: "wrap" }}>
-        <button type="button" disabled={busy || text.trim().length < 20} onClick={async () => { setBusy(true); setRes(null); const r = await importAction(clientId, text); setBusy(false); if (r.ok) { setText(""); setRes({ ok: true, lines: r.summary.length ? r.summary : ["Нового не знайшов"] }); router.refresh(); } else setRes({ ok: false, lines: [r.error] }); }}>{busy ? "Джері розкладає… ~30 с" : "Розкласти по стратегії"}</button>
+        <button type="button" disabled={busy || text.trim().length < 20} onClick={async () => { setBusy(true); setRes(null); const r = await importAction(clientId, text); setBusy(false); if (r.ok) { setText(""); setRes({ ok: true, lines: r.summary.length ? r.summary : ["Нового не знайшов"] }); router.refresh(); } else setRes({ ok: false, lines: [r.error] }); }}>{busy ? "Джері розкладає… до 1–2 хв" : "Розкласти по стратегії"}</button>
         {compact && <button type="button" className="ghost small" onClick={() => setOpen(false)}>Згорнути</button>}
       </div>
       {res && <div className={`mono ${res.ok ? "st-ok" : "st-bad"}`}>{res.ok ? "Записав: " : ""}{res.lines.join(" · ")}</div>}
