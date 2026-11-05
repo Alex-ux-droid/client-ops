@@ -1917,3 +1917,4 @@ textarea.vt-ghost::placeholder { color: transparent; }
 @media (max-width: 760px) {
   .st-sum-grid, .st-two, .st-cols { grid-template-columns: minmax(0, 1fr); }
 }
+.dv-focus { border-color: var(--accent); background: var(--accent-soft); }

@@ -168,6 +168,13 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "tip_add", description: "Записати пораду в базу «Поради від Джері» (Саша побачить її під час роботи). Коли в розмові виникло щось корисне про бізнес, маркетинг, рекламу, продажі, переговори, термін чи факт — або Саша попросив «запамʼятай як пораду». Коротко: заголовок до 60 символів, текст 2–4 речення, тільки перевірені факти.", input_schema: obj({ topic: { type: "string", enum: Object.keys(TIP_TOPICS) }, title: str("Заголовок"), body: str("Текст поради: думка + як застосувати") }, ["topic", "title", "body"]) },
   { name: "tips_stats", description: "Поради дня: скільки показано, як Саша реагує по темах (знав / нове / не цікаво / детальніше) і які саме поради зачепили чи були відомі. Дивись, щоб розуміти його рівень і інтереси.", input_schema: obj({}) },
   { name: "system_updates", description: "Журнал оновлень системи: що Claude додав або змінив і коли (твої нові можливості). Дивись, коли не впевнений, чи щось уже вміє система.", input_schema: obj({ limit: int("Скільки останніх, за замовчуванням 20") }, []) },
+  { name: "product_get", description: "Наші продукти (вкладка «Продукти»): без product_id — список; з product_id — повний паспорт: що це, як працює, фічі, склад, посилання, плюси/мінуси, знання (що ламалось, інтеграції, юридичне), рішення, план, клієнти, події з програми. Перед роботою з продуктом або порадою клієнту про інструмент — дивись сюди.", input_schema: obj({ product_id: int("ID продукту") }) },
+  { name: "product_save", description: "Створити (без product_id) або оновити паспорт продукту. kind: app (програма) | kit (набір / промпт) | service (послуга). status: idea|building|live|improving|paused. features/stack/links/pros/cons — ПОВНИЙ перелік по рядку. clients — назви або id клієнтів, які користуються (замінює список).", input_schema: obj({ product_id: int("ID для оновлення"), name: str("Назва"), kind: { type: "string", enum: ["app", "kit", "service"] }, status: { type: "string", enum: ["idea", "building", "live", "improving", "paused"] }, summary: str("Що це"), how: str("Як працює"), features: str("Фічі по рядку"), stack: str("Склад по рядку"), links: str("Посилання по рядку"), pros: str("Плюси"), cons: str("Мінуси"), next_step: str("Наступний крок"), clients: { type: "array", items: { type: "string" }, description: "Клієнти, що користуються" } }) },
+  { name: "product_item", description: "Запис у продукті. action add | done | delete. kind: knowledge (cat fix|integration|legal|lesson — що ламалось, як підключали, юридичне/доступи/платежі, урок) | log (що зроблено) | decision | plan | idea. Саша розповідає про нюанс (напр. «телефонію важко підключити, бо…») — одразу knowledge.", input_schema: obj({ product_id: int("ID продукту"), action: { type: "string", enum: ["add", "done", "delete"] }, item_id: int("Для done/delete"), kind: { type: "string", enum: ["knowledge", "log", "decision", "plan", "idea"] }, cat: { type: "string", enum: ["fix", "integration", "legal", "lesson"] }, title: str("Коротко"), body: str("Деталі") }, ["product_id", "action"]) },
+  { name: "product_import", description: "Розкласти витяжку [CLIENT-OPS:ПРОДУКТ] з Claude Code у паспорт продукту (без product_id — знайде за назвою або створить новий). text — уся витяжка як є.", input_schema: obj({ product_id: int("ID продукту, якщо відомо"), text: str("Текст витяжки") }, ["text"]) },
+  { name: "org_get", description: "Розвиток організації Саші (вкладка «Розвиток»): хто ми, позиціонування, що надаємо, підхід, куди рухаємось, головне зараз; план (зараз/далі/потім), рішення, уроки, ідеї; наші продукти.", input_schema: obj({}) },
+  { name: "org_update", description: "Переписати розділи розвитку організації (передавай тільки те, що міняєш, повним текстом): who, positioning, services, approach, direction, focus.", input_schema: obj({ who: str("Хто ми і для кого"), positioning: str("Позиціонування"), services: str("Що надаємо, по рядку"), approach: str("Наш підхід"), direction: str("Куди рухаємось"), focus: str("Головне зараз") }) },
+  { name: "org_item", description: "Запис у розвиток організації. action add | move | delete. kind: plan (horizon now|next|later|done) | decision | lesson | idea. move — змінити horizon.", input_schema: obj({ action: { type: "string", enum: ["add", "move", "delete"] }, item_id: int("Для move/delete"), kind: { type: "string", enum: ["plan", "decision", "lesson", "idea"] }, horizon: { type: "string", enum: ["now", "next", "later", "done"] }, title: str("Коротко"), body: str("Деталі"), product_id: int("Привʼязка до продукту") }, ["action"]) },
   { name: "crm_sales", description: "Продажі клієнта з його CRM (усі джерела, не тільки реклама; тільки читання): ліди, продажі, сума, середній чек, конверсія лід→продаж, швидкість першого контакту, ліди без контакту, джерела, менеджери, причини відмов; «реклама → продажі» по кожному оголошенню Meta за весь час (витрати, ліди, продажі, ціна продажу, ROAS); точка нуль (до нас); останні угоди. Оптимізуй рекламу під продажі, а не під дешеві ліди.", input_schema: obj({ client_id: int("ID клієнта"), days: int("Період у днях, за замовчуванням 30") }, ["client_id"]) },
   { name: "meta_ads", description: "Живі цифри Meta Ads клієнта (оновлюються самі кожні 2 год, тільки читання): підсумок за N днів і попередні N днів (витрати, покази, кліки, ліди, ціна ліда, CTR), по днях, кампанії з бюджетами і статусами, топ креативів за 30 днів (відео: хук/утримання; покупки і ROAS, якщо є піксель; ціна ліда 7д проти попередніх 7 — вигорання), групи з фазою навчання і таргетингом, відхилені оголошення, 12 місяців по місяцях, тривоги. Змінювати рекламу ти не можеш — тільки радити.", input_schema: obj({ client_id: int("ID клієнта"), days: int("Період у днях, за замовчуванням 7") }, ["client_id"]) },
   { name: "meta_accounts", description: "Усі рекламні кабінети Meta, які бачить система: id, назва, валюта, статус (активний/закритий/борг), до якого клієнта привʼязаний.", input_schema: obj({}) },
@@ -797,6 +804,88 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const pb = need(getPlaybook(pid), "Плейбука нема");
       attachPlaybook(cid, pid);
       act("playbook", `Плейбук «${pb.title}» → ${clientName(cid)}`, `/clients/${cid}?tab=playbooks`);
+      return { ok: true };
+    }
+
+    case "product_get": {
+      const r = await import("../repo/products");
+      const pid = id(input.product_id);
+      if (!pid) return { products: r.listProducts().map((p) => ({ product_id: p.id, name: p.name, kind: p.kind, status: p.status, summary: p.summary, clients: r.productClients(p.id).map((c) => c.name) })) };
+      const p = need(r.getProduct(pid), "Продукту нема");
+      const { productMd } = await import("../products");
+      return { passport: productMd(p), events_7d: r.productEventCounts(pid), last_events: r.productEvents(pid, 8).map((e) => ({ at: e.received_at, event: e.event, summary: e.summary })) };
+    }
+
+    case "product_save": {
+      const r = await import("../repo/products");
+      const f: Record<string, string> = {};
+      for (const k of ["name", "summary", "how", "features", "stack", "links", "pros", "cons", "next_step"] as const) if (input[k] != null) f[k] = s(input[k]);
+      if (input.kind && s(input.kind) in r.PRODUCT_KINDS) f.kind = s(input.kind);
+      if (input.status && s(input.status) in r.PRODUCT_STATUS) f.status = s(input.status);
+      let pid = id(input.product_id);
+      if (pid) { need(r.getProduct(pid), "Продукту нема"); r.updateProduct(pid, f); }
+      else pid = r.addProduct({ ...f, name: need(f.name, "name обовʼязковий") });
+      if (Array.isArray(input.clients)) {
+        const { listClients } = await import("../repo/clients");
+        const all = listClients();
+        for (const c of r.productClients(pid)) r.setProductClient(pid, c.client_id, false);
+        for (const x of input.clients as unknown[]) {
+          const c = all.find((cl) => String(cl.id) === s(x) || cl.name.toLowerCase().includes(s(x).toLowerCase()));
+          if (c) r.setProductClient(pid, c.id, true);
+        }
+      }
+      act("product", `Продукт: ${f.name ?? r.getProduct(pid)?.name}`, `/products/${pid}`);
+      return { ok: true, product_id: pid };
+    }
+
+    case "product_item": {
+      const r = await import("../repo/products");
+      const pid = need(id(input.product_id), "product_id обовʼязковий");
+      need(r.getProduct(pid), "Продукту нема");
+      if (input.action === "add") {
+        const kind = (r.P_ITEM_KINDS as readonly string[]).includes(s(input.kind)) ? (s(input.kind) as (typeof r.P_ITEM_KINDS)[number]) : "knowledge";
+        const iid = r.addPItem(pid, { kind, cat: kind === "knowledge" ? (s(input.cat) in r.P_KNOW ? s(input.cat) : "lesson") : "", title: need(s(input.title), "title обовʼязковий"), body: s(input.body), source: "jerry" });
+        act("product", `Продукт: ${s(input.title)}`, `/products/${pid}`);
+        return { ok: true, item_id: iid };
+      }
+      const it = need(r.getPItem(need(id(input.item_id), "item_id обовʼязковий")), "Запису нема");
+      if (it.product_id !== pid) throw new Error("Запис іншого продукту");
+      if (input.action === "delete") r.deletePItem(it.id); else r.updatePItem(it.id, { done: 1 });
+      return { ok: true };
+    }
+
+    case "product_import": {
+      const { importProduct } = await import("../products");
+      const res = await importProduct(s(input.text), id(input.product_id));
+      if (!res.ok) return { error: res.error };
+      act("product", `Продукт: ${res.summary.join(", ")}`, `/products/${res.id}`);
+      return { ok: true, product_id: res.id, recorded: res.summary };
+    }
+
+    case "org_get": {
+      const r = await import("../repo/products");
+      const { orgBlock } = await import("../products");
+      return { org: r.getOrg(), items: r.listOrgItems().slice(0, 80).map((x) => ({ item_id: x.id, kind: x.kind, horizon: x.horizon, title: x.title, body: x.body || undefined })), overview: orgBlock() };
+    }
+
+    case "org_update": {
+      const r = await import("../repo/products");
+      const p: Record<string, string> = {};
+      for (const k of Object.keys(r.ORG_FIELDS)) if (input[k] != null) p[k] = s(input[k]);
+      r.saveOrg(p);
+      act("org", "Розвиток оновлено", "/kb");
+      return { ok: true };
+    }
+
+    case "org_item": {
+      const r = await import("../repo/products");
+      if (input.action === "add") {
+        const iid = r.addOrgItem({ kind: s(input.kind) || "plan", title: need(s(input.title), "title обовʼязковий"), body: s(input.body), horizon: s(input.horizon), product_id: id(input.product_id) });
+        act("org", `Розвиток: ${s(input.title)}`, "/kb");
+        return { ok: true, item_id: iid };
+      }
+      const it = need(r.getOrgItem(need(id(input.item_id), "item_id обовʼязковий")), "Запису нема");
+      if (input.action === "delete") r.deleteOrgItem(it.id); else r.updateOrgItem(it.id, { horizon: s(input.horizon) });
       return { ok: true };
     }
 

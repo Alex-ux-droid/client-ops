@@ -21,7 +21,7 @@ export default async function KbArticlePage({ params, searchParams }: { params: 
   if (editing) {
     return (
       <form action={saveKbAction} className="stack kb-article" style={{ gap: "1rem" }}>
-        <Link href={a ? `/kb/${a.id}` : "/kb"} className="h-link">← {a ? "Назад до статті" : "База знань"}</Link>
+        <Link href={a ? `/kb/${a.id}` : "/kb?v=docs"} className="h-link">← {a ? "Назад до статті" : "Інструкції"}</Link>
         <h1>{a ? "Редагування" : "Нова стаття"}</h1>
         {a && <input type="hidden" name="id" value={a.id} />}
         <div className="form-grid">
@@ -45,7 +45,7 @@ export default async function KbArticlePage({ params, searchParams }: { params: 
 
   return (
     <article className="kb-article stack" style={{ gap: "1rem" }}>
-      <Link href="/kb" className="h-link">← База знань</Link>
+      <Link href="/kb?v=docs" className="h-link">← Інструкції</Link>
       <div className="head" style={{ marginBottom: 0 }}>
         <div>
           <div className="kicker">{a!.category}</div>

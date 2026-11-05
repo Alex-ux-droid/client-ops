@@ -19,5 +19,5 @@ export async function deleteKbAction(fd: FormData) {
   await requireUser();
   deleteKb(Number(fd.get("id")));
   revalidatePath("/kb");
-  redirect("/kb");
+  redirect("/kb?v=docs");
 }
