@@ -7,11 +7,11 @@ export type ProductKind = keyof typeof PRODUCT_KINDS;
 export const PRODUCT_STATUS = { idea: "ідея", building: "будуємо", live: "працює", improving: "покращуємо", paused: "пауза" } as const;
 export type ProductStatus = keyof typeof PRODUCT_STATUS;
 export const P_KNOW = { fix: "Зламалось → виправили", integration: "Інтеграція / API", legal: "Юридичне / доступи / платежі", lesson: "Урок / правило" } as const;
-export const P_ITEM_KINDS = ["log", "knowledge", "decision", "idea", "plan"] as const;
+export const P_ITEM_KINDS = ["log", "knowledge", "decision", "idea", "plan", "update"] as const;
 export type PItemKind = (typeof P_ITEM_KINDS)[number];
 
 export type Product = { id: number; name: string; kind: ProductKind; status: ProductStatus; summary: string; how: string; features: string; stack: string; pros: string; cons: string; next_step: string; links: string; kit_md: string; last_event_at: string | null; position: number; created_at: string; updated_at: string };
-export type PItem = { id: number; product_id: number; kind: PItemKind; cat: string; title: string; body: string; done: number; source: string; created_at: string };
+export type PItem = { id: number; product_id: number; kind: PItemKind; cat: string; title: string; body: string; done: number; source: string; created_at: string; ver: number | null };
 export const PF = ["name", "kind", "status", "summary", "how", "features", "stack", "pros", "cons", "next_step", "links", "kit_md"] as const;
 export type ProductPatch = Partial<Pick<Product, (typeof PF)[number]>>;
 
@@ -40,12 +40,16 @@ export function listPItems(productId: number, kind?: PItemKind, limit = 200): PI
     ? db().prepare("SELECT * FROM product_items WHERE product_id = ? AND kind = ? ORDER BY id DESC LIMIT ?").all(productId, kind, limit)
     : db().prepare("SELECT * FROM product_items WHERE product_id = ? ORDER BY id DESC LIMIT ?").all(productId, limit)) as PItem[];
 }
+// Оновлення продукту (Оновлення 1, 2, …) і номер наступного; «старт» — чи вже був повний паспорт з витяжки
+export const productUpdates = (productId: number) => db().prepare("SELECT * FROM product_items WHERE product_id = ? AND kind = 'update' ORDER BY ver, id").all(productId) as PItem[];
+export const nextUpdateVer = (productId: number) => ((db().prepare("SELECT MAX(ver) v FROM product_items WHERE product_id = ? AND kind = 'update'").get(productId) as { v: number | null }).v ?? 0) + 1;
+export const hasPassport = (productId: number) => !!db().prepare("SELECT 1 FROM product_items WHERE product_id = ? AND source = 'extract' LIMIT 1").get(productId);
 // Хронологія по порядку (найстаріше спершу)
 export const productTimeline = (productId: number) => db().prepare("SELECT * FROM product_items WHERE product_id = ? AND kind = 'log' ORDER BY created_at, id").all(productId) as PItem[];
 export const getPItem = (id: number) => db().prepare("SELECT * FROM product_items WHERE id = ?").get(id) as PItem | undefined;
-export function addPItem(productId: number, i: { kind: PItemKind; title: string; body?: string; cat?: string; source?: string; at?: string | null }): number {
+export function addPItem(productId: number, i: { kind: PItemKind; title: string; body?: string; cat?: string; source?: string; at?: string | null; ver?: number | null }): number {
   const at = i.at && /^\d{4}-\d{2}-\d{2}/.test(i.at) ? i.at.slice(0, 10) + " 12:00:00" : null;
-  const id = Number(db().prepare("INSERT INTO product_items (product_id, kind, cat, title, body, source, created_at) VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))").run(productId, i.kind, i.cat ?? "", i.title, i.body ?? "", i.source ?? "manual", at).lastInsertRowid);
+  const id = Number(db().prepare("INSERT INTO product_items (product_id, kind, cat, title, body, source, created_at, ver) VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), ?)").run(productId, i.kind, i.cat ?? "", i.title, i.body ?? "", i.source ?? "manual", at, i.ver ?? null).lastInsertRowid);
   db().prepare("UPDATE products SET updated_at = datetime('now') WHERE id = ?").run(productId);
   return id;
 }
