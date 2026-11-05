@@ -10,7 +10,7 @@ import { CopyText } from "@/app/startups/[id]/CopyText";
 import { fmtDate } from "@/lib/dates";
 import { appSecret, kitText } from "@/lib/products";
 import { listClients } from "@/lib/repo/clients";
-import { getProduct, listPItems, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productEventCounts, productEvents, productTimeline, type PItem } from "@/lib/repo/products";
+import { getProduct, listPItems, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productEventCounts, productEvents, productTimeline, productUpdates, nextUpdateVer, hasPassport, type PItem } from "@/lib/repo/products";
 import { getSetting } from "@/lib/repo/settings";
 import { lines } from "@/lib/repo/strategy";
 import { productClientAction, productItemAction, productSecretAction, saveProductAction } from "../actions";
@@ -32,7 +32,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
   const host = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host") ?? ""}`;
   const hid = <input type="hidden" name="product_id" value={id} />;
   const List = ({ t, xs }: { t: string; xs: string[] }) => (xs.length ? <div className="card stack st-box"><b>{t}</b><ul className="st-list">{xs.map((x, i) => <li key={i}>{x}</li>)}</ul></div> : null);
-  const src = (i: PItem) => `${fmtDate(i.created_at)}${i.source === "extract" ? " · з витяжки" : i.source === "jerry" ? " · Джері" : ""}`;
+  const src = (i: PItem) => `${fmtDate(i.created_at)}${i.ver ? ` · Оновлення ${i.ver}` : i.source === "extract" ? " · старт" : i.source === "jerry" ? " · Джері" : ""}`;
   const acts = (i: PItem) => (
     <>
       {i.kind === "plan" && <form action={productItemAction}>{hid}<input type="hidden" name="item_id" value={i.id} /><input type="hidden" name="op" value="toggle" /><button className="ghost small">{i.done ? "↺ повернути" : "✓ зроблено"}</button></form>}
@@ -46,7 +46,8 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
       <div className="inline" style={{ marginTop: "0.75rem" }}>{acts(i)}</div>
     </Pop>
   );
-  const tl = () => productTimeline(id).map((l) => ({ id: l.id, at: l.created_at, title: l.title, body: l.body, tag: l.source === "extract" ? "з витяжки" : l.source === "jerry" ? "Джері" : undefined, actions: acts(l) }));
+  const verTag = (i: PItem) => (i.ver ? `Оновлення ${i.ver}` : i.ver === 0 ? "старт" : i.source === "jerry" ? "Джері" : undefined);
+  const tl = () => productTimeline(id).map((l) => ({ id: l.id, at: l.created_at, title: l.title, body: l.body, tag: verTag(l), actions: acts(l) }));
 
   return (
     <section className="st stack">
@@ -57,7 +58,10 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
           {p.summary && <p style={{ margin: "0.375rem 0 0", color: "var(--muted)" }}>{p.summary}</p>}
         </div>
         <div className="inline" style={{ flexWrap: "wrap" }}>
-          <ProductPrompt productId={id} label="Промпт для Claude Code" />
+          {hasPassport(id) ? <>
+            <ProductPrompt productId={id} mode="update" primary label={`Промпт: оновлення ${nextUpdateVer(id)}`} />
+            <ProductPrompt productId={id} label="Повний промпт" />
+          </> : <ProductPrompt productId={id} label="Промпт для Claude Code" />}
           <ProductImport productId={id} compact />
         </div>
       </div>
@@ -77,8 +81,11 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
     const all = listClients().filter((c) => c.status !== "archived" && !cl.some((x) => x.client_id === c.id));
     const kn = listPItems(id, "knowledge", 5);
     const plan = listPItems(id, "plan").filter((x) => !x.done);
+    const ups = productUpdates(id).reverse();
+    const stopped = ups[0]?.body.match(/\*\*Де зупинились:\*\*\s*([^\n]+)/)?.[1];
     return (
       <div className="stack" style={{ gap: "1rem" }}>
+        {(stopped || ups[0]) && <div className="card dv-focus stack" style={{ gap: "0.25rem" }}><b>Де зупинились</b><span>{stopped ?? ups[0].title}</span><span className="mono">після «{ups[0].title}» · {fmtDate(ups[0].created_at)}</span></div>}
         {(p!.how || p!.next_step) && <div className="card st-part-head">{p!.how && <p>{p!.how}</p>}{p!.next_step && <p className="st-next">Наступний крок: {p!.next_step}</p>}</div>}
         <div className="st-grid">
           <List t="Головні фічі" xs={lines(p!.features)} />
@@ -92,6 +99,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
           <div className="mx-main-head"><b>Хронологія — як ми сюди дійшли</b><Link href={`${base}?v=log`}>план і додати →</Link></div>
           <Timeline items={tl()} empty="Ще порожньо. Встав витяжку з Claude Code — етапи стануть блоками." />
         </div>
+        {ups.length > 0 && <div className="card stack st-box"><b>Оновлення · {ups.length}</b><div className="st-grid">{ups.map(item)}</div></div>}
         {kn.length > 0 && <div className="card stack st-box"><div className="mx-main-head"><b>Що знаємо (останнє)</b><Link href={`${base}?v=knowledge`}>усе →</Link></div><div className="st-grid">{kn.map(item)}</div></div>}
         <div className="card stack" style={{ gap: "0.5rem" }}>
           <b>Клієнти, які користуються</b>

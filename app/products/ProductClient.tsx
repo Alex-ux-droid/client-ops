@@ -5,11 +5,11 @@ import { useState } from "react";
 import { copyLater } from "@/components/extractPrompt";
 import { productImportAction, productPromptAction } from "./actions";
 
-export function ProductPrompt({ productId, label }: { productId: number | null; label: string }) {
+export function ProductPrompt({ productId, label, mode = "full", primary }: { productId: number | null; label: string; mode?: "full" | "update"; primary?: boolean }) {
   const [msg, setMsg] = useState("");
   return (
     <span className="inline" style={{ gap: "0.375rem" }}>
-      <button type="button" className="ghost small" onClick={async () => { const ok = await copyLater(() => productPromptAction(productId)); setMsg(ok ? "Скопійовано ✓" : "Не вдалось"); setTimeout(() => setMsg(""), 2500); }}>⇄ {label}</button>
+      <button type="button" className={primary ? "small" : "ghost small"} onClick={async () => { const ok = await copyLater(() => productPromptAction(productId, mode)); setMsg(ok ? "Скопійовано ✓" : "Не вдалось"); setTimeout(() => setMsg(""), 2500); }}>⇄ {label}</button>
       {msg && <span className="mono">{msg}</span>}
     </span>
   );
@@ -30,8 +30,8 @@ export function ProductImport({ productId, compact }: { productId: number | null
   return (
     <div className="card st-import">
       <b>Вставити витяжку</b>
-      <div className="mono">Блок [CLIENT-OPS:ПРОДУКТ] з Claude Code — Джері оновить паспорт: що це, як працює, фічі, склад, знання (що ламалось, юридичне), рішення, план.</div>
-      <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="[CLIENT-OPS:ПРОДУКТ] …" style={{ minHeight: "8rem" }} aria-label="Витяжка" />
+      <div className="mono">Блок [CLIENT-OPS:ПРОДУКТ] (повний паспорт) або [CLIENT-OPS:ОНОВЛЕННЯ] (що нового) з Claude Code — Джері розкладе: хронологія, фічі, склад, знання, рішення, план. Кожне оновлення отримує номер.</div>
+      <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="[CLIENT-OPS:ПРОДУКТ] … або [CLIENT-OPS:ОНОВЛЕННЯ] …" style={{ minHeight: "8rem" }} aria-label="Витяжка" />
       <div className="inline" style={{ flexWrap: "wrap" }}>
         <button type="button" disabled={busy || text.trim().length < 20} onClick={async () => {
           setBusy(true); setRes(null);

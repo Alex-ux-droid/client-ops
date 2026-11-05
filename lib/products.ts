@@ -5,13 +5,14 @@ import { agentConfig } from "./agent/config";
 import { autoOn } from "./agent/caps";
 import { logError } from "./log";
 import {
-  addPItem, addProduct, addProductEvent, getOrg, getProduct, listPItems, listProducts, ORG_FIELDS, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productTimeline, updateProduct,
+  addPItem, addProduct, addProductEvent, getOrg, getProduct, listPItems, listProducts, ORG_FIELDS, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productTimeline, productUpdates, nextUpdateVer, hasPassport, updateProduct,
   type Product, type ProductKind, type ProductStatus,
 } from "./repo/products";
 import { lines } from "./repo/strategy";
 import { getApiKey, setEnvVar } from "./secrets";
 
 export const PRODUCT_MARK = "[CLIENT-OPS:ПРОДУКТ]";
+export const UPDATE_MARK = "[CLIENT-OPS:ОНОВЛЕННЯ]";
 export const appSecret = (id: number) => process.env[`APP_SECRET_${id}`]?.trim() || "";
 export const newAppSecret = (id: number) => { const s = randomBytes(24).toString("hex"); setEnvVar(`APP_SECRET_${id}`, s); return s; };
 export const kitText = (p: Product, host: string) => p.kit_md.replaceAll("{{HOST}}", host);
@@ -68,6 +69,7 @@ export function productMd(p: Product, full = true): string {
     plan.length ? `Відкриті кроки: ${plan.map((x) => x.title).join("; ")}` : "",
     ideas.length ? `Ідеї: ${ideas.map((x) => x.title).join("; ")}` : "",
     log.length ? `Хронологія (по порядку):\n${productTimeline(p.id).slice(full ? -40 : -6).map((l) => `- ${l.created_at.slice(0, 10)}: ${l.title}${full && l.body ? ` — ${l.body.replace(/\*\*/g, "").replace(/\s+/g, " ").slice(0, 200)}` : ""}`).join("\n")}` : "",
+    (() => { const u = productUpdates(p.id); return u.length ? `Оновлення (${u.length}): ${u.slice(-5).map((x) => `${x.title} (${x.created_at.slice(0, 10)})`).join("; ")}${u.at(-1)?.body.match(/Де зупинились:\*\*\s*([^\n]+)/)?.[1] ? `\nДе зупинились: ${u.at(-1)!.body.match(/Де зупинились:\*\*\s*([^\n]+)/)![1]}` : ""}` : ""; })(),
     p.next_step && `Наступний крок: ${p.next_step}`,
   ].filter(Boolean).join("\n\n");
 }
@@ -97,6 +99,54 @@ ${productMd(p)}
 ${EXTRACT_TEMPLATE.replace("Продукт: назва програми", `Продукт: ${p.name}`)}`;
 }
 
+// Шаблон витяжки-оновлення: тільки нове з моменту, на якому зупинились
+export const updateTemplate = (name: string, ver: number, since: string) => `${UPDATE_MARK}
+Продукт: ${name}
+Оновлення: ${ver}
+Період: з ${since || "останньої витяжки"} по сьогодні
+Коротко (одне речення — що це оновлення дало):
+Що зробили (по порядку; кожен етап окремим рядком: [дата] що робили → до чого дійшли):
+- [2026-11-05] …
+Що змінилось для користувача (нові фічі, зміни):
+- …
+Що змінилось у складі (стек, модулі, API, база):
+- …
+Що ламалось → як виправили:
+- …
+Юридичне / доступи / платежі:
+- …
+Рішення (що вирішили і чому):
+- …
+Де зупинились (стан прямо зараз):
+- …
+Наступні кроки:
+- …
+[/CLIENT-OPS]`;
+
+// Промпт «Оновлення N»: Claude Code бачить, на чому ми зупинились, і віддає тільки нове
+export function updatePrompt(productId: number): string {
+  const p = getProduct(productId);
+  if (!p) return "";
+  const ver = nextUpdateVer(productId);
+  const ups = productUpdates(productId);
+  const last = ups.at(-1);
+  const tl = productTimeline(productId).slice(-5);
+  const since = (last?.created_at ?? tl.at(-1)?.created_at ?? "").slice(0, 10);
+  const open = listPItems(productId, "plan").filter((x) => !x.done).map((x) => x.title);
+  return `Продукт «${p.name}» уже записаний у моїй системі Client Ops. Мені потрібне ОНОВЛЕННЯ ${ver} — тільки те, що зроблено ПІСЛЯ того, на чому ми зупинились. Не повторюй старе.
+
+На чому зупинились у моїй системі:
+${last ? `- Останнє оновлення: «${last.title}» (${since})${last.body ? `
+${last.body.replace(/\*\*/g, "").split("\n").filter(Boolean).slice(0, 6).map((x) => `  ${x}`).join("\n")}` : ""}` : `- Стартовий паспорт від ${since || "—"}`}
+${tl.length ? `- Останні етапи хронології: ${tl.map((x) => `${x.created_at.slice(0, 10)} ${x.title}`).join("; ")}` : ""}
+${open.length ? `- Відкриті кроки: ${open.join("; ")}` : ""}
+${p.next_step ? `- Наступний крок був: ${p.next_step}` : ""}
+
+Подивись, що ми робили в цьому чаті і в коді (коміти) після ${since || "останнього запису"}, і видай оновлення СТРОГО в такому блоці (тільки факти, без ключів і паролів; порожні розділи пропусти):
+
+${updateTemplate(p.name, ver, since)}`;
+}
+
 type Ops = {
   product?: { name?: string; kind?: string; status?: string; summary?: string; how?: string; features?: string; stack?: string; links?: string; pros?: string; cons?: string; next_step?: string } | null;
   log?: { title: string; body?: string } | null;
@@ -105,6 +155,7 @@ type Ops = {
   decisions?: { title: string; body?: string }[];
   plan?: string[];
   ideas?: string[];
+  update?: { title?: string; summary?: string; stopped?: string; changes?: string } | null;
 };
 
 // Витяжка → паспорт продукту (productId null — новий або знайдений за назвою)
@@ -114,6 +165,7 @@ export async function importProduct(text: string, productId: number | null): Pro
   if (text.trim().length < 20) return { ok: false, error: "Порожня витяжка" };
   const cur = productId ? getProduct(productId) : undefined;
   const all = listProducts().map((p) => ({ id: p.id, name: p.name }));
+  const isUpdate = text.includes(UPDATE_MARK);
   const state = cur ? { id: cur.id, name: cur.name, kind: cur.kind, status: cur.status, summary: cur.summary, how: cur.how, features: lines(cur.features), stack: lines(cur.stack), links: lines(cur.links), pros: lines(cur.pros), cons: lines(cur.cons), next_step: cur.next_step } : null;
   const system = `Ти розкладаєш витяжку з Claude Code у паспорт продукту системи Client Ops. Дають поточний паспорт (або null — новий продукт), список наявних продуктів і витяжку.
 Поверни ТІЛЬКИ JSON:
@@ -123,7 +175,7 @@ export async function importProduct(text: string, productId: number | null): Pro
  "knowledge": [{"cat": "fix|integration|legal|lesson", "title": "...", "body": "причина → рішення / що знати наперед"}],
  "decisions": [{"title": "...", "body": "чому"}],
  "plan": ["наступний крок", ...], "ideas": ["...", ...]}
-Правила: тільки факти з витяжки; поля, яких у витяжці нема, повертай як є в паспорті (не стирай); списки зливай зі старими без дублів; юридичні моменти, доступи, платежі, верифікації → knowledge cat legal; ніяких ключів і паролів.`;
+${isUpdate ? `Це ОНОВЛЕННЯ (не повний паспорт): додай у JSON ще "update": {"title": "коротко про оновлення (з поля «Коротко»)", "summary": "що змінилось — пунктами", "stopped": "де зупинились", "changes": "що змінилось для користувача і в складі — пунктами"}; поля product повертай з урахуванням змін (нові фічі/склад додай до наявних), next_step = перший з «Наступних кроків»; timeline — етапи з «Що зробили».\n` : ""}Правила: тільки факти з витяжки; поля, яких у витяжці нема, повертай як є в паспорті (не стирай); списки зливай зі старими без дублів; юридичні моменти, доступи, платежі, верифікації → knowledge cat legal; ніяких ключів і паролів.`;
   try {
     const r = await new Anthropic({ apiKey: key, timeout: 120000, maxRetries: 1 }).messages.create({
       model: agentConfig().model, max_tokens: 8000, system, output_config: { effort: "low" },
@@ -132,14 +184,14 @@ export async function importProduct(text: string, productId: number | null): Pro
     const out = r.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("");
     const a = out.indexOf("{"), z = out.lastIndexOf("}");
     if (a < 0 || z <= a) return { ok: false, error: "Не вдалось розібрати — спробуй ще раз" };
-    return { ok: true, ...applyProductOps(JSON.parse(out.slice(a, z + 1)) as Ops, productId) };
+    return { ok: true, ...applyProductOps(JSON.parse(out.slice(a, z + 1)) as Ops, productId, isUpdate) };
   } catch (e) {
     logError("product-import", e);
     return { ok: false, error: (e as { status?: number }).status === 401 ? "Ключ Anthropic не підходить" : "Не вдалось розібрати — спробуй ще раз" };
   }
 }
 
-export function applyProductOps(ops: Ops, productId: number | null): { id: number; summary: string[] } {
+export function applyProductOps(ops: Ops, productId: number | null, isUpdate = false): { id: number; summary: string[] } {
   const sum: string[] = [];
   const P = ops.product ?? {};
   const patch = {
@@ -153,24 +205,32 @@ export function applyProductOps(ops: Ops, productId: number | null): { id: numbe
   if (!id && patch.name) id = listProducts().find((p) => p.name.toLowerCase() === patch.name!.toLowerCase())?.id ?? 0;
   if (id) { updateProduct(id, patch); sum.push("Паспорт оновлено"); }
   else { id = addProduct({ ...patch, name: patch.name || "Новий продукт" }); sum.push(`Новий продукт «${patch.name || "Новий продукт"}»`); }
+  // Номер: перша витяжка = старт (0), далі — Оновлення 1, 2, …; оновлення без паспорта теж іде номером
+  const ver = isUpdate || hasPassport(id) ? nextUpdateVer(id) : 0;
+  if (ver) {
+    const u = ops.update ?? {};
+    addPItem(id, { kind: "update", ver, title: `Оновлення ${ver}${u.title ? ` — ${u.title}` : ""}`, source: "extract",
+      body: [u.summary && `**Що зробили:**\n${u.summary}`, u.changes && `**Що змінилось:**\n${u.changes}`, u.stopped && `**Де зупинились:** ${u.stopped}`].filter(Boolean).join("\n\n") });
+    sum.push(`Оновлення ${ver}`);
+  }
   const have = new Set(productTimeline(id).map((x) => x.title.trim().toLowerCase()));
   let nt = 0;
   for (const t of ops.timeline ?? []) {
     if (!t?.title?.trim() || have.has(t.title.trim().toLowerCase())) continue;
-    addPItem(id, { kind: "log", title: t.title.trim(), body: [t.result && `**До чого дійшли:** ${t.result}`, t.body].filter(Boolean).join("\n\n"), source: "extract", at: t.at });
+    addPItem(id, { ver, kind: "log", title: t.title.trim(), body: [t.result && `**До чого дійшли:** ${t.result}`, t.body].filter(Boolean).join("\n\n"), source: "extract", at: t.at });
     have.add(t.title.trim().toLowerCase()); nt++;
   }
-  if (ops.log?.title && !have.has(ops.log.title.trim().toLowerCase())) { addPItem(id, { kind: "log", title: ops.log.title, body: ops.log.body, source: "extract" }); nt++; }
+  if (ops.log?.title && !have.has(ops.log.title.trim().toLowerCase())) { addPItem(id, { ver, kind: "log", title: ops.log.title, body: ops.log.body, source: "extract" }); nt++; }
   if (nt) sum.push(`Хронологія +${nt}`);
-  for (const k of ops.knowledge ?? []) if (k.title) addPItem(id, { kind: "knowledge", cat: k.cat && k.cat in P_KNOW ? k.cat : "lesson", title: k.title, body: k.body, source: "extract" });
+  for (const k of ops.knowledge ?? []) if (k.title) addPItem(id, { ver, kind: "knowledge", cat: k.cat && k.cat in P_KNOW ? k.cat : "lesson", title: k.title, body: k.body, source: "extract" });
   if (ops.knowledge?.length) sum.push(`Знання +${ops.knowledge.length}`);
-  for (const d of ops.decisions ?? []) if (d.title) addPItem(id, { kind: "decision", title: d.title, body: d.body, source: "extract" });
+  for (const d of ops.decisions ?? []) if (d.title) addPItem(id, { ver, kind: "decision", title: d.title, body: d.body, source: "extract" });
   if (ops.decisions?.length) sum.push(`Рішення +${ops.decisions.length}`);
   const open = new Set(listPItems(id, "plan").filter((x) => !x.done).map((x) => x.title.toLowerCase()));
   let np = 0;
-  for (const t of ops.plan ?? []) if (t?.trim() && !open.has(t.trim().toLowerCase())) { addPItem(id, { kind: "plan", title: t.trim(), source: "extract" }); np++; }
+  for (const t of ops.plan ?? []) if (t?.trim() && !open.has(t.trim().toLowerCase())) { addPItem(id, { ver, kind: "plan", title: t.trim(), source: "extract" }); np++; }
   if (np) sum.push(`Кроки +${np}`);
-  for (const t of ops.ideas ?? []) if (t?.trim()) addPItem(id, { kind: "idea", title: t.trim(), source: "extract" });
+  for (const t of ops.ideas ?? []) if (t?.trim()) addPItem(id, { ver, kind: "idea", title: t.trim(), source: "extract" });
   if (ops.ideas?.length) sum.push(`Ідеї +${ops.ideas.length}`);
   return { id, summary: sum };
 }
