@@ -2,6 +2,8 @@
 // Каркас на місяці роботи: конспект зверху, екосистема з частинами (будуємо / надаємо / сервіси), план по горизонтах, памʼять.
 import Link from "next/link";
 import Markdown from "@/components/Markdown";
+import Pop from "@/components/Pop";
+import Timeline from "@/components/Timeline";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import { fmtDate } from "@/lib/dates";
@@ -151,10 +153,10 @@ function PartView({ part: p, base, hid }: { part: Part; base: string; hid: React
         <List t="Мінуси / ризики" xs={lines(p.cons)} />
         {plan.length > 0 && <div className="card stack st-box"><b>Відкриті кроки</b><ul className="st-list">{plan.map((i) => <li key={i.id}>{i.title} <small>· {HORIZONS[i.horizon as keyof typeof HORIZONS]}</small></li>)}</ul></div>}
       </div>
-      {kn.length > 0 && <div className="card stack st-box"><b>Що знаємо · {kn.length}</b>{kn.map((k) => <details key={k.id}><summary>{k.title} <small className="mono">{KNOW_CATS[k.cat as keyof typeof KNOW_CATS] ?? ""}</small></summary>{k.body && <p className="mono">{k.body}</p>}</details>)}</div>}
+      {kn.length > 0 && <div className="card stack st-box"><b>Що знаємо · {kn.length}</b><div className="st-grid">{kn.map((k) => tile(k, KNOW_CATS[k.cat as keyof typeof KNOW_CATS]))}</div></div>}
       {dec.length > 0 && <div className="card stack st-box"><b>Рішення</b><ul className="st-list">{dec.map((d) => <li key={d.id}>{d.title}{d.body && <small> — {d.body}</small>}</li>)}</ul></div>}
       {ideas.length > 0 && <List t="Ідеї / масштабування" xs={ideas.map((i) => i.title)} />}
-      {log.length > 0 && <div className="card stack st-box"><b>Хроніка частини</b>{log.map((l) => <details key={l.id}><summary><small className="mono">{fmtDate(l.created_at)}</small> {l.title}</summary>{l.body && <div className="tm-details"><Markdown md={l.body} /></div>}</details>)}</div>}
+      {log.length > 0 && <div className="card stack st-box"><b>Хроніка частини</b><Timeline items={[...log].reverse().map((l) => ({ id: l.id, at: l.created_at, title: l.title, body: l.body, tag: l.source === "extract" ? "з витяжки" : undefined }))} /></div>}
       <details className="card">
         <summary><b>✎ Змінити частину</b></summary>
         <form action={savePartAction} className="stack" style={{ gap: "0.5rem", marginTop: "0.75rem" }}>
@@ -223,22 +225,24 @@ function PlanItem({ i, parts }: { i: SItem; parts: Part[] }) {
 }
 
 function Log({ clientId, parts }: { clientId: number; parts: Part[] }) {
-  const log = listItems(clientId, { kind: "log", limit: 200 });
-  return log.length ? (
-    <div className="stack" style={{ gap: "0.5rem" }}>
-      {log.map((l) => (
-        <details key={l.id} className="card st-log">
-          <summary><small className="mono">{fmtDate(l.created_at)}</small> <b>{l.title}</b>{partName(parts, l.part_id) && <span className="tag">{partName(parts, l.part_id)}</span>}{l.source === "extract" && <span className="mono">· з витяжки</span>}</summary>
-          {l.body && <div className="tm-details"><Markdown md={l.body} /></div>}
-        </details>
-      ))}
-    </div>
-  ) : <p className="mono">Хроніка порожня. Кожна вставлена витяжка лягає сюди.</p>;
+  const log = listItems(clientId, { kind: "log", limit: 200 }).reverse();
+  return <Timeline items={log.map((l) => ({ id: l.id, at: l.created_at, title: l.title, body: l.body, tag: [partName(parts, l.part_id), l.source === "extract" ? "з витяжки" : ""].filter(Boolean).join(" · ") || undefined }))} empty="Хроніка порожня. Кожна вставлена витяжка лягає сюди." />;
+}
+
+// Плитка: коротко на екрані, повністю — у попапі (з кнопкою «Прибрати»)
+function tile(i: SItem, tag?: string, parts?: Part[]) {
+  const sub = [tag, parts && partName(parts, i.part_id), fmtDate(i.created_at)].filter(Boolean).join(" · ");
+  return (
+    <Pop key={i.id} title={i.title} sub={sub} trigger={<div className="pv"><div className="pv-t">{i.title}</div>{i.body && <div className="pv-s">{i.body}</div>}<div className="pv-m">{sub}</div></div>}>
+      {i.body ? <div className="tm-details"><Markdown md={i.body} /></div> : <p className="mono">Деталей нема.</p>}
+      <form action={itemAction} style={{ marginTop: "0.75rem" }}><input type="hidden" name="item_id" value={i.id} /><input type="hidden" name="op" value="delete" /><button className="ghost small">Прибрати</button></form>
+    </Pop>
+  );
 }
 
 function Knowledge({ clientId, parts, hid }: { clientId: number; parts: Part[]; hid: React.ReactNode }) {
   const kn = listItems(clientId, { kind: "knowledge" }), dec = listItems(clientId, { kind: "decision" }), ideas = listItems(clientId, { kind: "idea" });
-  const row = (i: SItem) => <details key={i.id} className="st-k"><summary>{i.title}{partName(parts, i.part_id) && <small className="mono"> · {partName(parts, i.part_id)}</small>}</summary>{i.body && <p className="mono">{i.body}</p>}<form action={itemAction}><input type="hidden" name="item_id" value={i.id} /><input type="hidden" name="op" value="delete" /><button className="ghost small">Прибрати</button></form></details>;
+  const row = (i: SItem) => tile(i, undefined, parts);
   return (
     <div className="stack" style={{ gap: "1rem" }}>
       <form action={addItemAction} className="card mk-form">
@@ -250,9 +254,9 @@ function Knowledge({ clientId, parts, hid }: { clientId: number; parts: Part[]; 
         <select name="part_id" defaultValue=""><option value="">— частина —</option>{parts.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</select>
         <div><SubmitButton className="small">Записати</SubmitButton></div>
       </form>
-      {Object.entries(KNOW_CATS).map(([k, v]) => { const xs = kn.filter((i) => (i.cat || "lesson") === k); return xs.length ? <div key={k} className="card stack st-box"><b>{v} · {xs.length}</b>{xs.map(row)}</div> : null; })}
-      {dec.length > 0 && <div className="card stack st-box"><b>Рішення · {dec.length}</b>{dec.map(row)}</div>}
-      {ideas.length > 0 && <div className="card stack st-box"><b>Ідеї / масштабування · {ideas.length}</b>{ideas.map(row)}</div>}
+      {Object.entries(KNOW_CATS).map(([k, v]) => { const xs = kn.filter((i) => (i.cat || "lesson") === k); return xs.length ? <div key={k} className="card stack st-box"><b>{v} · {xs.length}</b><div className="st-grid">{xs.map(row)}</div></div> : null; })}
+      {dec.length > 0 && <div className="card stack st-box"><b>Рішення · {dec.length}</b><div className="st-grid">{dec.map(row)}</div></div>}
+      {ideas.length > 0 && <div className="card stack st-box"><b>Ідеї / масштабування · {ideas.length}</b><div className="st-grid">{ideas.map(row)}</div></div>}
       {!kn.length && !dec.length && !ideas.length && <p className="mono">Поки порожньо — з витяжок сюди лягає, що ламалось і як виправили, інтеграції, рішення.</p>}
     </div>
   );

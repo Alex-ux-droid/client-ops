@@ -1,3 +1,5 @@
+import Pop from "@/components/Pop";
+import Timeline from "@/components/Timeline";
 import Link from "next/link";
 import {
   attachPlaybookAction, detachPlaybookAction, logWork, playbookToTasks, removeMaterial, removeWork,
@@ -44,19 +46,11 @@ export function HistoryTab({ id }: { id: number }) {
           <div className="inline"><input type="date" name="done_at" defaultValue={ymd()} aria-label="Дата" /><button>Записати</button></div>
         </form>
       </details>
-      <div className="list timeline">
-        {work.length ? work.map((w) => (
-          <div key={w.id} className="row">
-            <div className="row-main">
-              <div className="mono">{fmtDate(w.done_at)}{w.task_id ? " · із задачі" : ""}</div>
-              <div className="row-title">{w.what}</div>
-              {w.why && <div className="row-sub">Чому: {w.why}</div>}
-              {w.result && <div className="row-sub" style={{ color: "var(--ok)" }}>Результат: {w.result}</div>}
-            </div>
-            <form action={removeWork}><input type="hidden" name="id" value={w.id} /><button className="ghost small" title="Видалити">✕</button></form>
-          </div>
-        )) : <div className="empty">Історії ще нема.</div>}
-      </div>
+      <Timeline empty="Історії ще нема." items={[...work].reverse().map((w) => ({
+        id: w.id, at: w.done_at, title: w.what, tag: w.task_id ? "із задачі" : undefined,
+        body: [w.result && `**Результат:** ${w.result}`, w.why && `**Чому:** ${w.why}`].filter(Boolean).join("\n\n"),
+        actions: <form action={removeWork}><input type="hidden" name="id" value={w.id} /><button className="ghost small">Видалити</button></form>,
+      }))} />
     </>
   );
 }
@@ -105,16 +99,14 @@ export function MaterialsTab({ id }: { id: number }) {
           <button>Зберегти</button>
         </form>
       </details>
-      <div className="list">
+      <div className="stack" style={{ gap: "0.5rem" }}>
         {materials.length ? materials.map((m) => (
-          <details key={m.id} className="row" style={{ display: "block" }}>
-            <summary>
-              <div className="row-title">{m.title}</div>
-              <div className="meta"><span className="tag">{KIND_LABEL[m.kind]}</span><span className="mono">{fmtDate(m.created_at)}</span></div>
-            </summary>
+          <Pop key={m.id} wide title={m.title} sub={`${KIND_LABEL[m.kind]} · ${fmtDate(m.created_at)}`} trigger={
+            <div className="pv"><div className="pv-t">{m.title}</div><div className="pv-s">{m.content.slice(0, 300)}</div><div className="pv-m">{KIND_LABEL[m.kind]} · {fmtDate(m.created_at)}</div></div>
+          }>
             <pre className="material">{m.content}</pre>
             <form action={removeMaterial} style={{ marginTop: 8 }}><input type="hidden" name="id" value={m.id} /><button className="ghost small">Видалити</button></form>
-          </details>
+          </Pop>
         )) : <div className="empty">Матеріалів нема.</div>}
       </div>
     </>
