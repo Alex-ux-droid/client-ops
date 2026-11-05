@@ -13,6 +13,9 @@ import { getComm } from "../repo/comm";
 import { leadStats } from "../repo/leads";
 import { getClientMemory } from "../repo/clientMemory";
 import { strategySnapshot } from "../strategy";
+import { getCrmLink } from "../repo/crm";
+import { crmByAd, crmStats } from "../crm";
+import { adTotalsForClient } from "../repo/meta";
 import { listWork } from "../repo/worklog";
 import { clientMessages } from "../repo/telegram";
 import { listChanges } from "../repo/creatives";
@@ -105,6 +108,12 @@ export function clientSnapshot(clientId: number): string {
     if (ls.total) out.push(`Заявки з лід-форм за 7 днів: ${ls.total}, взяли в роботу ${ls.taken}, якісних ${ls.good}, сміття ${ls.bad}, без оцінки ${ls.unrated} (деталі — інструмент leads).`);
     else out.push("Заявок з лід-форм за 7 днів у системі нема (або сторінка не підключена — Налаштування → Конектори → Meta → «Заявки з лід-форм»).");
   } else out.push("Meta Ads: кабінет до клієнта не привʼязаний.");
+  const crmLink = getCrmLink(clientId);
+  if (crmLink) {
+    const st = crmStats(clientId, new Date(Date.now() - 30 * 86400_000).toISOString());
+    const top = crmByAd(clientId, adTotalsForClient(clientId)).filter((a) => a.sales).slice(0, 5);
+    out.push(`CRM клієнта (продажі з усіх джерел, 30 днів, ${st.currency}): лідів ${st.leads}, продажів ${st.sales} на ${Math.round(st.revenue)}, середній чек ${st.avgCheck ? Math.round(st.avgCheck) : "—"}, лід→продаж ${st.conv == null ? "—" : st.conv.toFixed(1) + "%"}, перший контакт (медіана) ${st.speedMin ?? "—"} хв, без контакту ${st.noContact}.${st.lost.length ? ` Відмови: ${st.lost.slice(0, 3).map((x) => `${x.key} ${x.n}`).join(", ")}.` : ""}${top.length ? `\nОголошення, що продають (весь час): ${top.map((a) => `«${a.ad_name}» ${a.sales} прод. на ${Math.round(a.revenue)}${a.roas != null ? `, ROAS ${a.roas.toFixed(1)}` : ""}`).join("; ")}` : ""} Деталі — crm_sales.`);
+  }
   if (c.drive_url) out.push("Папка клієнта на Google Диску є — що в ній лежить (і те, що Саша закинув руками), дивись drive_list, картинки звідти — view_images.");
   const changes = listChanges(clientId, 8);
   if (changes.length) out.push(`Журнал змін реклами (останні):\n${changes.map((x) => `- ${x.at}: ${x.what}${x.expect ? ` (чекали: ${x.expect})` : ""}${x.result ? ` → вийшло: ${x.result}` : " → результат ще не записано"} [change_id ${x.id}]`).join("\n")}`);

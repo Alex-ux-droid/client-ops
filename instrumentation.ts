@@ -16,6 +16,7 @@ export async function register() {
   const { tipsTick } = await import("./lib/tips");
   const { leadsTick } = await import("./lib/metaLeads");
   const { weeklyReportTick } = await import("./lib/clientReport");
+  const { crmTick } = await import("./lib/crm");
   const tick = async () => {
     await digestTick().catch((e) => logError("digest", e));
     await backupTick().catch((e) => logError("backup", e));
@@ -25,6 +26,7 @@ export async function register() {
     await tipsTick().catch((e) => logError("tips", e));
     await leadsTick().catch((e) => logError("leads", e));
     await weeklyReportTick().catch((e) => logError("weekly-report", e));
+    await crmTick().catch((e) => logError("crm", e));
   };
   setTimeout(tick, 90_000);
   setInterval(tick, 60_000);

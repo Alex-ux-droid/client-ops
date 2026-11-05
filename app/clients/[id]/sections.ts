@@ -1,5 +1,6 @@
 // Розділи картки клієнта: ліва «карта» на компʼютері і вкладки на телефоні беруть їх звідси
 import { googleConnected } from "@/lib/google";
+import { getCrmLink } from "@/lib/repo/crm";
 import type { ClientRow } from "@/lib/repo/clients";
 import { clientPlaybooks } from "@/lib/repo/playbooks";
 import type { ClientService } from "@/lib/repo/services";
@@ -21,6 +22,7 @@ export function clientSections(c: ClientRow, services: ClientService[]): Section
   return [
     { k: "overview", label: "Огляд", ico: "home", group: "" },
     { k: "strategy", label: "Стратегія", ico: "zap", group: "" },
+    ...(getCrmLink(c.id) || services.some((s) => s.type === "crm") ? [{ k: "sales", label: "Продажі", ico: "wallet", group: "" }] : []),
     ...services.map((s) => ({ k: s.type, label: SERVICES[s.type as ServiceType].label, ico: SVC_ICO[s.type] ?? "zap", group: "Послуги", svc: true })),
     ...(chatsForClient(c.id).length ? [{ k: "telegram", label: "Telegram", ico: "send", group: "Звʼязок" }] : []),
     // Пошта — тільки якщо в клієнта є email (і підключено Google)

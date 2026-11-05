@@ -2,7 +2,7 @@
 // Цифри тягнемо самі за розкладом (вебхуків на витрати в Meta нема).
 import { logError } from "./log";
 import { autoOn } from "./agent/caps";
-import { saveAdDaily, saveAdExtra, saveAdsetExtra, saveMonthly, type AdExtra, type AdsetExtra } from "./repo/meta";
+import { saveAdTotals, saveAdDaily, saveAdExtra, saveAdsetExtra, saveMonthly, type AdExtra, type AdsetExtra } from "./repo/meta";
 import { autoLinkFromServices, getAnalysis, kyivDay, totals, saveSync, setSyncResult, upsertAccount, listAccounts, type Breakdown, type MetaAd, type MetaAdset, type MetaCampaign } from "./repo/meta";
 import { getSetting, setSetting } from "./repo/settings";
 import { enableService, getService } from "./repo/services";
@@ -294,6 +294,13 @@ async function syncExtras(accountId: string, adIds: string[], range: string, sin
       ad_id: x.ad_id!, date: String(x.date_start), spend: num(x.spend), impressions: num(x.impressions), clicks: num(x.clicks), leads: leadsOf(x.actions),
     })));
   } catch (e) { logError(`meta-ad-daily ${accountId}`, e); }
+  // 4б) Кожне оголошення за весь час (для ціни продажу з CRM), раз на ~добу
+  const tkey = `meta.adtotal_at.${accountId}`;
+  if (Date.now() - +new Date(getSetting(tkey) || 0) > 20 * 3600_000) try {
+    const rows = await metaAll<R>(`${accountId}/insights`, { level: "ad", fields: "ad_id,ad_name,campaign_name,spend,actions", date_preset: "maximum", limit: "500" });
+    saveAdTotals(accountId, rows.filter((x) => x.ad_id).map((x) => ({ ad_id: x.ad_id!, ad_name: String(x.ad_name ?? ""), campaign_name: String(x.campaign_name ?? ""), spend: num(x.spend), leads: leadsOf(x.actions) })));
+    setSetting(tkey, new Date().toISOString());
+  } catch (e) { logError(`meta-ad-total ${accountId}`, e); }
   // 5) 12 місяців по місяцях (раз на добу досить)
   const key = `meta.monthly_at.${accountId}`;
   if (Date.now() - +new Date(getSetting(key) || 0) > 20 * 3600_000) try {

@@ -168,6 +168,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "tip_add", description: "Записати пораду в базу «Поради від Джері» (Саша побачить її під час роботи). Коли в розмові виникло щось корисне про бізнес, маркетинг, рекламу, продажі, переговори, термін чи факт — або Саша попросив «запамʼятай як пораду». Коротко: заголовок до 60 символів, текст 2–4 речення, тільки перевірені факти.", input_schema: obj({ topic: { type: "string", enum: Object.keys(TIP_TOPICS) }, title: str("Заголовок"), body: str("Текст поради: думка + як застосувати") }, ["topic", "title", "body"]) },
   { name: "tips_stats", description: "Поради дня: скільки показано, як Саша реагує по темах (знав / нове / не цікаво / детальніше) і які саме поради зачепили чи були відомі. Дивись, щоб розуміти його рівень і інтереси.", input_schema: obj({}) },
   { name: "system_updates", description: "Журнал оновлень системи: що Claude додав або змінив і коли (твої нові можливості). Дивись, коли не впевнений, чи щось уже вміє система.", input_schema: obj({ limit: int("Скільки останніх, за замовчуванням 20") }, []) },
+  { name: "crm_sales", description: "Продажі клієнта з його CRM (усі джерела, не тільки реклама; тільки читання): ліди, продажі, сума, середній чек, конверсія лід→продаж, швидкість першого контакту, ліди без контакту, джерела, менеджери, причини відмов; «реклама → продажі» по кожному оголошенню Meta за весь час (витрати, ліди, продажі, ціна продажу, ROAS); точка нуль (до нас); останні угоди. Оптимізуй рекламу під продажі, а не під дешеві ліди.", input_schema: obj({ client_id: int("ID клієнта"), days: int("Період у днях, за замовчуванням 30") }, ["client_id"]) },
   { name: "meta_ads", description: "Живі цифри Meta Ads клієнта (оновлюються самі кожні 2 год, тільки читання): підсумок за N днів і попередні N днів (витрати, покази, кліки, ліди, ціна ліда, CTR), по днях, кампанії з бюджетами і статусами, топ креативів за 30 днів (відео: хук/утримання; покупки і ROAS, якщо є піксель; ціна ліда 7д проти попередніх 7 — вигорання), групи з фазою навчання і таргетингом, відхилені оголошення, 12 місяців по місяцях, тривоги. Змінювати рекламу ти не можеш — тільки радити.", input_schema: obj({ client_id: int("ID клієнта"), days: int("Період у днях, за замовчуванням 7") }, ["client_id"]) },
   { name: "meta_accounts", description: "Усі рекламні кабінети Meta, які бачить система: id, назва, валюта, статус (активний/закритий/борг), до якого клієнта привʼязаний.", input_schema: obj({}) },
   { name: "meta_link", description: "Привʼязати рекламний кабінет Meta до клієнта (або відвʼязати: client_id = 0) і одразу підтягнути цифри. Закриті кабінети не привʼязуй. Якщо не впевнений, який кабінет чий, — спитай Сашу, не вгадуй.", input_schema: obj({ account_id: str("ID кабінету, напр. act_123…"), client_id: int("ID клієнта; 0 — відвʼязати") }, ["account_id", "client_id"]) },
@@ -797,6 +798,30 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       attachPlaybook(cid, pid);
       act("playbook", `Плейбук «${pb.title}» → ${clientName(cid)}`, `/clients/${cid}?tab=playbooks`);
       return { ok: true };
+    }
+
+    case "crm_sales": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      const { getCrmLink, crmLeads } = await import("../repo/crm");
+      const link = getCrmLink(cid);
+      if (!link) return { note: "CRM до клієнта не підключена (картка клієнта → Продажі)." };
+      const crm = await import("../crm");
+      const d = Math.min(730, Math.max(1, n(input.days) || 30));
+      const st = crm.crmStats(cid, new Date(Date.now() - d * 86400_000).toISOString());
+      const { adTotalsForClient } = await import("../repo/meta");
+      let baseline: unknown = null;
+      try { baseline = (JSON.parse(link.summary_json || "{}") as { baseline?: unknown }).baseline ?? null; } catch { /* */ }
+      const r2 = (v: number | null) => (v == null ? null : +v.toFixed(2));
+      return {
+        currency: st.currency, period_days: d, last_event: link.last_event_at, last_pull: link.last_pull_at, error: link.last_error || undefined,
+        totals: { leads: st.leads, sales: st.sales, revenue: r2(st.revenue), avg_check: r2(st.avgCheck), conv_pct: r2(st.conv), paid: r2(st.paid), first_contact_median_min: st.speedMin, leads_without_contact: st.noContact },
+        by_source: st.bySource, managers: st.managers, statuses: st.byStatus, lost_reasons: st.lost,
+        ads_to_sales_all_time: crm.crmByAd(cid, adTotalsForClient(cid)).slice(0, 25).map((a) => ({ ...a, spend: r2(a.spend), cps: r2(a.cps), roas: r2(a.roas) })),
+        recent_deals: crmLeads(cid).filter((l) => l.won_at).sort((a, b) => (b.won_at ?? "").localeCompare(a.won_at ?? "")).slice(0, 10)
+          .map((l) => ({ name: l.name, amount: l.deal_amount, paid: l.paid_amount, won_at: l.won_at, manager: l.manager, source: l.source, ad: l.ad_name })),
+        baseline,
+        note: "Продажі рахуються за моментом переходу в «Продано»; конверсія — з лідів, створених у періоді. Цикл продажу квартир довгий — свіжі ліди ще не встигли купити.",
+      };
     }
 
     case "meta_ads": {
