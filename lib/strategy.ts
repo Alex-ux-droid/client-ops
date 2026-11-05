@@ -3,6 +3,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { agentConfig } from "./agent/config";
 import { logError } from "./log";
+import { askJson, llmErrorText } from "./llmJson";
 import { getClientRow } from "./repo/clients";
 import { getClientMemory } from "./repo/clientMemory";
 import { getApiKey } from "./secrets";
@@ -132,17 +133,11 @@ export async function importExtract(clientId: number, text: string): Promise<{ o
  "where_now": "оновлене «де ми зараз» 1–2 речення або null", "focus": "оновлене «головне зараз» або null"}
 Правила: тільки факти з витяжки; поля частини, яких у витяжці нема, повертай як є зараз (не стирай); не дублюй кроки, що вже є в open_plan; якщо частина в витяжці збігається з існуючою за змістом — використай її id.`;
   try {
-    const r = await new Anthropic({ apiKey: key, timeout: 120000, maxRetries: 1 }).messages.create({
-      model: agentConfig().model, max_tokens: 8000, system, output_config: { effort: "low" },
-      messages: [{ role: "user", content: `СТАН:\n${JSON.stringify(state)}\n\nВИТЯЖКА:\n${text.slice(0, 30000)}` }],
-    });
-    const out = r.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("");
-    const ops = JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)) as Ops;
+    const ops = await askJson<Ops>(system, `СТАН:\n${JSON.stringify(state)}\n\nВИТЯЖКА:\n${text.slice(0, 60000)}`);
     return { ok: true, ...applyOps(clientId, ops) };
   } catch (e) {
     logError("strategy-import", e);
-    const st = (e as { status?: number }).status;
-    return { ok: false, error: st === 401 ? "Ключ Anthropic не підходить" : "Не вдалось розібрати — спробуй ще раз" };
+    return { ok: false, error: llmErrorText(e) };
   }
 }
 

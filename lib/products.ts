@@ -1,9 +1,9 @@
 // Продукти: паспорт для Джері і промптів, промпти для Claude Code, розбір витяжки [CLIENT-OPS:ПРОДУКТ], прийом подій програм.
 import Anthropic from "@anthropic-ai/sdk";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { agentConfig } from "./agent/config";
 import { autoOn } from "./agent/caps";
 import { logError } from "./log";
+import { askJson, llmErrorText } from "./llmJson";
 import {
   addPItem, addProduct, addProductEvent, getOrg, getProduct, listPItems, listProducts, ORG_FIELDS, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productEvents, productTimeline, productUpdates, nextUpdateVer, hasPassport, updateProduct,
   type Product, type ProductKind, type ProductStatus,
@@ -178,17 +178,11 @@ export async function importProduct(text: string, productId: number | null): Pro
  "plan": ["наступний крок", ...], "ideas": ["...", ...]}
 ${isUpdate ? `Це ОНОВЛЕННЯ (не повний паспорт): додай у JSON ще "update": {"title": "коротко про оновлення (з поля «Коротко»)", "summary": "що змінилось — пунктами", "stopped": "де зупинились", "changes": "що змінилось для користувача і в складі — пунктами"}; поля product повертай з урахуванням змін (нові фічі/склад додай до наявних), next_step = перший з «Наступних кроків»; timeline — етапи з «Що зробили».\n` : ""}Правила: тільки факти з витяжки; поля, яких у витяжці нема, повертай як є в паспорті (не стирай); списки зливай зі старими без дублів; юридичні моменти, доступи, платежі, верифікації → knowledge cat legal; ніяких ключів і паролів.`;
   try {
-    const r = await new Anthropic({ apiKey: key, timeout: 120000, maxRetries: 1 }).messages.create({
-      model: agentConfig().model, max_tokens: 8000, system, output_config: { effort: "low" },
-      messages: [{ role: "user", content: `ПАСПОРТ:\n${JSON.stringify(state)}\n\nEXISTING_TIMELINE:\n${JSON.stringify(cur ? productTimeline(cur.id).map((x) => ({ at: x.created_at.slice(0, 10), title: x.title })) : [])}\n\nНАЯВНІ ПРОДУКТИ:\n${JSON.stringify(all)}\n\nВИТЯЖКА:\n${text.slice(0, 30000)}` }],
-    });
-    const out = r.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("");
-    const a = out.indexOf("{"), z = out.lastIndexOf("}");
-    if (a < 0 || z <= a) return { ok: false, error: "Не вдалось розібрати — спробуй ще раз" };
-    return { ok: true, ...applyProductOps(JSON.parse(out.slice(a, z + 1)) as Ops, productId, isUpdate) };
+    const ops = await askJson<Ops>(system + "\nПиши стисло: body — до 3 коротких пунктів, без води.", `ПАСПОРТ:\n${JSON.stringify(state)}\n\nEXISTING_TIMELINE:\n${JSON.stringify(cur ? productTimeline(cur.id).map((x) => ({ at: x.created_at.slice(0, 10), title: x.title })) : [])}\n\nНАЯВНІ ПРОДУКТИ:\n${JSON.stringify(all)}\n\nВИТЯЖКА:\n${text.slice(0, 60000)}`);
+    return { ok: true, ...applyProductOps(ops, productId, isUpdate) };
   } catch (e) {
     logError("product-import", e);
-    return { ok: false, error: (e as { status?: number }).status === 401 ? "Ключ Anthropic не підходить" : "Не вдалось розібрати — спробуй ще раз" };
+    return { ok: false, error: llmErrorText(e) };
   }
 }
 

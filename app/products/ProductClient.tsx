@@ -39,7 +39,7 @@ export function ProductImport({ productId, compact }: { productId: number | null
           setBusy(false);
           if (r.ok) { setText(""); setRes({ ok: true, lines: r.summary }); if (!productId) router.push(`/products/${r.id}`); else router.refresh(); }
           else setRes({ ok: false, lines: [r.error] });
-        }}>{busy ? "Джері розкладає… ~30 с" : "Розкласти в паспорт"}</button>
+        }}>{busy ? "Джері розкладає… до 1–2 хв" : "Розкласти в паспорт"}</button>
         {compact && <button type="button" className="ghost small" onClick={() => setOpen(false)}>Згорнути</button>}
       </div>
       {res && <div className={`mono ${res.ok ? "st-ok" : "st-bad"}`}>{res.ok ? "Записав: " : ""}{res.lines.join(" · ")}</div>}
