@@ -1,6 +1,6 @@
 // Продукти: паспорт для Джері і промптів, промпти для Claude Code, розбір витяжки [CLIENT-OPS:ПРОДУКТ], прийом подій програм.
 import Anthropic from "@anthropic-ai/sdk";
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { autoOn } from "./agent/caps";
 import { logError } from "./log";
 import { askJson, llmErrorText } from "./llmJson";
@@ -9,7 +9,7 @@ import {
   type Product, type ProductKind, type ProductStatus,
 } from "./repo/products";
 import { lines } from "./repo/strategy";
-import { getSetting } from "./repo/settings";
+import { getSetting, setSetting } from "./repo/settings";
 import { getApiKey, setEnvVar } from "./secrets";
 
 export const PRODUCT_MARK = "[CLIENT-OPS:ПРОДУКТ]";
@@ -258,10 +258,28 @@ export async function appWebhook(productId: number, raw: string, h: Headers): Pr
       have.add(t.toLowerCase());
     }
   }
-  if ((event === "app.error" || event === "app.feedback") && autoOn("product_alerts")) void (async () => {
+  if ((event === "app.error" || event === "app.feedback" || event === "app.insight") && autoOn("product_alerts")) void (async () => {
     const { tg, tgOwner } = await import("./telegram");
     const owner = tgOwner();
-    if (owner) await tg("sendMessage", { chat_id: owner, text: `${event === "app.error" ? "⚠️ Помилка" : "💬 Відгук"} · ${p.name}\n${summary}` });
+    if (!owner) return;
+    // Хто постраждав: клієнти продукту (або client з події) — щоб одразу було видно «на Аква Віті поломка»
+    const cl = productClients(productId).map((c) => c.name);
+    const who = [cl.length === 1 ? cl[0] : s(b.client), p.name].filter(Boolean).join(" · ");
+    const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+    const link = host ? `\n\nЩо виправити: ${h.get("x-forwarded-proto") ?? "https"}://${host}/products/${productId}?v=connect` : "";
+    if (event === "app.insight") {
+      const items = Array.isArray(data.items) ? (data.items as Record<string, unknown>[]) : [];
+      if (!items.length) return;
+      const high = items.filter((x) => s(x.severity) === "high").length;
+      await tg("sendMessage", { chat_id: owner, text: `🔎 Самоаудит · ${who}\nЗнайшов ${items.length}${high ? `, важливих: ${high}` : ""}:\n${items.slice(0, 3).map((x) => `• ${s(x.title)}`).join("\n")}${link}` });
+      return;
+    }
+    // Без спаму: однакова помилка — не частіше разу на годину
+    const fp = `app.alert.${productId}.${createHash("sha1").update(summary.replace(/\d+/g, "#").toLowerCase()).digest("hex").slice(0, 16)}`;
+    const last = getSetting(fp);
+    if (last && Date.now() - Date.parse(last) < 3600_000) return;
+    setSetting(fp, new Date().toISOString());
+    await tg("sendMessage", { chat_id: owner, text: `${event === "app.error" ? "⚠️ Поломка" : "💬 Відгук менеджера"} · ${who}\n${summary}${link}` });
   })().catch((e) => logError("product-alert", e));
   return { status: 200, body: { ok: true } };
 }
