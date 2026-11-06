@@ -5,7 +5,7 @@ import ListPop from "@/components/ListPop";
 import { BrandDot } from "@/components/Brand";
 import { analyzeMetaAction } from "@/app/actions";
 import AskAssistant from "@/components/AskAssistant";
-import { BarChart } from "@/components/Charts";
+import { ComboChart } from "@/components/Charts";
 import SubmitButton from "@/components/SubmitButton";
 import { fmtDate } from "@/lib/dates";
 import { cplOf, creativeVerdict, ctrOf, freqOf, label, metaInsights, type Tone } from "@/lib/metaInsights";
@@ -150,15 +150,9 @@ function Overview({ clientId, m, base }: { clientId: number; m: Fmt; base: strin
       )}
 
       {series.length > 1 && (
-        <div className="grid2">
-          <div className="card">
-            <div className="mono" style={{ marginBottom: "0.5rem" }}>Витрати по днях</div>
-            <BarChart width={600} fmt={(n) => fmtN(n)} data={series.map((d) => ({ label: d.date.slice(8, 10), value: d.spend, tip: `${fmtDate(d.date)}: ${m(d.spend)}, лідів ${d.leads}` }))} />
-          </div>
-          <div className="card">
-            <div className="mono" style={{ marginBottom: "0.5rem" }}>Ліди по днях</div>
-            <BarChart width={600} fmt={(n) => fmtN(n)} data={series.map((d) => ({ label: d.date.slice(8, 10), value: d.leads, tip: `${fmtDate(d.date)}: лідів ${d.leads}, ціна ${m(cplOf(d))}` }))} />
-          </div>
+        <div className="card">
+          <ComboChart barName="Витрати" lineName="Ліди" fmtBar={(n) => fmtN(n)} fmtLine={(n) => fmtN(n)}
+            data={series.map((d) => ({ label: d.date.slice(8, 10), bar: d.spend, line: d.leads, tip: `${fmtDate(d.date)}: ${m(d.spend)}, лідів ${d.leads}${d.leads ? `, ціна ${m(cplOf(d))}` : ""}` }))} />
         </div>
       )}
 

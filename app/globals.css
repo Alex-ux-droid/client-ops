@@ -2031,3 +2031,14 @@ button.pop-card.mx-main li { white-space: nowrap; overflow: hidden; text-overflo
 .mx-warn { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; padding: 0.5rem 0.875rem; border: 1px solid rgba(251, 191, 36, 0.45); background: var(--warn-soft); border-radius: var(--radius-sm); font-size: 0.875rem; color: var(--muted); }
 .mx-warn svg { color: var(--warn); }
 .mx-warn b { color: var(--text); font-weight: 600; }
+/* Комбо-графік: стовпчики + лінія */
+.combo-legend { display: flex; gap: 1rem; margin-bottom: 0.375rem; font-size: 0.8125rem; color: var(--muted); }
+.combo-legend span { display: inline-flex; align-items: center; gap: 0.375rem; }
+.combo-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+.cl-bar { background: var(--accent); }
+.cl-line { background: var(--ok); height: 3px !important; border-radius: 2px !important; }
+.chart .combo-line { fill: none; stroke: var(--ok); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.chart .combo-dot { fill: var(--bg-raise); stroke: var(--ok); stroke-width: 2; }
+.chart .combo-r { fill: var(--ok); }
+.combo-narrow { display: none; }
+@media (max-width: 720px) { .combo-wide { display: none; } .combo-narrow { display: block; } }

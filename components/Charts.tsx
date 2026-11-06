@@ -88,3 +88,51 @@ export function LineChart({ data, fmt, width: W = 600 }: { data: Point[]; fmt: (
     </svg>
   );
 }
+
+// Дві серії на одному графіку: стовпчики (ліва вісь) + лінія з точками (права вісь). Напр. витрати і ліди по днях.
+type ComboProps = { data: { label: string; bar: number; line: number; tip: string }[]; fmtBar: (n: number) => string; fmtLine: (n: number) => string; barName: string; lineName: string };
+// Дві версії: широка для компʼютера і вузька для телефону (у вузькій підписи більші відносно ширини)
+export function ComboChart(props: ComboProps) {
+  return (
+    <div className="combo">
+      <div className="combo-legend"><span><i className="cl-bar" />{props.barName}</span><span><i className="cl-line" />{props.lineName}</span></div>
+      <div className="combo-wide"><ComboSvg {...props} W={1100} labels={15} /></div>
+      <div className="combo-narrow"><ComboSvg {...props} W={420} labels={6} /></div>
+    </div>
+  );
+}
+
+function ComboSvg({ data, fmtBar, fmtLine, W, labels }: ComboProps & { W: number; labels: number }) {
+  const P = { t: 12, r: 40, b: 24, l: 48 };
+  const maxB = niceMax(Math.max(0, ...data.map((d) => d.bar)));
+  const maxL = niceMax(Math.max(0, ...data.map((d) => d.line)));
+  const iw = W - P.l - P.r, ih = H - P.t - P.b, step = iw / Math.max(1, data.length), bw = Math.min(28, step * 0.6);
+  const yB = (v: number) => P.t + ih * (1 - v / maxB), yL = (v: number) => P.t + ih * (1 - v / maxL);
+  const cx = (i: number) => P.l + step * i + step / 2;
+  const line = data.map((d, i) => `${i ? "L" : "M"}${cx(i)},${yL(d.line)}`).join(" ");
+  const every = Math.ceil(data.length / labels);
+  return (
+      <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img">
+        {[0, 0.5, 1].map((k) => (
+          <g key={k}>
+            <line className="grid" x1={P.l} x2={W - P.r} y1={P.t + ih * (1 - k)} y2={P.t + ih * (1 - k)} />
+            <text x={P.l - 8} y={P.t + ih * (1 - k) + 3} textAnchor="end">{fmtBar(maxB * k)}</text>
+            <text x={W - P.r + 8} y={P.t + ih * (1 - k) + 3} textAnchor="start" className="combo-r">{fmtLine(maxL * k)}</text>
+          </g>
+        ))}
+        {data.map((d, i) => {
+          const h = Math.max(d.bar ? 2 : 0, (d.bar / maxB) * ih), x = cx(i) - bw / 2, y = P.t + ih - h, r = Math.min(3, bw / 2, h);
+          const path = h ? `M${x},${y + h} V${y + r} Q${x},${y} ${x + r},${y} H${x + bw - r} Q${x + bw},${y} ${x + bw},${y + r} V${y + h} Z` : "";
+          return (
+            <g key={d.label + i}>
+              <rect className="hit" x={P.l + step * i} y={P.t} width={step} height={ih}><title>{d.tip}</title></rect>
+              {path && <path className="mark" d={path}><title>{d.tip}</title></path>}
+              {i % every === 0 && <text x={cx(i)} y={H - 6} textAnchor="middle">{d.label}</text>}
+            </g>
+          );
+        })}
+        {data.length > 1 && <path className="combo-line" d={line} />}
+        {data.map((d, i) => <circle key={"c" + i} className="combo-dot" cx={cx(i)} cy={yL(d.line)} r={W < 600 ? 2.5 : 3}><title>{d.tip}</title></circle>)}
+      </svg>
+  );
+}
