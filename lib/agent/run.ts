@@ -35,10 +35,15 @@ function capsBlock(): string {
 const modernWeb = (model: string) => /^claude-(opus-(5|4-[678])|sonnet-(5|4-6))/.test(model);
 function webTools(model: string): Anthropic.Beta.BetaToolUnion[] {
   if (!capOn("web")) return [];
+  return webToolsFor(model);
+}
+// Без перевірки тумблера — для фонових задач зі своїм тумблером (AI-радар)
+export function webToolsFor(model: string): Anthropic.Beta.BetaToolUnion[] {
   return modernWeb(model)
     ? [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }, { type: "web_fetch_20260209", name: "web_fetch", max_uses: 8 }]
     : [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }, { type: "web_fetch_20250910", name: "web_fetch", max_uses: 8 }];
 }
+export const webBetaFor = (model: string): string[] => (!modernWeb(model) ? ["web-fetch-2025-09-10"] : []);
 const webBeta = (model: string): string[] => (capOn("web") && !modernWeb(model) ? ["web-fetch-2025-09-10"] : []);
 
 export class NoKeyError extends Error {}

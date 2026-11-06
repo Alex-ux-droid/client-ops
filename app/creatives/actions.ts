@@ -87,3 +87,41 @@ export async function saveClientMemoryAction(fd: FormData) {
   setClientMemory(cid, String(fd.get("text") ?? ""));
   revalidatePath(`/clients/${cid}`);
 }
+
+// ---- Центр креативів: шаблони стилю, інструменти, AI-радар
+export async function styleSaveAction(fd: FormData) {
+  await requireUser();
+  const { saveStyle, deleteStyle } = await import("@/lib/repo/creativeCenter");
+  const id = Number(fd.get("style_id")) || undefined;
+  if (id && fd.get("delete") === "1") deleteStyle(id);
+  else if (str(fd, "title")) saveStyle({ id, kind: str(fd, "kind") || "general", title: str(fd, "title"), body: String(fd.get("body") ?? "").trim(), active: fd.get("active") === "1" || !fd.has("active_present") });
+  revalidatePath("/creatives");
+}
+export async function creativeToolsAction(fd: FormData) {
+  await requireUser();
+  if (fd.has("tools")) setSetting("creative.tools", str(fd, "tools"));
+  if (fd.has("repos")) setSetting("radar.repos", String(fd.get("repos") ?? "").split("\n").map((x) => x.trim()).filter(Boolean).join("\n"));
+  revalidatePath("/creatives");
+}
+export async function radarRunAction() {
+  await requireUser();
+  const { runRadar } = await import("@/lib/aiRadar");
+  const r = await runRadar();
+  revalidatePath("/creatives");
+  return r;
+}
+export async function radarDecideAction(fd: FormData) {
+  await requireUser();
+  const cc = await import("@/lib/repo/creativeCenter");
+  const it = cc.getRadar(Number(fd.get("radar_id")));
+  if (!it) return;
+  if (str(fd, "op") === "accept") {
+    const add = String(fd.get("add") ?? it.hint_body).trim();
+    const sid = Number(fd.get("style_id")) || 0;
+    const st = sid ? cc.getStyle(sid) : undefined;
+    if (add && st) cc.saveStyle({ id: st.id, kind: st.kind, title: st.title, body: `${st.body.trim()}\n${add}`, active: !!st.active });
+    else if (add) cc.saveStyle({ kind: it.hint_kind || "general", title: it.hint_title || it.title, body: add, source: "radar" });
+    cc.setRadarStatus(it.id, "accepted");
+  } else cc.setRadarStatus(it.id, "skipped");
+  revalidatePath("/creatives");
+}

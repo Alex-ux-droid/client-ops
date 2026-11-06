@@ -11,6 +11,7 @@ export const SECTIONS: { title: string; items: { href: string; label: string; ic
       { href: "/startups", label: "Стартапи", ico: "rocket" },
       { href: "/money", label: "Гроші", ico: "wallet", count: "debts", bad: true },
       { href: "/ads", label: "Реклама", ico: "megaphone" },
+      { href: "/creatives", label: "Креативи", ico: "sparkles" },
       { href: "/products", label: "Продукти", ico: "box" },
     ],
   },
