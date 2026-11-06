@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import Markdown from "@/components/Markdown";
 import Pop from "@/components/Pop";
 import Timeline from "@/components/Timeline";
+import ListPop from "@/components/ListPop";
+import Icon from "@/components/Icon";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import { CopyText } from "@/app/startups/[id]/CopyText";
@@ -31,7 +33,6 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
   const h = await headers();
   const host = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host") ?? ""}`;
   const hid = <input type="hidden" name="product_id" value={id} />;
-  const List = ({ t, xs }: { t: string; xs: string[] }) => (xs.length ? <div className="card stack st-box"><b>{t}</b><ul className="st-list">{xs.map((x, i) => <li key={i}>{x}</li>)}</ul></div> : null);
   const src = (i: PItem) => `${fmtDate(i.created_at)}${i.ver ? ` · Оновлення ${i.ver}` : i.source === "extract" ? " · старт" : i.source === "jerry" ? " · Джері" : ""}`;
   const acts = (i: PItem) => (
     <>
@@ -83,33 +84,54 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
     const plan = listPItems(id, "plan").filter((x) => !x.done);
     const ups = productUpdates(id).reverse();
     const stopped = ups[0]?.body.match(/\*\*Де зупинились:\*\*\s*([^\n]+)/)?.[1];
+    const links = lines(p!.links);
+    const tlAll = tl();
     return (
       <div className="stack" style={{ gap: "1rem" }}>
-        {(stopped || ups[0]) && <div className="card dv-focus stack" style={{ gap: "0.25rem" }}><b>Де зупинились</b><span>{stopped ?? ups[0].title}</span><span className="mono">після «{ups[0].title}» · {fmtDate(ups[0].created_at)}</span></div>}
-        {(p!.how || p!.next_step) && <div className="card st-part-head">{p!.how && <p>{p!.how}</p>}{p!.next_step && <p className="st-next">Наступний крок: {p!.next_step}</p>}</div>}
-        <div className="st-grid">
-          <List t="Головні фічі" xs={lines(p!.features)} />
-          <List t={`З чого складається · ${lines(p!.stack).length}`} xs={lines(p!.stack)} />
-          <List t="Плюси" xs={lines(p!.pros)} />
-          <List t="Мінуси / ризики" xs={lines(p!.cons)} />
-          {lines(p!.links).length > 0 && <div className="card stack st-box"><b>Посилання</b><ul className="st-list">{lines(p!.links).map((l, i) => { const u = l.match(/https?:\/\/\S+/)?.[0]; return <li key={i}>{u ? <a href={u} target="_blank" rel="noreferrer" className="h-link">{l.replace(u, "").replace(/[—-]\s*$/, "").trim() || u}</a> : l}</li>; })}</ul></div>}
-          {plan.length > 0 && <div className="card stack st-box"><b>Відкриті кроки</b><ul className="st-list">{plan.map((x) => <li key={x.id}>{x.title}</li>)}</ul></div>}
+        <div className="pp-top">
+          <div className="card dv-focus pp-now">
+            <span className="mono">Де зупинились{ups[0] ? ` · ${ups[0].title.replace(/ — .*/, "")} · ${fmtDate(ups[0].created_at)}` : ""}</span>
+            <b>{stopped ?? ups[0]?.title.replace(/^Оновлення \d+ — /, "") ?? (tlAll.at(-1)?.title || "—")}</b>
+            {p!.next_step && <span className="pp-next">→ {p!.next_step}</span>}
+          </div>
+          {p!.how && (
+            <Pop className="pop-card pp-how" title="Як працює" trigger={<><span className="mono">Як працює</span><span className="pv-s l4">{p!.how}</span></>}>
+              <div style={{ whiteSpace: "pre-wrap" }}>{p!.how}</div>
+            </Pop>
+          )}
+        </div>
+        <div className="qt-grid">
+          <ListPop title="Головні фічі" ico="sparkles" items={lines(p!.features)} tone="accent" empty="ще не описано" />
+          <ListPop title="З чого складається" ico="layers" brands items={lines(p!.stack)} empty="ще не описано" />
+          <ListPop title="Плюси" ico="check" items={lines(p!.pros)} tone="good" />
+          <ListPop title="Мінуси / ризики" ico="alert" items={lines(p!.cons)} tone="bad" />
+          <ListPop title="Відкриті кроки" ico="flag" items={plan.map((x) => x.title)} />
+          {links.length > 0 && (
+            <Pop className="pop-card qt" title="Посилання" trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="link" /></span><b>Посилання</b></span><span className="qt-n">{links.length}</span></span>{links.slice(0, 2).map((l, i) => <span key={i} className="qt-l">{l.replace(/https?:\/\/\S+/, "").replace(/[—-]\s*$/, "").trim() || l}</span>)}</>}>
+              <ul className="st-list">{links.map((l, i) => { const u = l.match(/https?:\/\/\S+/)?.[0]; return <li key={i}>{u ? <a href={u} target="_blank" rel="noreferrer" className="h-link">{l.replace(u, "").replace(/[—-]\s*$/, "").trim() || u}</a> : l}</li>; })}</ul>
+            </Pop>
+          )}
+          <Pop className="pop-card qt" title="Клієнти, які користуються" trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="users" /></span><b>Клієнти</b></span><span className="qt-n">{cl.length}</span></span>{cl.length ? cl.slice(0, 2).map((c) => <span key={c.client_id} className="qt-l">{c.name}</span>) : <span className="qt-l mono">додати →</span>}</>}>
+            <div className="stack" style={{ gap: "0.5rem" }}>
+              {cl.length ? cl.map((c) => (
+                <div key={c.client_id} className="inline" style={{ justifyContent: "space-between" }}>
+                  <Link href={`/clients/${c.client_id}`} className="h-link">{c.name}{c.note ? ` · ${c.note}` : ""}</Link>
+                  <form action={productClientAction}>{hid}<input type="hidden" name="client_id" value={c.client_id} /><input type="hidden" name="on" value="0" /><button className="ghost small">×</button></form>
+                </div>
+              )) : <p className="mono">Ще нікого.</p>}
+              {all.length > 0 && <form action={productClientAction} className="inline" style={{ flexWrap: "wrap" }}>{hid}<select name="client_id" aria-label="Клієнт">{all.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><input name="note" placeholder="примітка" /><button className="ghost small">Додати</button></form>}
+            </div>
+          </Pop>
+          {ups.length > 0 && (
+            <Pop className="pop-card qt" title={`Оновлення · ${ups.length}`} trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="clock" /></span><b>Оновлення</b></span><span className="qt-n">{ups.length}</span></span>{ups.slice(0, 2).map((u) => <span key={u.id} className="qt-l">{u.title}</span>)}</>}>
+              <div className="stack" style={{ gap: "0.75rem" }}>{ups.map((u) => <div key={u.id} className="card stack" style={{ gap: "0.25rem" }}><b>{u.title}</b><span className="mono">{fmtDate(u.created_at)}</span>{u.body && <div className="tm-details"><Markdown md={u.body} /></div>}</div>)}</div>
+            </Pop>
+          )}
+          {kn.length > 0 && <Link href={`${base}?v=knowledge`} className="card qt qt-link"><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="book" /></span><b>Що знаємо</b></span><span className="qt-n">{listPItems(id, "knowledge").length}</span></span>{kn.slice(0, 2).map((k) => <span key={k.id} className="qt-l">{k.title}</span>)}<span className="qt-more">відкрити →</span></Link>}
         </div>
         <div className="card stack" style={{ gap: "0.75rem" }}>
-          <div className="mx-main-head"><b>Хронологія — як ми сюди дійшли</b><Link href={`${base}?v=log`}>план і додати →</Link></div>
-          <Timeline items={tl()} empty="Ще порожньо. Встав витяжку з Claude Code — етапи стануть блоками." />
-        </div>
-        {ups.length > 0 && <div className="card stack st-box"><b>Оновлення · {ups.length}</b><div className="st-grid">{ups.map(item)}</div></div>}
-        {kn.length > 0 && <div className="card stack st-box"><div className="mx-main-head"><b>Що знаємо (останнє)</b><Link href={`${base}?v=knowledge`}>усе →</Link></div><div className="st-grid">{kn.map(item)}</div></div>}
-        <div className="card stack" style={{ gap: "0.5rem" }}>
-          <b>Клієнти, які користуються</b>
-          {cl.length ? cl.map((c) => (
-            <div key={c.client_id} className="inline" style={{ justifyContent: "space-between" }}>
-              <Link href={`/clients/${c.client_id}`} className="h-link">{c.name}{c.note ? ` · ${c.note}` : ""}</Link>
-              <form action={productClientAction}>{hid}<input type="hidden" name="client_id" value={c.client_id} /><input type="hidden" name="on" value="0" /><button className="ghost small">×</button></form>
-            </div>
-          )) : <p className="mono">Ще нікого.</p>}
-          {all.length > 0 && <form action={productClientAction} className="inline" style={{ flexWrap: "wrap" }}>{hid}<select name="client_id" aria-label="Клієнт">{all.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><input name="note" placeholder="примітка (необовʼязково)" /><button className="ghost small">Додати</button></form>}
+          <div className="mx-main-head"><b>Хронологія{tlAll.length > 6 ? ` · останні 6 з ${tlAll.length}` : ""}</b><Link href={`${base}?v=log`}>уся і план →</Link></div>
+          <Timeline items={tlAll.slice(-6)} empty="Ще порожньо. Встав витяжку з Claude Code — етапи стануть блоками." />
         </div>
       </div>
     );

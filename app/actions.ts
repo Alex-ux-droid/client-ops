@@ -219,8 +219,10 @@ export async function addDevAction(fd: FormData) {
 
 export async function deleteDevAction(fd: FormData) {
   await requireUser();
+  // id — один запис; ids — група однакових («1,2,3»)
+  const ids = String(fd.get("ids") ?? "").split(",").map(Number).filter(Boolean);
   const id = num(fd, "id");
-  if (id) deleteDev(id);
+  for (const x of id ? [id, ...ids] : ids) deleteDev(x);
   done();
 }
 
