@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Markdown from "@/components/Markdown";
 import Pop from "@/components/Pop";
+import ListPop from "@/components/ListPop";
 import Timeline from "@/components/Timeline";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
@@ -138,7 +139,6 @@ function PartView({ part: p, base, hid }: { part: Part; base: string; hid: React
   const it = (kind: SItem["kind"]) => listItems(p.client_id, { kind, part: p.id, limit: 100 });
   const kn = it("knowledge"), dec = it("decision"), log = it("log"), ideas = it("idea");
   const plan = it("plan").filter((i) => i.horizon !== "done");
-  const List = ({ t, xs }: { t: string; xs: string[] }) => xs.length ? <div className="card stack st-box"><b>{t}</b><ul className="st-list">{xs.map((x, i) => <li key={i}>{x}</li>)}</ul></div> : null;
   return (
     <div className="stack" style={{ gap: "1rem" }}>
       <Link href={`${base}&sv=systems`} className="h-link">← Екосистема</Link>
@@ -147,15 +147,15 @@ function PartView({ part: p, base, hid }: { part: Part; base: string; hid: React
         {p.summary && <p>{p.summary}</p>}
         {p.next_step && <p className="st-next">Наступний крок: {p.next_step}</p>}
       </div>
-      <div className="st-grid">
-        <List t={`З чого складається · ${lines(p.stack).length}`} xs={lines(p.stack)} />
-        <List t="Плюси" xs={lines(p.pros)} />
-        <List t="Мінуси / ризики" xs={lines(p.cons)} />
-        {plan.length > 0 && <div className="card stack st-box"><b>Відкриті кроки</b><ul className="st-list">{plan.map((i) => <li key={i.id}>{i.title} <small>· {HORIZONS[i.horizon as keyof typeof HORIZONS]}</small></li>)}</ul></div>}
+      <div className="qt-grid">
+        <ListPop title="З чого складається" ico="layers" brands items={lines(p.stack)} />
+        <ListPop title="Плюси" ico="check" tone="good" items={lines(p.pros)} />
+        <ListPop title="Мінуси / ризики" ico="alert" tone="bad" items={lines(p.cons)} />
+        <ListPop title="Відкриті кроки" ico="flag" items={plan.map((i) => `${i.title} · ${HORIZONS[i.horizon as keyof typeof HORIZONS]}`)} />
+        <ListPop title="Рішення" ico="book" items={dec.map((d) => d.body ? `${d.title} — ${d.body}` : d.title)} />
       </div>
       {kn.length > 0 && <div className="card stack st-box"><b>Що знаємо · {kn.length}</b><div className="st-grid">{kn.map((k) => tile(k, KNOW_CATS[k.cat as keyof typeof KNOW_CATS]))}</div></div>}
-      {dec.length > 0 && <div className="card stack st-box"><b>Рішення</b><ul className="st-list">{dec.map((d) => <li key={d.id}>{d.title}{d.body && <small> — {d.body}</small>}</li>)}</ul></div>}
-      {ideas.length > 0 && <List t="Ідеї / масштабування" xs={ideas.map((i) => i.title)} />}
+      {ideas.length > 0 && <div className="qt-grid"><ListPop title="Ідеї / масштабування" ico="sparkles" tone="accent" items={ideas.map((i) => i.title)} /></div>}
       {log.length > 0 && <div className="card stack st-box"><b>Хроніка частини</b><Timeline items={[...log].reverse().map((l) => ({ id: l.id, at: l.created_at, title: l.title, body: l.body, tag: l.source === "extract" ? "з витяжки" : undefined }))} /></div>}
       <details className="card">
         <summary><b>✎ Змінити частину</b></summary>

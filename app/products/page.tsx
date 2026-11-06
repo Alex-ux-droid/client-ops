@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { BrandDot, brandOf } from "@/components/Brand";
+import { lines } from "@/lib/repo/strategy";
 import { fmtDate } from "@/lib/dates";
 import { listProducts, PRODUCT_KINDS, PRODUCT_STATUS, productClients, listPItems } from "@/lib/repo/products";
 import SubmitButton from "@/components/SubmitButton";
@@ -46,7 +48,8 @@ export default async function ProductsPage() {
                 return (
                   <Link key={p.id} href={`/products/${p.id}`} className={`card st-part s-${p.status}`}>
                     <div className="st-part-h"><b>{p.name}</b><span className={`tag st-s-${p.status}`}>{PRODUCT_STATUS[p.status] ?? p.status}</span></div>
-                    {p.summary && <p>{p.summary}</p>}
+                    {p.summary && <p className="pv-s">{p.summary}</p>}
+                    {(() => { const ms = [...new Set(lines(p.stack).map((x) => brandOf(x)?.name).filter(Boolean))] as string[]; return ms.length ? <span className="qt-marks">{ms.slice(0, 8).map((m) => <BrandDot key={m} text={m} size={16} />)}</span> : null; })()}
                     <small>{[cl.length ? `клієнтів: ${cl.length}` : "", kn ? `знань: ${kn}` : "", `оновлено ${fmtDate(p.updated_at)}`].filter(Boolean).join(" · ")}</small>
                   </Link>
                 );
