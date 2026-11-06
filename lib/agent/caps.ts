@@ -13,7 +13,7 @@ export const CAPS = [
   { key: "telegram_send", label: "Писати тобі в Telegram", desc: "надіслати повідомлення або файл з будь-якої розмови", tools: ["telegram_send"] },
   { key: "groups", label: "Писати в групи клієнтів", desc: "повідомлення і файли (звіти, PDF) у Telegram-групу клієнта — тільки коли ти прямо попросив", tools: ["telegram_group_send"] },
   { key: "client_msg", label: "Повідомлення клієнтам", desc: "кнопка «Повідомлення клієнту» у задачі: чернетка по шаблону (Налаштування → Повідомлення) з цифр і стану задачі; ≈1–3 цента за чернетку", tools: ["message_templates", "comm_profile"] },
-  { key: "creatives", label: "Креативи і журнал змін реклами", desc: "студія креативів: «Хто ми» для нового чату, промпти з кодом CR-N з даних реклами (≈2–5 центів за промпт), витяжка назад, автоцифри й вердикт; журнал «що змінили в рекламі → що вийшло»", tools: ["creative_prompt", "ad_change"] },
+  { key: "creatives", label: "Креативи і журнал змін реклами", desc: "студія креативів: «Хто ми» для нового чату, промпти з кодом CR-N з даних реклами (≈2–5 центів за промпт), витяжка назад, автоцифри й вердикт; журнал «що змінили в рекламі → що вийшло»", tools: ["creative_prompt", "creative_styles", "ai_radar", "ad_change"] },
   { key: "vision", label: "Дивитись картинки", desc: "фото з Telegram-груп клієнтів і креативи Meta — бачить і оцінює сам; кожна картинка коштує токенів", tools: ["view_images"] },
   { key: "mail", label: "Пошта (читання)", desc: "шукати і читати листи в Gmail; надсилати листи Джері не може", tools: ["mail_search", "mail_read"] },
   { key: "drive", label: "Google Диск", desc: "бачити все в папках клієнтів (і те, що ти закинув руками), створювати папки і класти туди файли: фото з Telegram-груп, креативи Meta", tools: ["drive_create_folders", "drive_save_files", "drive_list", "drive_rename"] },
@@ -49,6 +49,7 @@ export const AUTO = [
   { key: "crm_sync", label: "CRM клієнта: продажі", desc: "приймає події з CRM (новий лід, етап, продаж, оплата, відмова) і раз на 30 хв дозабирає зміни — щоб бачити продажі й гроші по кожному оголошенню; безкоштовно", setting: "auto.crm_sync" },
   { key: "crm_notify", label: "Продаж у CRM → мені в Telegram", desc: "коротке повідомлення, коли менеджер закрив продаж або прийшла оплата: сума, менеджер, з якої реклами", setting: "auto.crm_notify" },
   { key: "product_alerts", label: "Помилки й відгуки з наших програм → мені в Telegram", desc: "програма, підключена через Client Ops Connect, повідомила про помилку або відгук користувача — коротко тобі", setting: "auto.product_alerts" },
+  { key: "ai_radar", label: "AI-радар креативів", desc: "щопонеділка Джері перевіряє GitHub (скіли Anthropic, cookbooks) і новини (Anthropic, OpenAI, Meta, генератори фото/відео) і пише картки «що нового → як використати»; ≈5–15 центів за прогін", setting: "auto.ai_radar" },
   { key: "reflect", label: "Самонавчання Джері", desc: "після кожної розмови оновлює памʼять — коштує трохи кредитів", setting: "auto.reflect" },
 ] as const;
 

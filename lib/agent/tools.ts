@@ -131,6 +131,8 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "make_pdf", description: "Зробити PDF з markdown. format document (A4 документ): # заголовки, абзаци, списки - і 1., чекліст - [ ], **жирне**, --- лінія, таблиці | a | b |; «на одну сторінку» — ~350 слів. format slides (презентація, A4 горизонтально, темна фірмова): перший абзац — підзаголовок титульного, кожен «## Назва» — новий слайд (3–6 пунктів на слайд), картки-цифри рядками «+ Підпис: значення» (до 4 в ряд), таблиці, списки, **жирне». Повертає file_id і посилання; у Telegram-розмові з Сашею файл одразу йде йому (send_to_telegram:false — не надсилати, напр. якщо далі шлеш у групу клієнта).", input_schema: obj({ title: str("Заголовок документа"), format: { type: "string", enum: ["document", "slides"] }, content: str("Вміст у markdown (без заголовка — він окремо)"), file_name: str("Назва файлу, необовʼязково"), client_id: int("Клієнт, якщо документ про нього"), send_to_telegram: { type: "boolean", description: "Надіслати Саші в Telegram (у Telegram-розмові — завжди)" }, caption: str("Підпис до файлу в Telegram") }, ["title", "content"]) },
   { name: "leads", description: "Заявки з лід-форм Meta по клієнту: імʼя, телефон, відповіді на питання форми, кампанія/оголошення, чи взяли в роботу, якість (👍/👎 з кнопок у Telegram-групі), + підсумок: скільки якісних, ціна якісної заявки. Для розбору реклами по ЯКОСТІ заявок, а не тільки кількості.", input_schema: obj({ client_id: int("ID клієнта"), days: int("За скільки днів (за замовчуванням 14)") }, ["client_id"]) },
   { name: "creative_prompt", description: "Студія креативів клієнта (розділ «Креативи» в картці). action brief — «Хто ми»: контекст про клієнта для нового чату Claude (перше повідомлення) | generate (format square|feed|story|carousel|motion|video|ugc|imagegen, angle — кут, note — побажання; пише промпт з даних реклами з кодом CR-N і шаблоном витяжки) | list (дошка: стан, цифри за кодом, вердикт виграв/середньо/програв/мало даних) | update (prompt_id; status idea|ready|live|done; ad_ids; verdict win|lose або порожньо = авто; notes; file_url) | import (text — витяжка [CLIENT-OPS:КРЕАТИВ] з чату). Після generate дай Саші промпт у блоці ```Промпт креативу```; нагадай вписати код CR-N у назву оголошення в Meta.", input_schema: obj({ action: { type: "string", enum: ["brief", "generate", "list", "update", "import"] }, client_id: int("ID клієнта"), prompt_id: int("ID креативу (число з CR-N)"), format: { type: "string", enum: ["square", "feed", "story", "carousel", "motion", "video", "ugc", "imagegen"] }, angle: str("Кут"), note: str("Побажання"), status: { type: "string", enum: ["idea", "ready", "live", "done"] }, ad_ids: { type: "array", items: { type: "string" } }, verdict: { type: "string", enum: ["", "win", "lose"] }, notes: str("Нотатка"), file_url: str("Посилання на файл"), text: str("Витяжка для import") }, ["action"]) },
+  { name: "creative_styles", description: "Мій стиль креативів (Креативи → «Мій стиль»): шаблони правил і прийомів, які самі йдуть у кожен промпт креативу (загальні + свого формату) і в «Хто ми». action list | save (style_id — оновити, без нього — новий; kind general|square|feed|story|carousel|motion|video|ugc|imagegen; title; body — ПОВНИЙ текст пунктами «- »; active) | delete. Міняй тільки на прохання Саші або прийнявши картку радару.", input_schema: obj({ action: { type: "string", enum: ["list", "save", "delete"] }, style_id: int("ID шаблону"), kind: str("Формат або general"), title: str("Назва"), body: str("Повний текст"), active: { type: "boolean" } }, ["action"]) },
+  { name: "ai_radar", description: "AI-радар креативів: що нового в AI для реклами (GitHub-скіли Anthropic, cookbooks, новини Anthropic/OpenAI/Meta, генератори фото/відео) → картки «що це → як використати → що дописати в стиль». action list (нові картки) | run (перевірити зараз, 1–3 хв, ≈5–15 центів) | decide (radar_id, op accept — дописати в шаблон / skip).", input_schema: obj({ action: { type: "string", enum: ["list", "run", "decide"] }, radar_id: int("ID картки"), op: { type: "string", enum: ["accept", "skip"] } }, ["action"]) },
   { name: "ad_change", description: "Журнал змін реклами клієнта: що змінили → чому → чого чекаємо → що вийшло. action add (client_id, what, why, expect, at YYYY-MM-DD) | list (client_id) | result (change_id, result — через кілька днів, що вийшло за цифрами). Записуй кожну зміну, яку Саша зробив у рекламі; через 3–7 днів сам перевір цифри і допиши result.", input_schema: obj({ action: { type: "string", enum: ["add", "list", "result"] }, client_id: int("ID клієнта"), change_id: int("ID зміни"), what: str("Що змінили"), why: str("Чому"), expect: str("Чого чекаємо"), at: str("Дата"), result: str("Що вийшло") }, ["action"]) },
   { name: "strategy_get", description: "Стратегія клієнта (вкладка «Стратегія» в картці): конспект (де ми / куди йдемо / фокус), частини екосистеми з part_id (що будуємо, що надаємо, сервіси), план тиждень/місяць/далі з item_id, висновки. Перед планом по клієнту — дивись сюди.", input_schema: obj({ client_id: int("ID клієнта"), part_id: int("Деталі однієї частини: склад, плюси/мінуси, знання, рішення, хроніка") }, ["client_id"]) },
   { name: "strategy_update", description: "Оновити конспект стратегії клієнта: where_now (де ми), goal (куди йдемо: місяці/роки), focus (головне зараз), insights (висновки/патерни — ПОВНИЙ текст пунктами). Передавай тільки те, що міняєш.", input_schema: obj({ client_id: int("ID клієнта"), where_now: str("Де ми зараз"), goal: str("Куди йдемо"), focus: str("Головне зараз"), insights: str("Висновки повністю") }, ["client_id"]) },
@@ -474,6 +476,32 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       };
     }
 
+    case "creative_styles": {
+      const cc = await import("../repo/creativeCenter");
+      const a = s(input.action);
+      if (a === "list") return { styles: cc.listStyles().map((x) => ({ style_id: x.id, kind: x.kind, title: x.title, body: x.body, active: !!x.active })) };
+      if (a === "delete") { cc.deleteStyle(need(id(input.style_id), "style_id обов'язковий")); return { ok: true }; }
+      const cur = id(input.style_id) ? cc.getStyle(id(input.style_id)!) : undefined;
+      const sid = cc.saveStyle({ id: cur?.id, kind: s(input.kind) || cur?.kind || "general", title: s(input.title) || cur?.title || "Шаблон", body: input.body !== undefined ? s(input.body) : cur?.body ?? "", active: input.active === undefined ? (cur ? !!cur.active : true) : !!input.active });
+      act("page", `Стиль креативів: ${s(input.title) || cur?.title}`, "/creatives?v=style");
+      return { ok: true, style_id: sid };
+    }
+    case "ai_radar": {
+      const cc = await import("../repo/creativeCenter");
+      const a = s(input.action);
+      if (a === "run") { const { runRadar } = await import("../aiRadar"); const r = await runRadar(); if (!r.ok) throw new Error(r.error); act("page", `AI-радар: +${r.added}`, "/creatives?v=radar"); return { added: r.added, items: cc.listRadar("new", 8) }; }
+      if (a === "decide") {
+        const it = need(cc.getRadar(need(id(input.radar_id), "radar_id обов'язковий")), "Картки нема");
+        if (s(input.op) === "accept" && it.hint_body) {
+          const st = it.hint_style_id ? cc.getStyle(it.hint_style_id) : undefined;
+          if (st) cc.saveStyle({ id: st.id, kind: st.kind, title: st.title, body: `${st.body.trim()}\n${it.hint_body}`, active: !!st.active });
+          else cc.saveStyle({ kind: it.hint_kind || "general", title: it.hint_title || it.title, body: it.hint_body, source: "radar" });
+        }
+        cc.setRadarStatus(it.id, s(input.op) === "accept" ? "accepted" : "skipped");
+        return { ok: true };
+      }
+      return { items: cc.listRadar("new", 20).map((r) => ({ radar_id: r.id, title: r.title, source: r.source, url: r.url, what: r.what, how: r.how, add_to_style: r.hint_body || undefined })) };
+    }
     case "creative_prompt": {
       const cr = await import("../repo/creatives");
       const lab = await import("../creativeLab");

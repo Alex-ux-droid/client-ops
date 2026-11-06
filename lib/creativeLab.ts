@@ -9,6 +9,8 @@ import { adsForClient, getAnalysis, type MetaAd } from "./repo/meta";
 import { getSetting } from "./repo/settings";
 import { getApiKey } from "./secrets";
 import { cplOf, ctrOf } from "./metaInsights";
+import { stylesFor } from "./repo/creativeCenter";
+import { creativeTools } from "./aiRadar";
 import { adBook, adOfferOf, brandOf, creativeNums, extractFooter, rulesOf } from "./creativeStudio";
 export { brandOf };
 
@@ -55,6 +57,8 @@ export async function generateCreativePrompt(clientId: number, o: { format: Crea
   const data = {
     client: { name: c.name, niche: c.niche, what_we_advertise: adOfferOf(clientId) || undefined, client_goal: c.client_vision },
     rules: rulesOf(clientId) || undefined,
+    my_style: stylesFor(o.format).map((x) => ({ title: x.title, body: x.body })),
+    our_tools: creativeTools() || undefined,
     brand: brandOf(clientId) || "не задано — візьми стриманий сучасний стиль і залиш місця [логотип], [фото обʼєкта]",
     avg_cpl: r2(avgCpl),
     best_ads: withLeads.slice(0, 5).map(adRow), worst_ads: ads.filter((a) => a.spend_30d > (avgCpl ?? 0) && (a.leads_30d === 0 || a.spend_30d / a.leads_30d > (avgCpl ?? 0) * 1.4)).slice(0, 4).map(adRow),
@@ -70,6 +74,7 @@ export async function generateCreativePrompt(clientId: number, o: { format: Crea
 - текст оголошення для Meta: primary text (2 варіанти), headline, опис;
 - чого НЕ робити (з того, що не спрацювало);
 - в кінці попроси 2 варіації (А/Б), що відрізняються одним елементом.
+my_style — мої актуальні прийоми і правила Meta (оновлюються з AI-радару): дотримуйся їх, вони важливіші за твої загальні знання. our_tools — чим я роблю креативи, пиши під них.
 Дотримуйся rules клієнта (обовʼязково / заборонено). Контекст про клієнта Claude вже отримав окремим повідомленням «Хто ми», тому не переписуй його — тільки завдання на цей креатив.
 Не вигадуй факти про клієнта (ціни, знижки, адреси), яких нема в даних — став [уточнити].
 Відповідай ТІЛЬКИ JSON: {"title": "коротка назва креативу", "angle": "кут одним реченням", "prompt": "повний текст промпту українською"}`;

@@ -8,6 +8,7 @@ import { adIdsOf, codeOf, getPrompt, listPrompts, updatePrompt, type CreativePro
 import { adTotalsForClient, adsForClient, adsetsForClient, getAnalysis, type MetaAd } from "./repo/meta";
 import { getSetting } from "./repo/settings";
 import { getStrategy } from "./repo/strategy";
+import { stylesFor } from "./repo/creativeCenter";
 
 export const CREATIVE_MARK = "[CLIENT-OPS:КРЕАТИВ]";
 export const rulesOf = (clientId: number) => getSetting(`creative.rules.${clientId}`) ?? "";
@@ -102,7 +103,9 @@ export function creativeBrief(clientId: number): string {
       "- Зображення роби як HTML/CSS рівно потрібного розміру (щоб я зберіг PNG); моушен — HTML/CSS/SVG-анімація 6–10 с; відео — покадровий сценарій з текстом на екрані.",
       "- Не вигадуй ціни, знижки, адреси, гарантії — став [уточнити].",
       "- Наприкінці кожного креативу видавай витяжку за шаблоном із завдання (блок [CLIENT-OPS:КРЕАТИВ]).",
+      getSetting("creative.tools") ? `- Чим я роблю креативи: ${getSetting("creative.tools")}.` : "",
     ]),
+    ...stylesFor().map((x) => sec(`Мій стиль: ${x.title}`, x.body)),
   ].filter(Boolean).join("\n");
 }
 
