@@ -186,7 +186,29 @@ ${isUpdate ? `Це ОНОВЛЕННЯ (не повний паспорт): дод
   }
 }
 
-export function applyProductOps(ops: Ops, productId: number | null, isUpdate = false): { id: number; summary: string[] } {
+// Модель інколи повертає масив замість рядка або обʼєкт замість пункту плану — зводимо все до рядків, щоб запис не падав
+const txt = (v: unknown): string =>
+  v == null ? "" : typeof v === "string" ? v : Array.isArray(v) ? v.map(txt).filter(Boolean).join("\n")
+  : typeof v === "object" ? txt((v as Record<string, unknown>).title ?? (v as Record<string, unknown>).text ?? Object.values(v as object)) : String(v);
+function normOps(o: Ops): Ops {
+  const obj = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+  const arr = (v: unknown) => (Array.isArray(v) ? v : v == null ? [] : [v]);
+  const fields = (v: unknown, keys: string[]) => { const x = obj(v); if (!x) return null; const r: Record<string, string> = {}; for (const k of keys) if (x[k] != null) r[k] = txt(x[k]); return r; };
+  const items = (v: unknown, keys: string[]) => arr(v).map((x) => (typeof x === "string" ? { title: x } : fields(x, keys))).filter((x): x is Record<string, string> => !!x?.title?.trim());
+  return {
+    product: fields(o.product, ["name", "kind", "status", "summary", "how", "features", "stack", "links", "pros", "cons", "next_step"]),
+    log: fields(o.log, ["title", "body"]) as Ops["log"],
+    timeline: items(o.timeline, ["at", "title", "result", "body"]) as Ops["timeline"],
+    knowledge: items(o.knowledge, ["cat", "title", "body"]) as Ops["knowledge"],
+    decisions: items(o.decisions, ["title", "body"]) as Ops["decisions"],
+    plan: arr(o.plan).map(txt).filter((x) => x.trim()),
+    ideas: arr(o.ideas).map(txt).filter((x) => x.trim()),
+    update: fields(o.update, ["title", "summary", "stopped", "changes"]),
+  };
+}
+
+export function applyProductOps(raw: Ops, productId: number | null, isUpdate = false): { id: number; summary: string[] } {
+  const ops = normOps(raw ?? {});
   const sum: string[] = [];
   const P = ops.product ?? {};
   const patch = {
@@ -247,7 +269,7 @@ export async function appWebhook(productId: number, raw: string, h: Headers): Pr
   const summary = (s(b.summary) || s(data.message) || s(data.text) || s(data.notes) || event).replace(/\s+/g, " ").slice(0, 300) + (b.client ? ` · ${s(b.client).slice(0, 60)}` : "");
   const at = !Number.isNaN(Date.parse(s(b.occurred_at))) ? new Date(s(b.occurred_at)).toISOString() : new Date().toISOString();
   if (!addProductEvent({ event_id: eventId, product_id: productId, event, summary, data_json: JSON.stringify(data).slice(0, 8000), occurred_at: at })) return { status: 200, body: { ok: true, duplicate: true } };
-  if (event === "app.release") addPItem(productId, { kind: "log", title: `Реліз ${s(data.version)}`.trim(), body: s(data.notes).slice(0, 2000), source: "extract" });
+  // Релізи в хронологію НЕ пишемо (кожен деплой = шум); вони видно в «Звʼязок → Події». Хронологія — з витяжок і оновлень.
   // Самоаудит програми: знахідки (незручності, повільні місця, часті помилки) → ідеї продукту, без дублів
   if (event === "app.insight" && Array.isArray(data.items)) {
     const have = new Set(listPItems(productId, "idea").map((x) => x.title.toLowerCase()));
