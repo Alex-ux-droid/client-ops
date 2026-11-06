@@ -7,6 +7,8 @@ import { listFolders, listTools, type ClientService } from "@/lib/repo/services"
 import { serviceDef, type ServiceType } from "@/lib/services";
 import { accountsForClient } from "@/lib/repo/meta";
 import MetaLive from "./MetaLive";
+import Pop from "@/components/Pop";
+import Icon from "@/components/Icon";
 import VoiceTextarea from "@/components/VoiceTextarea";
 
 const STATUS = [
@@ -105,7 +107,13 @@ export default function ServiceTab({ clientId, service, edit, saved, mv, err }: 
           </div>
         </form>
       ) : (
-        <ServiceView service={service} type={type} clientId={clientId} saved={saved} />
+        live ? (
+          <div className="qt-grid">
+            <Pop className="pop-card qt" wide title={`Анкета послуги · ${def.label}`} trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="file" /></span><b>Анкета послуги</b></span></span><span className="qt-l">{service.tool_name || def.hint}</span><span className="qt-more">відкрити →</span></>}>
+              <ServiceView service={service} type={type} clientId={clientId} saved={saved} />
+            </Pop>
+          </div>
+        ) : <ServiceView service={service} type={type} clientId={clientId} saved={saved} />
       )}
 
 

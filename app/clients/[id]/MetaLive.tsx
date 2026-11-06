@@ -1,5 +1,8 @@
 import Link from "next/link";
 import Pop from "@/components/Pop";
+import Icon from "@/components/Icon";
+import ListPop from "@/components/ListPop";
+import { BrandDot } from "@/components/Brand";
 import { analyzeMetaAction } from "@/app/actions";
 import AskAssistant from "@/components/AskAssistant";
 import { BarChart } from "@/components/Charts";
@@ -63,19 +66,19 @@ export default function MetaLive({ clientId, view = "overview", err }: { clientI
     <section className="stack" style={{ gap: "1rem" }}>
       <div className="meta-head">
         <div>
-          <h2>Реклама в Meta</h2>
-          <div className="mono" style={{ color: "var(--dim)" }}>
+          <div className="mono" style={{ color: "var(--dim)" }}><BrandDot text="Meta" size={13} />{" "}
             {accs.map((a) => a.name).join(", ")}
             {synced ? ` · оновлено ${new Date(synced.replace(" ", "T") + "Z").toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : " · ще не оновлювалось"}
           </div>
         </div>
         <AskAssistant text="Подивись рекламу цього клієнта: що працює, що зливає бюджет, який креатив найкращий і що б ти змінив.">Джері, як реклама?</AskAssistant>
       </div>
-      {problems.map((a) => (
-        <div key={a.account_id} className="callout" style={{ borderColor: "var(--warn)" }}>
-          <b>{a.name}:</b> {a.account_status && a.account_status !== 1 ? ACCOUNT_STATUS[a.account_status] ?? "проблема з кабінетом" : ""}{a.last_error ? ` ${a.last_error}` : ""}
+      {problems.length > 0 && (
+        <div className="mx-warn">
+          <Icon name="alert" size={15} />
+          {problems.map((a) => <span key={a.account_id}><b>{a.name}:</b> {a.account_status && a.account_status !== 1 ? ACCOUNT_STATUS[a.account_status] ?? "проблема з кабінетом" : ""}{a.last_error ? ` ${a.last_error}` : ""}</span>)}
         </div>
-      ))}
+      )}
       <ReportLink clientId={clientId} />
       <nav className="mx-tabs">
         {VIEWS.map((x) => (
@@ -105,7 +108,10 @@ function Overview({ clientId, m, base }: { clientId: number; m: Fmt; base: strin
   const ins = metaInsights(clientId, m);
   const months = monthlyForClient(clientId);
   const bad = badAdsForClient(clientId);
-  const top = [...bad.slice(0, 3).map((x) => ({ t: "bad" as Tone, x: `Оголошення «${x.name}» — ${x.status}${x.why ? `: ${x.why}` : ""}` })), ...ins.cons.slice(0, 2).map((x) => ({ t: "bad" as Tone, x })), ...ins.tips.slice(0, 2).map((x) => ({ t: "" as Tone, x })), ...ins.pros.slice(0, 1).map((x) => ({ t: "good" as Tone, x }))];
+  const top = [...bad.slice(0, 3).map((x) => ({ t: "bad" as Tone, x: `Оголошення «${x.name}» — ${x.status}${x.why ? `: ${x.why}` : ""}` })), ...ins.cons.map((x) => ({ t: "bad" as Tone, x })), ...ins.tips.map((x) => ({ t: "" as Tone, x })), ...ins.pros.map((x) => ({ t: "good" as Tone, x }))];
+  const active = camps.filter((c) => c.status === "ACTIVE");
+  const purch = months.some((x) => x.purchases);
+  const lastM = months.at(-1), prevM = months.at(-2);
 
   return (
     <>
@@ -117,23 +123,30 @@ function Overview({ clientId, m, base }: { clientId: number; m: Fmt; base: strin
         <div className="kpi"><div className="n">{pct(ctrOf(w))}</div><div className="l">CTR <Delta now={ctrOf(w)} before={ctrOf(p)} /></div></div>
       </div>
 
-      <div className="mono">За 30 днів</div>
-      <div className="mx-blocks">
+      {/* 30 днів — одна компактна смужка */}
+      <div className="mx-strip">
+        <span className="mx-strip-h">30 днів</span>
         <div><b>{fmtN(mo.leads)}</b><span>лідів</span></div>
         <div><b>{m(mo.spend)}</b><span>витрачено</span></div>
         <div><b>{m(cplOf(mo))}</b><span>ціна ліда</span></div>
-        <div><b>{pct(ctrOf(mo))}</b><span>CTR — скільки клікають</span></div>
+        <div><b>{pct(ctrOf(mo))}</b><span>CTR</span></div>
         <div><b>{m(mo.clicks ? mo.spend / mo.clicks : null)}</b><span>ціна кліку</span></div>
-        <div><b>{m(mo.impressions ? (mo.spend / mo.impressions) * 1000 : null)}</b><span>ціна 1000 показів</span></div>
-        <div><b>{t?.reach ? fmtN(t.reach) : "—"}</b><span>людей побачили</span></div>
-        <div><b>{t ? (freqOf(t.impressions, t.reach)?.toFixed(1) ?? "—") : "—"}</b><span>разів кожен (частота)</span></div>
+        <div><b>{m(mo.impressions ? (mo.spend / mo.impressions) * 1000 : null)}</b><span>CPM</span></div>
+        <div><b>{t?.reach ? fmtN(t.reach) : "—"}</b><span>охоплення</span></div>
+        <div><b>{t ? (freqOf(t.impressions, t.reach)?.toFixed(1) ?? "—") : "—"}</b><span>частота</span></div>
       </div>
 
       {top.length > 0 && (
-        <div className="card mx-main">
-          <div className="mx-main-head"><b>Головне</b><Link href={`${base}&mv=analysis`} scroll={false}>усі висновки →</Link></div>
-          <ul>{top.map((x) => <li key={x.x} className={x.t}>{x.x}</li>)}</ul>
-        </div>
+        <Pop className="pop-card mx-main" title="Головне по рекламі" trigger={
+          <>
+            <span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="sparkles" /></span><b>Головне</b></span><span className="qt-n">{top.length}</span></span>
+            <ul>{top.slice(0, 3).map((x) => <li key={x.x} className={x.t}>{x.x}</li>)}</ul>
+            {top.length > 3 && <span className="qt-more">ще {top.length - 3} →</span>}
+          </>
+        }>
+          <ul className="mx-main-ul">{top.map((x) => <li key={x.x} className={x.t}>{x.x}</li>)}</ul>
+          <Link href={`${base}&mv=analysis`} className="btn ghost small" style={{ marginTop: "0.75rem" }}>Усі висновки і розбір Джері →</Link>
+        </Pop>
       )}
 
       {series.length > 1 && (
@@ -149,42 +162,57 @@ function Overview({ clientId, m, base }: { clientId: number; m: Fmt; base: strin
         </div>
       )}
 
-      {camps.length > 0 && (
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Кампанія</th><th>Статус</th><th>Бюджет</th><th>Витрати 30 дн.</th><th>Ліди</th><th>Ціна ліда</th></tr></thead>
-            <tbody>
-              {camps.map((c) => (
-                <tr key={c.campaign_id}>
-                  <td>{c.name}</td>
-                  <td><span className={`tag ${c.status === "ACTIVE" ? "ok" : ""}`}>{STATUS[c.status] ?? c.status.toLowerCase()}</span></td>
-                  <td>{c.daily_budget ? `${m(c.daily_budget)}/день` : c.lifetime_budget ? `${m(c.lifetime_budget)} всього` : "—"}</td>
-                  <td>{m(c.spend)}</td>
-                  <td>{fmtN(c.leads)}</td>
-                  <td>{m(cplOf(c))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {months.length > 1 && <div className="mono">По місяцях (до 12) — сезонність і динаміка</div>}
-      {months.length > 1 && (
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Місяць</th><th>Витрати</th><th>Ліди</th><th>Ціна ліда</th><th>CTR</th>{months.some((x) => x.purchases) && <><th>Покупки</th><th>ROAS</th></>}</tr></thead>
-            <tbody>
-              {[...months].reverse().map((x) => (
-                <tr key={x.month}>
-                  <td>{x.month}</td><td>{m(x.spend)}</td><td>{fmtN(x.leads)}</td><td>{m(cplOf(x))}</td><td>{pct(ctrOf(x))}</td>
-                  {months.some((y) => y.purchases) && <><td>{fmtN(x.purchases)}</td><td>{x.spend ? (x.revenue / x.spend).toFixed(2) : "—"}</td></>}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="qt-grid">
+        {camps.length > 0 && (
+          <Pop className="pop-card qt" wide title={`Кампанії · ${camps.length}`} trigger={
+            <>
+              <span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="megaphone" /></span><b>Кампанії</b></span><span className="qt-n">{active.length} акт. / {camps.length}</span></span>
+              {camps.slice(0, 2).map((c) => <span key={c.campaign_id} className="qt-l">{c.name} · {m(c.spend)} · {fmtN(c.leads)} лід.</span>)}
+              {camps.length > 2 && <span className="qt-more">ще {camps.length - 2} →</span>}
+            </>
+          }>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Кампанія</th><th>Статус</th><th>Бюджет</th><th>Витрати 30 дн.</th><th>Ліди</th><th>Ціна ліда</th></tr></thead>
+                <tbody>
+                  {camps.map((c) => (
+                    <tr key={c.campaign_id}>
+                      <td>{c.name}</td>
+                      <td><span className={`tag ${c.status === "ACTIVE" ? "ok" : ""}`}>{STATUS[c.status] ?? c.status.toLowerCase()}</span></td>
+                      <td>{c.daily_budget ? `${m(c.daily_budget)}/день` : c.lifetime_budget ? `${m(c.lifetime_budget)} всього` : "—"}</td>
+                      <td>{m(c.spend)}</td><td>{fmtN(c.leads)}</td><td>{m(cplOf(c))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Pop>
+        )}
+        {months.length > 1 && (
+          <Pop className="pop-card qt" wide title="По місяцях (до 12) — сезонність і динаміка" trigger={
+            <>
+              <span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="clock" /></span><b>По місяцях</b></span><span className="qt-n">{months.length}</span></span>
+              {lastM && <span className="qt-l">{lastM.month}: {m(cplOf(lastM))} за лід{prevM && cplOf(prevM) ? ` (було ${m(cplOf(prevM))})` : ""}</span>}
+              <span className="mx-spark">{months.slice(-12).map((x) => { const mx = Math.max(...months.map((y) => y.leads), 1); return <i key={x.month} title={`${x.month}: ${x.leads} лідів`} style={{ height: `${Math.max(8, (x.leads / mx) * 100)}%` }} />; })}</span>
+            </>
+          }>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Місяць</th><th>Витрати</th><th>Ліди</th><th>Ціна ліда</th><th>CTR</th>{purch && <><th>Покупки</th><th>ROAS</th></>}</tr></thead>
+                <tbody>
+                  {[...months].reverse().map((x) => (
+                    <tr key={x.month}>
+                      <td>{x.month}</td><td>{m(x.spend)}</td><td>{fmtN(x.leads)}</td><td>{m(cplOf(x))}</td><td>{pct(ctrOf(x))}</td>
+                      {purch && <><td>{fmtN(x.purchases)}</td><td>{x.spend ? (x.revenue / x.spend).toFixed(2) : "—"}</td></>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Pop>
+        )}
+        {bad.length > 0 && <ListPop title="Відхилені / з проблемою" ico="alert" tone="bad" items={bad.map((x) => `${x.name} — ${x.status}${x.why ? `: ${x.why}` : ""}`)} />}
+      </div>
     </>
   );
 }
