@@ -2045,3 +2045,6 @@ button.pop-card.mx-main li { white-space: nowrap; overflow: hidden; text-overflo
 .sl-status { gap: 0.5rem 0.75rem; }
 .sl-strip { grid-template-columns: auto repeat(4, minmax(0, 1fr)); }
 @media (max-width: 900px) { .sl-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.st-sum3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.625rem; }
+@media (max-width: 900px) { .st-sum3 { grid-template-columns: minmax(0, 1fr); } }
+.st-part p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

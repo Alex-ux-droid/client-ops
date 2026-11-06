@@ -4,6 +4,8 @@ import Link from "next/link";
 import Markdown from "@/components/Markdown";
 import Pop from "@/components/Pop";
 import ListPop from "@/components/ListPop";
+import Icon from "@/components/Icon";
+import { BrandDot, brandOf } from "@/components/Brand";
 import Timeline from "@/components/Timeline";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
@@ -56,42 +58,42 @@ const partName = (parts: Part[], id: number | null) => (id ? parts.find((p) => p
 
 function Overview({ clientId, parts, base, hid }: { clientId: number; parts: Part[]; base: string; hid: React.ReactNode }) {
   const s = getStrategy(clientId);
-  const week = listItems(clientId, { kind: "plan" }).filter((i) => i.horizon === "week");
-  const log = listItems(clientId, { kind: "log", limit: 5 });
+  const plan = listItems(clientId, { kind: "plan" });
+  const week = plan.filter((i) => i.horizon === "week"), month = plan.filter((i) => i.horizon === "month");
+  const log = listItems(clientId, { kind: "log", limit: 20 });
   const empty = !s.where_now && !s.goal && !parts.length;
+  // Поле конспекту: на екрані 3 рядки, клік — повністю і правка тут же
+  const field = (k: "focus" | "where_now" | "goal", label: string, hint: string, ico: string, hl = false) => (
+    <Pop key={k} className={`pop-card ov-tile${hl ? " dv-focus" : ""}`} title={label} trigger={
+      <>
+        <span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name={ico} /></span><b>{label}</b></span></span>
+        {s[k] ? <span className="pv-s l4" style={{ color: "var(--text)" }}>{s[k]}</span> : <span className="qt-l mono">{hint}</span>}
+      </>
+    }>
+      {s[k] && <p style={{ whiteSpace: "pre-wrap", marginTop: 0 }}>{s[k]}</p>}
+      <form action={saveSummaryAction} className="stack" style={{ gap: "0.5rem" }}>
+        {hid}
+        <VoiceTextarea name={k} defaultValue={s[k]} placeholder={hint} style={{ minHeight: "6rem" }} />
+        <div><SubmitButton className="small">Зберегти</SubmitButton></div>
+      </form>
+    </Pop>
+  );
   return (
     <div className="stack" style={{ gap: "1rem" }}>
-      <div className="card st-sum">
-        <div className="st-sum-grid">
-          <div><span>Де ми зараз</span><p>{s.where_now || "—"}</p></div>
-          <div><span>Куди йдемо (3–6 міс)</span><p>{s.goal || "—"}</p></div>
-          <div className="hl"><span>Головне зараз</span><p>{s.focus || "—"}</p></div>
-        </div>
-        <details className="st-edit">
-          <summary>✎ Змінити конспект</summary>
-          <form action={saveSummaryAction} className="stack" style={{ gap: "0.5rem", marginTop: "0.625rem" }}>
-            {hid}
-            <label className="cm-field"><span>Де ми зараз</span><VoiceTextarea name="where_now" defaultValue={s.where_now} style={{ minHeight: "3rem" }} /></label>
-            <label className="cm-field"><span>Куди йдемо (ціль на 3–6 місяців)</span><VoiceTextarea name="goal" defaultValue={s.goal} style={{ minHeight: "3rem" }} /></label>
-            <label className="cm-field"><span>Головне зараз</span><VoiceTextarea name="focus" defaultValue={s.focus} style={{ minHeight: "3rem" }} /></label>
-            <div><SubmitButton className="small">Зберегти</SubmitButton></div>
-          </form>
-        </details>
+      <div className="st-sum3">
+        {field("focus", "Головне зараз", "1–2 речі, на яких фокус", "flag", true)}
+        {field("where_now", "Де ми зараз", "що вже є і що болить", "compass")}
+        {field("goal", "Куди йдемо (3–6 міс)", "ціль у цифрах", "sparkles")}
       </div>
       {empty && <ImportBox clientId={clientId} />}
-      <div className="st-two">
-        <div className="card stack" style={{ gap: "0.5rem" }}>
-          <div className="mx-main-head"><b>Цей тиждень</b><Link href={`${base}&sv=plan`}>увесь план →</Link></div>
-          {week.length ? <ul className="st-list">{week.map((i) => <li key={i.id}>{i.title}{partName(parts, i.part_id) && <small> · {partName(parts, i.part_id)}</small>}</li>)}</ul> : <p className="mono">Порожньо — додай у «План» або вкинь витяжку.</p>}
-        </div>
-        <div className="card stack" style={{ gap: "0.5rem" }}>
-          <div className="mx-main-head"><b>Останнє</b><Link href={`${base}&sv=log`}>хроніка →</Link></div>
-          {log.length ? <ul className="st-list">{log.map((i) => <li key={i.id}><small>{fmtDate(i.created_at)}</small> {i.title}</li>)}</ul> : <p className="mono">Ще нічого.</p>}
-        </div>
+      <div className="qt-grid">
+        <ListPop title="Цей тиждень" ico="flag" tone="accent" items={week.map((i) => `${i.title}${partName(parts, i.part_id) ? ` · ${partName(parts, i.part_id)}` : ""}`)} empty="порожньо — додай у «План»" />
+        <ListPop title="Цей місяць" ico="clock" items={month.map((i) => `${i.title}${partName(parts, i.part_id) ? ` · ${partName(parts, i.part_id)}` : ""}`)} empty="порожньо" />
+        <ListPop title="Останнє зроблене" ico="check" tone="good" items={log.map((i) => `${fmtDate(i.created_at)} · ${i.title}`)} empty="ще нічого" />
+        {s.insights && <ListPop title="Висновки" ico="sparkles" items={lines(s.insights)} />}
       </div>
       <div className="mx-main-head"><b>Екосистема</b><Link href={`${base}&sv=systems`}>усі частини →</Link></div>
-      {parts.length ? <div className="st-parts">{parts.map((p) => <PartCard key={p.id} p={p} base={base} />)}</div> : <p className="mono">Ще нема частин. Додай у «Екосистема» (напр. «CRM», «Бот заявок», «Реклама Meta») або вкинь витяжку — частина створиться сама.</p>}
-      {s.insights && <div className="card stack" style={{ gap: "0.375rem" }}><div className="mx-main-head"><b>Висновки</b><Link href={`${base}&sv=insights`}>усі →</Link></div><div className="tm-details"><Markdown md={s.insights.split("\n").slice(0, 6).join("\n")} /></div></div>}
+      {parts.length ? <div className="st-parts">{parts.map((p) => <PartCard key={p.id} p={p} base={base} />)}</div> : <p className="mono">Ще нема частин. Додай у «Екосистема» або вкинь витяжку — частина створиться сама.</p>}
     </div>
   );
 }
@@ -101,7 +103,8 @@ function PartCard({ p, base }: { p: Part; base: string }) {
     <Link href={`${base}&sv=part&p=${p.id}`} className={`card st-part s-${p.status}`}>
       <div className="st-part-h"><b>{p.title}</b>{statusTag(p.status)}</div>
       {p.summary && <p>{p.summary}</p>}
-      <small>{PART_KINDS[p.kind]}{lines(p.stack).length ? ` · ${lines(p.stack).length} складових` : ""}{p.next_step ? ` · далі: ${p.next_step}` : ""}</small>
+      {(() => { const ms = [...new Set(lines(p.stack).map((x) => brandOf(x)?.name).filter(Boolean))] as string[]; return ms.length ? <span className="qt-marks">{ms.slice(0, 7).map((m) => <BrandDot key={m} text={m} size={15} />)}</span> : null; })()}
+      <small>{PART_KINDS[p.kind]}{p.next_step ? ` · далі: ${p.next_step}` : ""}</small>
     </Link>
   );
 }
