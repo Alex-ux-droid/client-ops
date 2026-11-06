@@ -11,9 +11,12 @@ export default function Pop({ trigger, title, sub, children, className = "pop-tr
   useEffect(() => {
     if (!open) return;
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    // Відкрили Джері з попапу — попап закриваємо, щоб чат не опинився під ним
+    const close = () => setOpen(false);
     document.documentElement.classList.add("locked");
     window.addEventListener("keydown", esc);
-    return () => { document.documentElement.classList.remove("locked"); window.removeEventListener("keydown", esc); };
+    window.addEventListener("assistant:open", close);
+    return () => { document.documentElement.classList.remove("locked"); window.removeEventListener("keydown", esc); window.removeEventListener("assistant:open", close); };
   }, [open]);
   return (
     <>

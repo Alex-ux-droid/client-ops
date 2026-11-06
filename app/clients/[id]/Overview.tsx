@@ -14,6 +14,12 @@ import { listWork } from "@/lib/repo/worklog";
 import { SERVICES, type ServiceType } from "@/lib/services";
 import Markdown from "@/components/Markdown";
 import Pop from "@/components/Pop";
+import Icon from "@/components/Icon";
+import { BrandDot } from "@/components/Brand";
+import { accountsForClient, kyivDay, totals } from "@/lib/repo/meta";
+import { getCrmLink } from "@/lib/repo/crm";
+import { crmStats } from "@/lib/crm";
+import { clientProducts } from "@/lib/repo/products";
 import ExtractButton from "@/components/ExtractButton";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
@@ -25,9 +31,15 @@ const STATUS_TXT = { active: "ведемо", paused: "пауза", done: "зав
 // Огляд клієнта: за хвилину зрозуміти, де ми, куди йдемо, що в роботі і що вже зроблено
 export default function Overview({ c, services, paidTotal, isNew, cplText }: { c: ClientRow; services: ClientService[]; paidTotal: number; isNew: boolean; cplText: string | null }) {
   const id = c.id;
-  const tasks = listTasks("all", id).slice(0, 5);
-  const work = listWork(id, 5);
-  const ideas = listIdeas({ clientId: id, status: "new" }).slice(0, 4);
+  const allTasks = listTasks("all", id);
+  const tasks = allTasks.slice(0, 4);
+  const today = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Kyiv" }).slice(0, 10);
+  const overdue = allTasks.filter((t) => t.due_date && t.due_date < today).length;
+  const work = listWork(id, 4);
+  const ideas = listIdeas({ clientId: id, status: "new" }).slice(0, 12);
+  const meta = accountsForClient(id).length ? totals(id, kyivDay(6), kyivDay(0)) : null;
+  const sales = getCrmLink(id) ? crmStats(id, new Date(Date.now() - 30 * 86400_000).toISOString()) : null;
+  const prods = clientProducts(id);
   const tg = clientMessages(id, { limit: 4 });
   const st = getStrategy(id);
   const lastTg = tg.at(-1)?.sent_at ?? null;
@@ -40,49 +52,80 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
         </div>
       )}
 
-      <div className="ov-extract">
-        <ExtractButton scope={`клієнт «${c.name}» (client_id ${id})`} kind="client" id={id} />
-        <span className="mono">працюєш над клієнтом в іншому чаті (Claude, ChatGPT)? — контекст туди, витяжку з міткою — Джері</span>
+      {/* Цифри одним рядком: клік — у потрібний розділ */}
+      <div className="ov-kpis">
+        <Link href={`/clients/${id}?tab=money`} className="kpi-tile">
+          <div className="kpi-label"><Icon name="wallet" size={15} /> Гроші</div>
+          <div className="kpi-value" style={{ color: c.debt ? "var(--bad)" : "var(--ok)" }}>{c.debt ? money(c.debt) : c.fee_monthly ? money(c.fee_monthly) : "—"}</div>
+          <div className="kpi-sub">{c.debt ? "борг" : c.fee_monthly ? "платить / міс" : "абонплату не вказано"} · всього {money(paidTotal)}</div>
+        </Link>
+        <Link href={`/clients/${id}?tab=meta_ads`} className="kpi-tile">
+          <div className="kpi-label"><BrandDot text="Meta" size={13} /> Реклама · 7 дн.</div>
+          <div className="kpi-value">{meta ? meta.leads : "—"}<small> {meta ? "лідів" : ""}</small></div>
+          <div className="kpi-sub">{meta ? `ціна ліда ${cplText ?? "—"} · витрачено ${Math.round(meta.spend)}` : "кабінет не привʼязано"}</div>
+        </Link>
+        <Link href={`/clients/${id}?tab=sales`} className="kpi-tile">
+          <div className="kpi-label"><Icon name="zap" size={15} /> Продажі · 30 дн.</div>
+          <div className="kpi-value" style={{ color: sales?.sales ? "var(--ok)" : undefined }}>{sales ? sales.sales : "—"}<small> {sales ? "продажів" : ""}</small></div>
+          <div className="kpi-sub">{sales ? `на ${Math.round(sales.revenue).toLocaleString("uk-UA")} ${sales.currency} · ${sales.leads} лідів` : "CRM не підключена"}</div>
+        </Link>
+        <Link href={`/clients/${id}?tab=tasks`} className="kpi-tile">
+          <div className="kpi-label"><Icon name="tasks" size={15} /> Задачі</div>
+          <div className="kpi-value" style={{ color: overdue ? "var(--bad)" : undefined }}>{allTasks.length}<small> в роботі</small></div>
+          <div className="kpi-sub">{overdue ? `${overdue} прострочено` : "без прострочок"}{c.last_work ? ` · робота ${fmtDate(c.last_work)}` : ""}</div>
+        </Link>
       </div>
-      <ClientMemoryCard clientId={id} clientName={c.name} />
 
-      <div className="ov-now card">
-        <div className="ov-now-row">
-          <div className="ov-stat"><span>Послуги</span>
-            <div className="meta" style={{ marginTop: 0 }}>
-              {services.length
-                ? services.map((s) => <Link key={s.type} href={`/clients/${id}?tab=${s.type}`} className={`tag ${s.status === "active" ? "accent" : ""}`}>{SERVICES[s.type as ServiceType].short}{s.tool_name ? ` · ${s.tool_name}` : ""}{s.status !== "active" ? ` · ${STATUS_TXT[s.status]}` : ""}</Link>)
-                : <Link href={`/clients/${id}?tab=setup`} className="h-link">обрати послуги</Link>}
-            </div>
-          </div>
-          <div className="ov-stat"><span>Остання робота</span><b>{c.last_work ? fmtDate(c.last_work) : "—"}</b></div>
-          <div className="ov-stat"><span>Останнє в Telegram</span><b>{lastTg ? fmtDate(lastTg) : "—"}</b></div>
-          <div className="ov-stat"><span>Ведемо з</span><b>{c.work_since ? fmtDate(c.work_since) : "—"}</b></div>
-        </div>
-        <div className="chips">
-          <AskAssistant text="Коротко, як другу: де ми зараз з цим клієнтом, що горить, що наступне і на що звернути увагу.">Джері, де ми з клієнтом?</AskAssistant>
-        </div>
+      {/* Де ми: стратегія + що памʼятає Джері */}
+      <div className="ov-where">
+        <Pop className="pop-card ov-tile" wide title="Стратегія клієнта" trigger={
+          <>
+            <span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="compass" /></span><b>Стратегія</b></span></span>
+            {st.where_now || st.goal || st.focus ? <>
+              {st.focus && <span className="ov-line"><em>Фокус</em>{st.focus.split("\n")[0]}</span>}
+              {st.where_now && <span className="ov-line"><em>Де ми</em>{st.where_now.split("\n")[0]}</span>}
+              {st.goal && <span className="ov-line"><em>Куди</em>{st.goal.split("\n")[0]}</span>}
+            </> : <span className="qt-l mono">ще порожньо — відкрий і заповни</span>}
+          </>
+        }>
+          {st.focus && <><b>Головне зараз</b><p style={{ whiteSpace: "pre-wrap" }}>{st.focus}</p></>}
+          {st.where_now && <><b>Де ми</b><p style={{ whiteSpace: "pre-wrap" }}>{st.where_now}</p></>}
+          {st.goal && <><b>Куди йдемо</b><p style={{ whiteSpace: "pre-wrap" }}>{st.goal}</p></>}
+          {(c.my_vision || c.needs || c.client_vision) && <><b>Бачення</b><p style={{ whiteSpace: "pre-wrap" }}>{[c.my_vision && `Моє: ${c.my_vision}`, (c.needs || c.client_vision) && `Клієнт хоче: ${c.needs || c.client_vision}`].filter(Boolean).join("\n")}</p></>}
+          <Link href={`/clients/${id}?tab=strategy`} className="btn small">Відкрити стратегію →</Link>
+        </Pop>
+        <ClientMemoryCard clientId={id} clientName={c.name} />
       </div>
 
-      <div className="grid2">
-        <section className="card stack ov-card">
-          <h2>Куди йдемо</h2>
-          <dl className="kv">
-            <div><dt style={{ color: "var(--link)" }}>Моє бачення</dt><dd>{c.my_vision || <span className="ov-dim">не записано</span>}</dd></div>
-            <div><dt>Чого хоче клієнт</dt><dd>{c.needs || c.client_vision || <span className="ov-dim">не записано</span>}</dd></div>
-            {c.client_vision && c.needs && <div><dt>Бачення клієнта</dt><dd>{c.client_vision}</dd></div>}
-          </dl>
-        </section>
-        <section className="card stack ov-card">
-          <h2>Гроші</h2>
-          <div className="ov-money">
-            <div><b>{c.fee_monthly ? money(c.fee_monthly) : "—"}</b><span>платить / міс</span></div>
-            <div><b style={{ color: c.debt ? "var(--bad)" : undefined }}>{money(c.debt)}</b><span>борг</span></div>
-            <div><b>{money(paidTotal)}</b><span>отримано всього</span></div>
-            <div><b>{cplText ?? "—"}</b><span>ціна ліда, 7 дн.</span></div>
+      <div className="qt-grid">
+        <Pop className="pop-card qt" title="Послуги" trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="zap" /></span><b>Послуги</b></span><span className="qt-n">{services.length}</span></span>
+          {services.length ? <span className="qt-marks">{services.slice(0, 6).map((s) => <span key={s.type} className="tag accent">{SERVICES[s.type as ServiceType].short}</span>)}</span> : <span className="qt-l mono">обрати →</span>}</>}>
+          <div className="stack" style={{ gap: "0.5rem" }}>
+            {services.map((s) => <Link key={s.type} href={`/clients/${id}?tab=${s.type}`} className="inline h-link"><BrandDot text={`${SERVICES[s.type as ServiceType].label} ${s.tool_name ?? ""}`} size={16} />{SERVICES[s.type as ServiceType].label}{s.tool_name ? ` · ${s.tool_name}` : ""}{s.status !== "active" ? ` · ${STATUS_TXT[s.status]}` : ""}</Link>)}
+            <Link href={`/clients/${id}?tab=setup`} className="btn ghost small">Налаштувати послуги</Link>
           </div>
-          {c.budget && <div className="mono">Бюджет / умови: {c.budget}</div>}
-        </section>
+        </Pop>
+        <Pop className="pop-card qt" title="Наші продукти в клієнта" trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="box" /></span><b>Наші продукти</b></span><span className="qt-n">{prods.length}</span></span>
+          {prods.length ? prods.slice(0, 2).map((p) => <span key={p.id} className="qt-l">{p.name}</span>) : <span className="qt-l mono">ще не привʼязано</span>}</>}>
+          <div className="stack" style={{ gap: "0.5rem" }}>
+            {prods.length ? prods.map((p) => <Link key={p.id} href={`/products/${p.id}`} className="h-link">{p.name}{p.note ? ` · ${p.note}` : ""}</Link>) : <p className="mono">Привʼязати клієнта можна в продукті → «Клієнти».</p>}
+            <Link href="/products" className="btn ghost small">Усі продукти →</Link>
+          </div>
+        </Pop>
+        <Pop className="pop-card qt" wide title="Останнє в Telegram" trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><BrandDot text="Telegram" size={14} /></span><b>Telegram</b></span>{lastTg && <span className="qt-n">{fmtDate(lastTg)}</span>}</span>
+          {tg.length ? <span className="qt-l">{tg.at(-1)!.is_owner ? "Ти" : tg.at(-1)!.from_name}: {tg.at(-1)!.text || "📎"}</span> : <span className="qt-l mono">групу не привʼязано</span>}</>}>
+          <div className="list">{tg.map((m) => <div key={m.id} className="row"><div className="row-main"><div className="mono">{m.is_owner ? "Ти" : m.from_name} · {fmtDate(m.sent_at)} {m.sent_at.slice(11, 16)}</div><div className="row-title" style={{ fontWeight: 400 }}>{m.text || (m.kind === "voice" ? "🎙 голосове" : "📎 вкладення")}</div></div></div>)}</div>
+          <Link href={`/clients/${id}?tab=telegram`} className="btn ghost small" style={{ marginTop: "0.75rem" }}>Вся переписка →</Link>
+        </Pop>
+        <Pop className="pop-card qt" title="Ідеї для клієнта" trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="bulb" /></span><b>Ідеї</b></span><span className="qt-n">{ideas.length}</span></span>
+          {ideas.length ? ideas.slice(0, 2).map((i) => <span key={i.id} className="qt-l">{i.text}</span>) : <span className="qt-l mono">додати →</span>}</>}>
+          <form action={saveIdea} className="inline" style={{ marginBottom: "0.75rem" }}>
+            <input type="hidden" name="client_id" value={id} />
+            <input name="text" placeholder="Ідея для клієнта…" required aria-label="Ідея" />
+            <button>Додати</button>
+          </form>
+          <ul className="st-list">{ideas.map((i) => <li key={i.id}>{i.text}</li>)}</ul>
+        </Pop>
       </div>
 
       <div className="grid2">
@@ -100,40 +143,9 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
         </section>
       </div>
 
-      <div className="grid2">
-        {tg.length > 0 && (
-          <section>
-            <h2 className="ov-h">Останнє в Telegram <Link href={`/clients/${id}?tab=telegram`} className="h-link">вся переписка →</Link></h2>
-            <div className="list">
-              {tg.map((m) => (
-                <div key={m.id} className="row"><div className="row-main">
-                  <div className="mono">{m.is_owner ? "Ти" : m.from_name} · {fmtDate(m.sent_at)} {m.sent_at.slice(11, 16)}</div>
-                  <div className="row-title" style={{ fontWeight: 400 }}>{m.text || (m.kind === "voice" ? "🎙 голосове" : "📎 вкладення")}</div>
-                </div></div>
-              ))}
-            </div>
-          </section>
-        )}
-        <section>
-          <h2 className="ov-h">Ідеї</h2>
-          <form action={saveIdea} className="inline" style={{ marginBottom: "0.5rem" }}>
-            <input type="hidden" name="client_id" value={id} />
-            <input name="text" placeholder="Ідея для клієнта…" required aria-label="Ідея" />
-            <button>✦</button>
-          </form>
-          <div className="list">{ideas.length ? ideas.map((i) => <div key={i.id} className="row"><div className="row-main"><div className="row-title">{i.text}</div></div></div>) : <div className="empty">Ідей нема.</div>}</div>
-        </section>
-        <section>
-          <h2 className="ov-h">Стратегія</h2>
-          {st.where_now || st.goal || st.focus ? (
-            <dl className="kv">
-              {st.where_now && <><dt>Де ми</dt><dd>{st.where_now.split("\n")[0]}</dd></>}
-              {st.goal && <><dt>Куди йдемо</dt><dd>{st.goal.split("\n")[0]}</dd></>}
-              {st.focus && <><dt>Фокус</dt><dd>{st.focus.split("\n")[0]}</dd></>}
-            </dl>
-          ) : <div className="empty">Стратегії ще нема.</div>}
-          <Link href={`/clients/${id}?tab=strategy`} className="h-link">Відкрити стратегію →</Link>
-        </section>
+      <div className="ov-extract">
+        <ExtractButton scope={`клієнт «${c.name}» (client_id ${id})`} kind="client" id={id} />
+        <AskAssistant text="Коротко, як другу: де ми зараз з цим клієнтом, що горить, що наступне і на що звернути увагу.">Джері, де ми з клієнтом?</AskAssistant>
       </div>
 
       <details className="card ov-contacts">
@@ -155,16 +167,17 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
 // Що Джері памʼятає про клієнта: де ми, домовленості, зроблене, далі. Від цього він планує, а не з нуля.
 function ClientMemoryCard({ clientId }: { clientId: number; clientName: string }) {
   const mem = getClientMemory(clientId);
+  const plain = (mem?.text ?? "").replace(/\*\*/g, "").split("\n").map((x) => x.replace(/^[\s#>*•-]+/, "").trim()).filter(Boolean);
   return (
-    <div className="card cm-mem stack" style={{ gap: "0.5rem" }}>
-      <div><b>Що Джері памʼятає про клієнта</b> <span className="mono">{mem ? `оновлено ${fmtDate(mem.updated_at)} · сам після розмов` : "ще порожньо"}</span></div>
-      {mem?.text ? (
-        <Pop wide title="Що Джері памʼятає про клієнта" sub={`оновлено ${fmtDate(mem.updated_at)}`} trigger={<div className="pv"><div className="pv-s l4">{mem.text.replace(/^#+\s*/gm, "").replace(/\*\*/g, "")}</div><div className="pv-m">відкрити повністю →</div></div>}>
-          <div className="tm-details"><Markdown md={mem.text} /></div>
-        </Pop>
-      ) : <p className="mono">Розкажи Джері, де ви з клієнтом (зустріч, домовленості, що вже зроблено) — або натисни «Зібрати», він збере з історії, задач і переписки.</p>}
-      <div className="inline" style={{ flexWrap: "wrap" }}>
-        <AskAssistant text={`Клієнт client_id ${clientId}: збери памʼять по клієнту з усього, що є (історія робіт, задачі, переписка в групі, заявки, лабораторія, наші розмови) і запиши client_memory rewrite: де ми зараз, домовленості (гроші, обсяг, терміни), що вже зроблено, що в роботі і далі, що важливо. Потім коротко покажи мені.`}>Джері, зібрати / оновити</AskAssistant>
+    <Pop className="pop-card ov-tile" wide title="Що Джері памʼятає про клієнта" sub={mem ? `оновлено ${fmtDate(mem.updated_at)} · сам після розмов` : "ще порожньо"} trigger={
+      <>
+        <span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="bot" /></span><b>Памʼять Джері</b></span>{mem && <span className="qt-n">{fmtDate(mem.updated_at)}</span>}</span>
+        {plain.length ? <span className="pv-s l4">{plain.slice(0, 6).join(" · ")}</span> : <span className="qt-l mono">ще порожньо — відкрий і натисни «Зібрати»</span>}
+      </>
+    }>
+      {mem?.text ? <div className="tm-details"><Markdown md={mem.text} /></div> : <p className="mono">Розкажи Джері, де ви з клієнтом (зустріч, домовленості, що вже зроблено) — або «Зібрати»: він збере з історії, задач і переписки.</p>}
+      <div className="inline" style={{ flexWrap: "wrap", margin: "0.75rem 0" }}>
+        <AskAssistant text={`Клієнт client_id ${clientId}: збери памʼять по клієнту з усього, що є (історія робіт, задачі, переписка в групі, заявки, стратегія, наші розмови) і запиши client_memory rewrite: де ми зараз, домовленості (гроші, обсяг, терміни), що вже зроблено, що в роботі і далі, що важливо. Потім коротко покажи мені.`}>Джері, зібрати / оновити</AskAssistant>
       </div>
       <details>
         <summary className="h-link">Правити руками</summary>
@@ -174,6 +187,6 @@ function ClientMemoryCard({ clientId }: { clientId: number; clientName: string }
           <div><SubmitButton className="small">Зберегти</SubmitButton></div>
         </form>
       </details>
-    </div>
+    </Pop>
   );
 }
