@@ -34,4 +34,5 @@ export const llmErrorText = (e: unknown) =>
   e instanceof LlmJsonError ? e.message
   : (e as { status?: number }).status === 401 ? "Ключ Anthropic не підходить"
   : e instanceof SyntaxError ? "Модель повернула зламану відповідь — спробуй ще раз"
-  : "Не вдалось розібрати — спробуй ще раз";
+  : (e as { status?: number }).status === 529 || (e as { status?: number }).status === 429 ? "Anthropic перевантажений — спробуй за хвилину"
+  : `Не вдалось розібрати: ${String((e as Error)?.message ?? e).slice(0, 160)}`;

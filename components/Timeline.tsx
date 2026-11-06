@@ -12,6 +12,7 @@ const firstLine = (s = "") => {
 
 export default function Timeline({ items, empty }: { items: TlItem[]; empty?: string }) {
   if (!items.length) return <p className="mono">{empty ?? "Поки порожньо."}</p>;
+  if (items.length > 9) return <Stream items={items} />;
   const rows: TlItem[][] = [];
   for (let i = 0; i < items.length; i += PER) rows.push(items.slice(i, i + PER));
   return (
@@ -45,6 +46,36 @@ export default function Timeline({ items, empty }: { items: TlItem[]; empty?: st
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Довга хронологія: вертикальна стрічка по днях, нові зверху. Клік по етапу — попап.
+function Stream({ items }: { items: TlItem[] }) {
+  const numbered = items.map((it, i) => ({ ...it, n: i + 1 }));
+  const days = new Map<string, typeof numbered>();
+  for (const it of [...numbered].reverse()) { const k = day(it.at); days.set(k, [...(days.get(k) ?? []), it]); }
+  return (
+    <div className="ts">
+      {[...days].map(([d, xs]) => (
+        <div key={d} className="ts-day">
+          <div className="ts-date"><span>{d}</span><small>{xs.length} {xs.length === 1 ? "етап" : xs.length < 5 ? "етапи" : "етапів"}</small></div>
+          <div className="ts-items">
+            {xs.map((it) => (
+              <Pop key={it.id} className="ts-item" title={it.title} sub={[day(it.at), it.tag].filter(Boolean).join(" · ")} trigger={
+                <>
+                  <span className="ts-n">{it.n}</span>
+                  <span className="ts-main"><b>{it.title}</b>{it.body && <span>{firstLine(it.body)}</span>}</span>
+                  {it.tag && <span className="ts-tag">{it.tag}</span>}
+                </>
+              }>
+                {it.body ? <div className="tm-details"><Markdown md={it.body} /></div> : <p className="mono">Деталей нема.</p>}
+                {it.actions && <div className="inline" style={{ marginTop: "0.75rem" }}>{it.actions}</div>}
+              </Pop>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
