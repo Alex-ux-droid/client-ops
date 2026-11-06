@@ -7,6 +7,8 @@ import { listTasks } from "@/lib/repo/tasks";
 import { accessCount } from "@/lib/repo/access";
 import { chatsForClient } from "@/lib/repo/telegram";
 import { SERVICES, type ServiceType } from "@/lib/services";
+import { accountsForClient } from "@/lib/repo/meta";
+import { listPrompts } from "@/lib/repo/creatives";
 
 export type Section = { k: string; label: string; ico: string; group: string; badge?: number; svc?: boolean };
 
@@ -22,6 +24,8 @@ export function clientSections(c: ClientRow, services: ClientService[]): Section
     { k: "overview", label: "Огляд", ico: "home", group: "" },
     { k: "strategy", label: "Стратегія", ico: "zap", group: "" },
     { k: "sales", label: "Продажі", ico: "wallet", group: "" },
+    // Креативи — коли є Meta (послуга або привʼязаний кабінет) чи вже є промпти
+    ...(services.some((s) => s.type === "meta_ads") || accountsForClient(c.id).length || listPrompts(c.id, 1).length ? [{ k: "creatives", label: "Креативи", ico: "sparkles", group: "" }] : []),
     ...services.map((s) => ({ k: s.type, label: SERVICES[s.type as ServiceType].label, ico: SVC_ICO[s.type] ?? "zap", group: "Послуги", svc: true })),
     ...(chatsForClient(c.id).length ? [{ k: "telegram", label: "Telegram", ico: "send", group: "Звʼязок" }] : []),
     // Пошта — тільки якщо в клієнта є email (і підключено Google)

@@ -14,14 +14,11 @@ import {
   type Breakdown, type MetaAd, type MetaAdset,
 } from "@/lib/repo/meta";
 import CreativeGallery, { type GalleryItem } from "./CreativeGallery";
-import CreativeGen from "./CreativeGen";
 import { CopyText } from "@/app/startups/[id]/CopyText";
-import VoiceTextarea from "@/components/VoiceTextarea";
-import { brandAction, changeAction, promptUpdateAction, reportLinkAction } from "@/app/creatives/actions";
+import { changeAction, reportLinkAction } from "@/app/creatives/actions";
 import { reportToken } from "@/lib/clientReport";
 import { headers } from "next/headers";
-import { brandOf, FORMATS, promptStats } from "@/lib/creativeLab";
-import { adIdsOf, listChanges, listPrompts } from "@/lib/repo/creatives";
+import { listChanges } from "@/lib/repo/creatives";
 import { adMore } from "@/lib/metaExtra";
 import { adsetExtra, badAdsForClient, monthlyForClient } from "@/lib/repo/meta";
 import { leadBotDisconnectAction, leadBotInviteAction, leadBotUserAction, leadRouteAction, rateLeadAction } from "@/app/leads/actions";
@@ -473,56 +470,12 @@ function LeadRouting({ clientId }: { clientId: number }) {
   );
 }
 
-// Промпти креативів: генерація, бренд, привʼязка до оголошень → цифри, вердикт
-function CreativePrompts({ clientId, m, ads }: { clientId: number; m: Fmt; ads: ReturnType<typeof adsForClient> }) {
-  const list = listPrompts(clientId);
-  const brand = brandOf(clientId);
+// Промпти креативів переїхали в розділ «Креативи» (студія) — тут лише посилання
+function CreativePrompts({ clientId }: { clientId: number; m?: Fmt; ads?: unknown }) {
   return (
-    <section className="stack" style={{ gap: "0.75rem", marginTop: "1rem" }}>
-      <h3 style={{ margin: 0 }}>Промпти креативів</h3>
-      <CreativeGen clientId={clientId} formats={FORMATS} />
-      <details className="card">
-        <summary><b>Бренд клієнта</b> <span className="mono">{brand ? "заповнено" : "порожньо — Джері візьме нейтральний стиль"}</span></summary>
-        <form action={brandAction} className="stack" style={{ gap: "0.5rem", marginTop: "0.75rem" }}>
-          <input type="hidden" name="client_id" value={clientId} />
-          <VoiceTextarea name="brand" defaultValue={brand} placeholder={"Кольори: #0e3b2e, золотий акцент\nШрифт: строгий без засічок\nЛоготип: є, кутом\nТон: преміально, спокійно, без «акцій»\nФото: обʼєкт, тераса, гори"} style={{ minHeight: "6rem" }} />
-          <div><SubmitButton className="small">Зберегти</SubmitButton></div>
-        </form>
-      </details>
-      {list.map((p) => {
-        const st = promptStats(p, ads);
-        return (
-          <details key={p.id} className={`card cg-prompt ${p.verdict}`}>
-            <summary>
-              {p.verdict === "win" ? <span className="tag ok">спрацював</span> : p.verdict === "lose" ? <span className="tag bad">не спрацював</span> : st.ads.length ? <span className="tag accent">у рекламі</span> : <span className="tag">чернетка</span>}
-              <b>{p.title}</b>
-              <span className="mono">{p.format}{st.ads.length ? ` · ${st.leads} лідів · ціна ліда ${m(st.cpl)} · CTR ${st.ctr == null ? "—" : `${st.ctr.toFixed(2)}%`}` : ""} · {fmtDate(p.created_at)}</span>
-            </summary>
-            {p.angle && <p className="mono" style={{ margin: 0 }}>Кут: {p.angle}</p>}
-            <pre className="su-iss-pre">{p.prompt}</pre>
-            <div className="inline" style={{ flexWrap: "wrap" }}><CopyText text={p.prompt} label="Копіювати промпт" /></div>
-            <form action={promptUpdateAction} className="stack" style={{ gap: "0.5rem" }}>
-              <input type="hidden" name="prompt_id" value={p.id} />
-              {ads.length > 0 && (
-                <details>
-                  <summary className="h-link">Оголошення з цього промпту ({st.ads.length})</summary>
-                  <div className="stack" style={{ gap: "0.25rem", marginTop: "0.5rem" }}>
-                    <input type="hidden" name="ad_ids" value="" />
-                    {ads.map((a) => <label key={a.ad_id} className="lp-check"><input type="checkbox" name="ad_ids" value={a.ad_id} defaultChecked={adIdsOf(p).includes(a.ad_id)} /> {a.name}</label>)}
-                  </div>
-                </details>
-              )}
-              <div className="inline" style={{ flexWrap: "wrap" }}>
-                <select name="verdict" defaultValue={p.verdict} aria-label="Результат"><option value="">— результат —</option><option value="win">спрацював</option><option value="lose">не спрацював</option></select>
-                <input name="notes" defaultValue={p.notes} placeholder="Нотатка: що змінив, чому" />
-                <SubmitButton className="ghost small">Зберегти</SubmitButton>
-                <button name="delete" value="1" className="ghost small danger-text">Видалити</button>
-              </div>
-            </form>
-          </details>
-        );
-      })}
-    </section>
+    <Link href={`/clients/${clientId}?tab=creatives`} className="card cs-link" style={{ marginTop: "1rem" }}>
+      <b>Студія креативів →</b> <span className="mono">«Хто ми» для нового чату, промпти з кодом CR-N, дошка і що працює</span>
+    </Link>
   );
 }
 

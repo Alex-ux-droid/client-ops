@@ -4,15 +4,31 @@ import Anthropic from "@anthropic-ai/sdk";
 import { agentConfig } from "./agent/config";
 import { logError } from "./log";
 import { getClient } from "./repo/clients";
-import { adIdsOf, addPrompt, listChanges, listPrompts, type CreativePrompt } from "./repo/creatives";
+import { adIdsOf, addPrompt, listChanges, listPrompts, updatePrompt, type CreativePrompt } from "./repo/creatives";
 import { adsForClient, getAnalysis, type MetaAd } from "./repo/meta";
 import { getSetting } from "./repo/settings";
 import { getApiKey } from "./secrets";
 import { cplOf, ctrOf } from "./metaInsights";
+import { adBook, adOfferOf, brandOf, creativeNums, extractFooter, rulesOf } from "./creativeStudio";
+export { brandOf };
 
-export const FORMATS = { square: "Квадрат 1080×1080 (стрічка)", story: "Сторіс / Reels 1080×1920", carousel: "Карусель 3–5 карток", video: "Сценарій відео (Reels 15–30 с)" } as const;
+export const FORMATS = {
+  square: "Картинка 1080×1080 (стрічка)", feed: "Картинка 1080×1350 (стрічка, вертикальна)", story: "Сторіс / Reels 1080×1920 (статика)",
+  carousel: "Карусель 3–5 карток", motion: "Моушен 1080×1920, 6–10 с (анімація)", video: "Сценарій відео Reels 15–30 с",
+  ugc: "UGC-сценарій (людина в кадрі, телефон)", imagegen: "Промпт для генератора фото (Midjourney / Higgsfield / інші)",
+} as const;
 export type CreativeFormat = keyof typeof FORMATS;
-export const brandOf = (clientId: number) => getSetting(`brand.${clientId}`) ?? "";
+// Як саме Claude має виконати кожен формат
+const HOW: Record<CreativeFormat, string> = {
+  square: "зробити як одну HTML/CSS-сторінку рівно 1080×1080 (щоб зберегти PNG)",
+  feed: "зробити як одну HTML/CSS-сторінку рівно 1080×1350 (щоб зберегти PNG)",
+  story: "HTML/CSS 1080×1920; безпечні зони: верхні 250 і нижні 340 px без тексту",
+  carousel: "3–5 HTML/CSS-карток 1080×1080, кожна — один крок історії, перша — хук, остання — CTA",
+  motion: "HTML/CSS/SVG-анімація 1080×1920 на 6–10 с, що зациклюється; хук у першу секунду; розписати таймлайн по секундах; так, щоб я записав екран або експортував у відео",
+  video: "покадровий сценарій 15–30 с: секунди, що в кадрі, текст на екрані, голос/музика; хук у 1-шу секунду; субтитри",
+  ugc: "сценарій для людини з телефоном (вертикально): хук-фраза, 3–4 репліки природною мовою, де знімати, що показати; без «рекламного» тону",
+  imagegen: "англомовні промпти для генератора фото (3 варіанти: композиція, світло, обʼєктив, стиль), окремо — текст, який я накладу зверху; без тексту всередині згенерованого фото",
+};
 
 const r2 = (n: number | null) => (n == null ? null : Math.round(n * 100) / 100);
 
@@ -34,9 +50,11 @@ export async function generateCreativePrompt(clientId: number, o: { format: Crea
   const opinion = getAnalysis(clientId)?.data;
   const adRow = (a: MetaAd) => ({ name: a.name, type: a.kind, text: a.body.slice(0, 300), spend: r2(a.spend_30d), leads: a.leads_30d, cpl: r2(cplOf({ spend: a.spend_30d, leads: a.leads_30d })), ctr: r2(ctrOf({ clicks: a.clicks_30d, impressions: a.impressions_30d })), jerry: opinion?.creatives?.[a.ad_id] });
   const withLeads = ads.filter((a) => a.leads_30d > 0).sort((x, y) => x.spend_30d / x.leads_30d - y.spend_30d / y.leads_30d);
-  const past = listPrompts(clientId, 15).map((p) => { const st = promptStats(p, ads); return { title: p.title, angle: p.angle, format: p.format, verdict: p.verdict || undefined, notes: p.notes || undefined, spend: r2(st.spend), leads: st.leads, cpl: r2(st.cpl), ctr: r2(st.ctr) }; });
+  const book = adBook(clientId);
+  const past = listPrompts(clientId, 15).map((p) => { const st = creativeNums(p, book); return { title: p.title, angle: p.angle, format: p.format, verdict: st.verdict || undefined, notes: p.notes || undefined, spend: r2(st.spend), leads: st.leads, cpl: r2(st.cpl), ctr: r2(st.ctr) }; });
   const data = {
-    client: { name: c.name, niche: c.niche, offer: c.offer, needs: c.needs, client_vision: c.client_vision, my_vision: c.my_vision },
+    client: { name: c.name, niche: c.niche, what_we_advertise: adOfferOf(clientId) || undefined, client_goal: c.client_vision },
+    rules: rulesOf(clientId) || undefined,
     brand: brandOf(clientId) || "не задано — візьми стриманий сучасний стиль і залиш місця [логотип], [фото обʼєкта]",
     avg_cpl: r2(avgCpl),
     best_ads: withLeads.slice(0, 5).map(adRow), worst_ads: ads.filter((a) => a.spend_30d > (avgCpl ?? 0) && (a.leads_30d === 0 || a.spend_30d / a.leads_30d > (avgCpl ?? 0) * 1.4)).slice(0, 4).map(adRow),
@@ -46,21 +64,23 @@ export async function generateCreativePrompt(clientId: number, o: { format: Crea
   const system = `Ти — Джері, креативний таргетолог Саші. Твоє завдання — написати ПРОМПТ (технічне завдання), який Саша вставить у Claude / Claude Code, щоб той зробив рекламний креатив для Meta.
 Спирайся на дані: що вже дає дешеві ліди (best_ads), що зливає (worst_ads), патерни з розбору і результати минулих промптів (past_prompts: verdict win — повторюй підхід, lose — уникай). Один креатив = одна думка/кут.
 Промпт має бути самодостатній і конкретний:
-- формат і розмір; для зображення — зробити як HTML/CSS-сторінку точно цього розміру (щоб зберегти як PNG), для відео — покадровий сценарій з текстом на екрані;
+- формат і як його виконати (дано в «Як виконати»);
 - кут (angle) і для кого; хук першої секунди / головний заголовок (3 варіанти), підзаголовок, CTA;
 - візуал: що в кадрі, композиція, кольори і шрифти з бренду, читабельність на телефоні (великий текст, контраст, мінімум слів);
 - текст оголошення для Meta: primary text (2 варіанти), headline, опис;
 - чого НЕ робити (з того, що не спрацювало);
 - в кінці попроси 2 варіації (А/Б), що відрізняються одним елементом.
+Дотримуйся rules клієнта (обовʼязково / заборонено). Контекст про клієнта Claude вже отримав окремим повідомленням «Хто ми», тому не переписуй його — тільки завдання на цей креатив.
 Не вигадуй факти про клієнта (ціни, знижки, адреси), яких нема в даних — став [уточнити].
 Відповідай ТІЛЬКИ JSON: {"title": "коротка назва креативу", "angle": "кут одним реченням", "prompt": "повний текст промпту українською"}`;
-  const user = `Формат: ${FORMATS[o.format]}${o.angle ? `\nКут, який хоче Саша: ${o.angle}` : "\nКут обери сам — найперспективніший з даних."}${o.note ? `\nПобажання Саші: ${o.note}` : ""}\n\nДАНІ:\n${JSON.stringify(data)}`;
+  const user = `Формат: ${FORMATS[o.format]}\nЯк виконати: ${HOW[o.format]}${o.angle ? `\nКут, який хоче Саша: ${o.angle}` : "\nКут обери сам — найперспективніший з даних."}${o.note ? `\nПобажання Саші: ${o.note}` : ""}\n\nДАНІ:\n${JSON.stringify(data)}`;
   try {
-    const r = await new Anthropic({ apiKey: key, timeout: 120000, maxRetries: 1 }).messages.create({ model: agentConfig().model, max_tokens: 6000, system, messages: [{ role: "user", content: user }] });
+    const r = await new Anthropic({ apiKey: key, timeout: 120000, maxRetries: 1 }).messages.create({ model: agentConfig().model, max_tokens: 8000, system, messages: [{ role: "user", content: user }] });
     const out = r.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("");
     const j = JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)) as { title?: string; angle?: string; prompt?: string };
     if (!j.prompt) return { ok: false, error: "Порожній промпт — спробуй ще раз" };
     const id = addPrompt({ client_id: clientId, title: j.title || "Креатив", angle: j.angle || o.angle || "", format: FORMATS[o.format], prompt: j.prompt, notes: o.note });
+    updatePrompt(id, { prompt: `${j.prompt.trim()}${extractFooter({ id })}` });
     return { ok: true, id };
   } catch (e) {
     logError("creative-prompt", e);

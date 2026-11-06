@@ -130,7 +130,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "attach_playbook", description: "Підключити плейбук до клієнта.", input_schema: obj({ client_id: int("ID клієнта"), playbook_id: int("ID плейбука") }, ["client_id", "playbook_id"]) },
   { name: "make_pdf", description: "Зробити PDF з markdown. format document (A4 документ): # заголовки, абзаци, списки - і 1., чекліст - [ ], **жирне**, --- лінія, таблиці | a | b |; «на одну сторінку» — ~350 слів. format slides (презентація, A4 горизонтально, темна фірмова): перший абзац — підзаголовок титульного, кожен «## Назва» — новий слайд (3–6 пунктів на слайд), картки-цифри рядками «+ Підпис: значення» (до 4 в ряд), таблиці, списки, **жирне». Повертає file_id і посилання; у Telegram-розмові з Сашею файл одразу йде йому (send_to_telegram:false — не надсилати, напр. якщо далі шлеш у групу клієнта).", input_schema: obj({ title: str("Заголовок документа"), format: { type: "string", enum: ["document", "slides"] }, content: str("Вміст у markdown (без заголовка — він окремо)"), file_name: str("Назва файлу, необовʼязково"), client_id: int("Клієнт, якщо документ про нього"), send_to_telegram: { type: "boolean", description: "Надіслати Саші в Telegram (у Telegram-розмові — завжди)" }, caption: str("Підпис до файлу в Telegram") }, ["title", "content"]) },
   { name: "leads", description: "Заявки з лід-форм Meta по клієнту: імʼя, телефон, відповіді на питання форми, кампанія/оголошення, чи взяли в роботу, якість (👍/👎 з кнопок у Telegram-групі), + підсумок: скільки якісних, ціна якісної заявки. Для розбору реклами по ЯКОСТІ заявок, а не тільки кількості.", input_schema: obj({ client_id: int("ID клієнта"), days: int("За скільки днів (за замовчуванням 14)") }, ["client_id"]) },
-  { name: "creative_prompt", description: "Промпти на креативи клієнта для Claude / Claude Code. action generate (format square|story|carousel|video, angle — кут, note — побажання; Джері пише ТЗ з даних реклами: що дає дешеві ліди, патерни, бренд, результати минулих промптів) | list (з цифрами привʼязаних оголошень) | update (prompt_id, ad_ids — ID оголошень Meta, що зроблені з промпту; verdict win|lose; notes). Після generate дай Саші промпт у блоці ```Промпт креативу``` щоб копіювався.", input_schema: obj({ action: { type: "string", enum: ["generate", "list", "update"] }, client_id: int("ID клієнта"), prompt_id: int("ID промпту"), format: { type: "string", enum: ["square", "story", "carousel", "video"] }, angle: str("Кут"), note: str("Побажання"), ad_ids: { type: "array", items: { type: "string" } }, verdict: { type: "string", enum: ["", "win", "lose"] }, notes: str("Нотатка") }, ["action"]) },
+  { name: "creative_prompt", description: "Студія креативів клієнта (розділ «Креативи» в картці). action brief — «Хто ми»: контекст про клієнта для нового чату Claude (перше повідомлення) | generate (format square|feed|story|carousel|motion|video|ugc|imagegen, angle — кут, note — побажання; пише промпт з даних реклами з кодом CR-N і шаблоном витяжки) | list (дошка: стан, цифри за кодом, вердикт виграв/середньо/програв/мало даних) | update (prompt_id; status idea|ready|live|done; ad_ids; verdict win|lose або порожньо = авто; notes; file_url) | import (text — витяжка [CLIENT-OPS:КРЕАТИВ] з чату). Після generate дай Саші промпт у блоці ```Промпт креативу```; нагадай вписати код CR-N у назву оголошення в Meta.", input_schema: obj({ action: { type: "string", enum: ["brief", "generate", "list", "update", "import"] }, client_id: int("ID клієнта"), prompt_id: int("ID креативу (число з CR-N)"), format: { type: "string", enum: ["square", "feed", "story", "carousel", "motion", "video", "ugc", "imagegen"] }, angle: str("Кут"), note: str("Побажання"), status: { type: "string", enum: ["idea", "ready", "live", "done"] }, ad_ids: { type: "array", items: { type: "string" } }, verdict: { type: "string", enum: ["", "win", "lose"] }, notes: str("Нотатка"), file_url: str("Посилання на файл"), text: str("Витяжка для import") }, ["action"]) },
   { name: "ad_change", description: "Журнал змін реклами клієнта: що змінили → чому → чого чекаємо → що вийшло. action add (client_id, what, why, expect, at YYYY-MM-DD) | list (client_id) | result (change_id, result — через кілька днів, що вийшло за цифрами). Записуй кожну зміну, яку Саша зробив у рекламі; через 3–7 днів сам перевір цифри і допиши result.", input_schema: obj({ action: { type: "string", enum: ["add", "list", "result"] }, client_id: int("ID клієнта"), change_id: int("ID зміни"), what: str("Що змінили"), why: str("Чому"), expect: str("Чого чекаємо"), at: str("Дата"), result: str("Що вийшло") }, ["action"]) },
   { name: "strategy_get", description: "Стратегія клієнта (вкладка «Стратегія» в картці): конспект (де ми / куди йдемо / фокус), частини екосистеми з part_id (що будуємо, що надаємо, сервіси), план тиждень/місяць/далі з item_id, висновки. Перед планом по клієнту — дивись сюди.", input_schema: obj({ client_id: int("ID клієнта"), part_id: int("Деталі однієї частини: склад, плюси/мінуси, знання, рішення, хроніка") }, ["client_id"]) },
   { name: "strategy_update", description: "Оновити конспект стратегії клієнта: where_now (де ми), goal (куди йдемо: місяці/роки), focus (головне зараз), insights (висновки/патерни — ПОВНИЙ текст пунктами). Передавай тільки те, що міняєш.", input_schema: obj({ client_id: int("ID клієнта"), where_now: str("Де ми зараз"), goal: str("Куди йдемо"), focus: str("Головне зараз"), insights: str("Висновки повністю") }, ["client_id"]) },
@@ -477,24 +477,42 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
     case "creative_prompt": {
       const cr = await import("../repo/creatives");
       const lab = await import("../creativeLab");
-      const { adsForClient } = await import("../repo/meta");
+      const cs = await import("../creativeStudio");
       const a = s(input.action);
+      const href = (cid: number) => `/clients/${cid}?tab=creatives`;
+      if (a === "brief") {
+        const cid = need(id(input.client_id), "client_id обов'язковий");
+        return { brief: cs.creativeBrief(cid) };
+      }
       if (a === "generate") {
         const cid = need(id(input.client_id), "client_id обов'язковий");
-        const fmt = (["square", "story", "carousel", "video"].includes(s(input.format)) ? s(input.format) : "square") as "square";
+        const fmt = (s(input.format) in lab.FORMATS ? s(input.format) : "square") as keyof typeof lab.FORMATS;
         const r = await lab.generateCreativePrompt(cid, { format: fmt, angle: s(input.angle), note: s(input.note) });
         if (!r.ok) throw new Error(r.error);
         const p = need(cr.getPrompt(r.id), "Промпт не збережено");
-        act("client", `Промпт креативу: ${p.title}`, `/clients/${cid}?tab=meta_ads&mv=creatives`);
-        return { prompt_id: p.id, title: p.title, angle: p.angle, prompt: p.prompt };
+        act("client", `Креатив ${cr.codeOf(p)}: ${p.title}`, href(cid));
+        return { code: cr.codeOf(p), prompt_id: p.id, title: p.title, angle: p.angle, prompt: p.prompt };
+      }
+      if (a === "import") {
+        const r = cs.importCreative(s(input.text), id(input.client_id) || undefined);
+        if (!r.ok) throw new Error(r.error);
+        act("client", `Витяжка → CR-${r.id}`, href(r.clientId));
+        return { ok: true, code: `CR-${r.id}`, title: r.title };
       }
       if (a === "list") {
         const cid = need(id(input.client_id), "client_id обов'язковий");
-        const ads = adsForClient(cid);
-        return { prompts: cr.listPrompts(cid, 20).map((p) => { const st = lab.promptStats(p, ads); return { prompt_id: p.id, title: p.title, angle: p.angle, format: p.format, verdict: p.verdict || undefined, ads: st.ads.map((x) => x.name), leads: st.leads, spend: st.spend, cpl: st.cpl, ctr: st.ctr, notes: p.notes || undefined }; }) };
+        cs.syncCodes(cid);
+        const book = cs.adBook(cid);
+        return { avg_cpl: book.avgCpl, creatives: cr.listPrompts(cid, 40).map((p) => { const n = cs.creativeNums(p, book); return { code: cr.codeOf(p), prompt_id: p.id, title: p.title, angle: p.angle, format: p.format, status: cr.CREATIVE_STATUS[p.status] ?? p.status, verdict: n.verdict ? cs.VERDICT[n.verdict as keyof typeof cs.VERDICT].label : undefined, ads: n.ads.map((x) => x.name), leads: n.leads, spend: n.spend, cpl: n.cpl, made: p.result ? p.result.slice(0, 400) : undefined, file: p.file_url || undefined, notes: p.notes || undefined }; }) };
       }
-      const p = need(cr.getPrompt(need(id(input.prompt_id), "prompt_id обов'язковий")), "Промпту нема");
-      cr.updatePrompt(p.id, { ...(Array.isArray(input.ad_ids) ? { ad_ids: (input.ad_ids as unknown[]).map(String).join(",") } : {}), ...(input.verdict !== undefined ? { verdict: (["win", "lose"].includes(s(input.verdict)) ? s(input.verdict) : "") as "" } : {}), ...(input.notes !== undefined ? { notes: s(input.notes) } : {}) });
+      const p = need(cr.getPrompt(need(id(input.prompt_id), "prompt_id обов'язковий")), "Креативу нема");
+      cr.updatePrompt(p.id, {
+        ...(Array.isArray(input.ad_ids) ? { ad_ids: (input.ad_ids as unknown[]).map(String).join(",") } : {}),
+        ...(input.verdict !== undefined ? { verdict: (["win", "lose"].includes(s(input.verdict)) ? s(input.verdict) : "") as "" } : {}),
+        ...(input.notes !== undefined ? { notes: s(input.notes) } : {}),
+        ...(input.file_url !== undefined ? { file_url: s(input.file_url) } : {}),
+        ...(s(input.status) in cr.CREATIVE_STATUS ? { status: s(input.status) as "idea" } : {}),
+      });
       return { ok: true };
     }
 
