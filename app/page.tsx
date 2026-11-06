@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { addTask } from "@/app/actions";
 import TaskItem from "@/components/TaskItem";
+import Icon from "@/components/Icon";
+import { crmStats } from "@/lib/crm";
+import { productIssues } from "@/lib/products";
+import { listCrmLinks } from "@/lib/repo/crm";
+import { getOrg, listProducts, productClients } from "@/lib/repo/products";
 import { money } from "@/lib/config";
 import { ymd } from "@/lib/dates";
 import { monthLabel } from "@/lib/labels";
@@ -34,6 +39,11 @@ export default function Home() {
   const todayTotal = t.today + t.overdue + t.doneToday;
   const planPct = m.mrr ? Math.min(100, Math.round((m.received / m.mrr) * 100)) : 0;
   const monthName = now.toLocaleDateString("uk-UA", { month: "long" });
+  // Загальна картина: фокус організації, поломки наших продуктів, продажі клієнтів з CRM
+  const orgFocus = (getOrg().focus || "").split("\n")[0].slice(0, 120);
+  const broken = listProducts().map((p) => { const i = productIssues(p.id); return { id: p.id, name: p.name, n: i.errors.reduce((a, x) => a + x.n, 0) + i.feedback.length, clients: productClients(p.id).map((c) => c.name).join(", ") }; }).filter((x) => x.n > 0);
+  const since30 = new Date(Date.now() - 30 * 86400_000).toISOString();
+  const crm = listCrmLinks().reduce((acc, l) => { const st = crmStats(l.client_id, since30); return { sales: acc.sales + st.sales, revenue: acc.revenue + st.revenue, cur: acc.cur || st.currency }; }, { sales: 0, revenue: 0, cur: "" });
 
   // Одне речення про головне
   const brief = [
@@ -50,7 +60,10 @@ export default function Home() {
           <div className="kicker">{now.toLocaleDateString("uk-UA", { weekday: "long", day: "numeric", month: "long" })}</div>
           <h1>{greeting(now.getHours())}, Саша</h1>
         </div>
-        <div className="dash-brief">{brief}</div>
+        <div className="dash-right">
+          <div className="dash-brief">{brief}</div>
+          {orgFocus && <Link href="/kb" className="dash-focus" title="Розвиток → Головне зараз"><Icon name="compass" size={15} /> {orgFocus}</Link>}
+        </div>
       </header>
 
       <section className="dash-kpis">
@@ -76,7 +89,7 @@ export default function Home() {
           <div className="kpi-label">Клієнти</div>
           <div className="kpi-value">{active.length}<small> активних</small></div>
           <div className="bar"><i style={{ width: `${clients.length ? Math.round((active.length / clients.length) * 100) : 0}%`, background: "var(--link)" }} /></div>
-          <div className="kpi-sub">{m.mrr ? `разом ${money(m.mrr)}/міс` : "вкажи щомісячну оплату клієнтам"}</div>
+          <div className="kpi-sub">{crm.sales ? `продажі клієнтів за 30 дн.: ${crm.sales} на ${Math.round(crm.revenue).toLocaleString("uk-UA")} ${crm.cur}` : m.mrr ? `разом ${money(m.mrr)}/міс` : "вкажи щомісячну оплату клієнтам"}</div>
         </Link>
       </section>
 
@@ -132,8 +145,20 @@ export default function Home() {
         {/* Колонка 3: увага */}
         <div className="panel-stack">
           <div className="panel panel-grow">
-            <div className="panel-head"><h2>Потребують уваги</h2><span className="mono">{attention.length}</span></div>
+            <div className="panel-head"><h2>Потребують уваги</h2><span className="mono">{attention.length + broken.length}</span></div>
             <div className="panel-body">
+              {broken.length > 0 && (
+                <div className="list flat">
+                  {broken.map((b) => (
+                    <Link key={b.id} href={`/products/${b.id}?v=connect`} className="row">
+                      <div className="row-main">
+                        <div className="row-title"><Icon name="box" size={14} /> {b.name}</div>
+                        <div className="meta"><span className="tag bad">поломок: {b.n}</span>{b.clients && <span className="tag">{b.clients}</span>}</div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
               {attention.length ? (
                 <div className="list flat">
                   {attention.map(({ c, flags }) => (
@@ -145,7 +170,7 @@ export default function Home() {
                     </Link>
                   ))}
                 </div>
-              ) : clients.length ? (
+              ) : broken.length ? null : clients.length ? (
                 <div className="panel-empty"><b>Усе під контролем</b><span>Нема прострочок, боргів і клієнтів без руху.</span></div>
               ) : (
                 <div className="panel-empty row-empty"><span>Клієнтів ще нема</span><Link href="/clients/new" className="btn small">+ Перший клієнт</Link></div>
