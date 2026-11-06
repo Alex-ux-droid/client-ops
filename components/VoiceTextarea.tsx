@@ -28,7 +28,7 @@ export default function VoiceTextarea({ ref, ...props }: React.TextareaHTMLAttri
   };
   const active = dict.listening || dict.fixing;
   return (
-    <div className="vt">
+    <div className={`vt${/\bwide\b/.test(props.className ?? "") ? " wide" : ""}`}>
       <textarea ref={setRef} {...props} />
       {active && <DictOverlay el={el.current} base={el.current?.value ?? ""} heard={heard} fixing={dict.fixing} />}
       {dict.supported && (
