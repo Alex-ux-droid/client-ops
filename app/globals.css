@@ -2042,3 +2042,6 @@ button.pop-card.mx-main li { white-space: nowrap; overflow: hidden; text-overflo
 .chart .combo-r { fill: var(--ok); }
 .combo-narrow { display: none; }
 @media (max-width: 720px) { .combo-wide { display: none; } .combo-narrow { display: block; } }
+.sl-status { gap: 0.5rem 0.75rem; }
+.sl-strip { grid-template-columns: auto repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) { .sl-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
