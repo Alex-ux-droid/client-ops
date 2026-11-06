@@ -99,12 +99,18 @@ function Overview({ clientId, parts, base, hid }: { clientId: number; parts: Par
 }
 
 function PartCard({ p, base }: { p: Part; base: string }) {
+  const ms = [...new Set(lines(p.stack).map((x) => brandOf(x)?.name).filter(Boolean))] as string[];
   return (
     <Link href={`${base}&sv=part&p=${p.id}`} className={`card st-part s-${p.status}`}>
-      <div className="st-part-h"><b>{p.title}</b>{statusTag(p.status)}</div>
-      {p.summary && <p>{p.summary}</p>}
-      {(() => { const ms = [...new Set(lines(p.stack).map((x) => brandOf(x)?.name).filter(Boolean))] as string[]; return ms.length ? <span className="qt-marks">{ms.slice(0, 7).map((m) => <BrandDot key={m} text={m} size={15} />)}</span> : null; })()}
-      <small>{PART_KINDS[p.kind]}{p.next_step ? ` · далі: ${p.next_step}` : ""}</small>
+      <div className="sp-top">
+        <b className="sp-title">{p.title}</b>
+        {statusTag(p.status)}
+      </div>
+      <p className="sp-sum">{p.summary || "опис ще не додано"}</p>
+      <div className="sp-bottom">
+        {ms.length > 0 && <span className="qt-marks">{ms.slice(0, 6).map((m) => <BrandDot key={m} text={m} size={15} />)}</span>}
+        {p.next_step && <span className="sp-next" title={p.next_step}><span>далі</span>{p.next_step}</span>}
+      </div>
     </Link>
   );
 }
