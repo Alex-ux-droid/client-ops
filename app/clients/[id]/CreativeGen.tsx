@@ -13,16 +13,14 @@ export default function CreativeGen({ clientId, formats }: { clientId: number; f
   const [msg, setMsg] = useState("");
   const router = useRouter();
   return (
-    <div className="card stack cg-gen">
-      <b>Новий промпт на креатив</b>
-      <div className="mono">Джері бере, що вже дає дешеві ліди, патерни з розбору, бренд і результати минулих промптів — і пише ТЗ для Claude / Claude Code.</div>
+    <div className="stack cg-gen" style={{ gap: "0.5rem" }}>
       <div className="mk-form">
         <select value={format} onChange={(e) => setFormat(e.target.value as CreativeFormat)} aria-label="Формат">{Object.entries(formats).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-        <input value={angle} onChange={(e) => setAngle(e.target.value)} placeholder="Кут (необовʼязково): напр. «тераса з видом на гори»" />
-        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Побажання: напр. «для Німеччини, мова — німецька»" className="wide" />
+        <input value={angle} onChange={(e) => setAngle(e.target.value)} placeholder="Кут (або порожньо — Джері обере сам)" />
+        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Побажання: напр. «мова — німецька», «без цін»" className="wide" />
       </div>
       <div className="inline">
-        <button type="button" disabled={busy} onClick={async () => { setBusy(true); setMsg(""); const r = await genPromptAction(clientId, format, angle, note); setBusy(false); if (r.ok) { setAngle(""); setNote(""); setMsg("Готово ✓ — промпт нижче"); router.refresh(); } else setMsg(r.error); }}>{busy ? "Джері пише промпт… ~30 с" : "Скласти промпт"}</button>
+        <button type="button" disabled={busy} onClick={async () => { setBusy(true); setMsg(""); const r = await genPromptAction(clientId, format, angle, note); setBusy(false); if (r.ok) { setAngle(""); setNote(""); setMsg(`Готово ✓ CR-${r.id} — у колонці «Ідеї», відкрий і скопіюй`); router.refresh(); } else setMsg(r.error); }}>{busy ? "Джері пише промпт… ~30 с" : "Скласти промпт креативу"}</button>
         {msg && <span className="mono">{msg}</span>}
       </div>
     </div>

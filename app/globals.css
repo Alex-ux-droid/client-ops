@@ -2076,3 +2076,31 @@ button.ts-item::before { content: ""; position: absolute; left: calc(-1rem - 6px
 .ts-main span { color: var(--muted); font-size: 0.875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ts-tag { flex: none; font-size: 0.75rem; color: var(--dim); padding: 0.125rem 0.5rem; border: 1px solid var(--line); border-radius: 999px; }
 @media (max-width: 720px) { .ts-day { grid-template-columns: minmax(0, 1fr); } .ts-date { position: static; flex-direction: row; gap: 0.5rem; align-items: baseline; padding-top: 0; } .ts-tag { display: none; } }
+
+/* Студія креативів (клієнт → «Креативи») */
+.cs-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; align-items: stretch; }
+.cs-step { display: flex; flex-direction: column; gap: 0.625rem; }
+.cs-step > p { margin: 0; font-size: 0.8125rem; }
+.cs-sh { display: flex; align-items: center; gap: 0.625rem; }
+.cs-n { width: 1.75rem; height: 1.75rem; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-weight: 700; font-size: 0.875rem; flex: none; }
+.cs-meta { margin-top: auto; font-size: 0.8125rem; color: var(--muted); }
+.cs-brief { max-height: 50vh; overflow: auto; margin-top: 0.75rem; }
+.cs-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; align-items: start; }
+.cs-col { display: flex; flex-direction: column; gap: 0.5rem; background: color-mix(in srgb, var(--bg-raise) 55%, transparent); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.75rem; min-height: 8rem; }
+.cs-colh { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.125rem 0.25rem; }
+.cs-colh b { flex: 1; }
+.cs-empty { margin: 0.25rem 0.125rem; font-size: 0.8125rem; }
+button.pop-card.cs-card { padding: 0.75rem 0.875rem; gap: 0.3rem; }
+.cs-top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.cs-code { font-size: 0.8125rem; font-weight: 700; color: var(--accent); letter-spacing: 0.02em; }
+.cs-title { line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cs-fmt { font-size: 0.8125rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-nums { font-size: 0.8125rem; color: var(--text); }
+.cs-live { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.cs-stat { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; font-size: 0.875rem; color: var(--muted); }
+.cs-stat b { color: var(--text); }
+.cs-link { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; text-decoration: none; color: inherit; }
+.cs-link:hover { border-color: var(--accent); }
+@media (max-width: 1100px) { .cs-flow { grid-template-columns: 1fr; } .cs-board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .cs-board { grid-template-columns: 1fr; } }
+.cs-miss { color: var(--warn); font-weight: 600; }

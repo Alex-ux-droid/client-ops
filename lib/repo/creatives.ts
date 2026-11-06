@@ -1,7 +1,11 @@
 // Промпти креативів і журнал змін реклами
 import { db } from "../db";
 
-export type CreativePrompt = { id: number; client_id: number; title: string; angle: string; format: string; prompt: string; ad_ids: string; verdict: "" | "win" | "lose"; notes: string; created_at: string };
+export type CreativePrompt = { id: number; client_id: number; title: string; angle: string; format: string; prompt: string; ad_ids: string; verdict: "" | "win" | "lose"; notes: string; created_at: string;
+  status: CreativeStatus; result: string; file_url: string };
+export type CreativeStatus = "idea" | "ready" | "live" | "done";
+export const CREATIVE_STATUS: Record<CreativeStatus, string> = { idea: "Ідеї", ready: "Зроблено", live: "У рекламі", done: "Підсумок" };
+export const codeOf = (p: { id: number }) => `CR-${p.id}`;
 export type AdChange = { id: number; client_id: number; at: string; what: string; why: string; expect: string; result: string; created_at: string };
 
 export function listPrompts(clientId: number, limit = 50): CreativePrompt[] {
@@ -11,7 +15,7 @@ export const getPrompt = (id: number) => db().prepare("SELECT * FROM creative_pr
 export function addPrompt(p: { client_id: number; title: string; angle?: string; format?: string; prompt: string; notes?: string }): number {
   return Number(db().prepare("INSERT INTO creative_prompts (client_id, title, angle, format, prompt, notes) VALUES (?, ?, ?, ?, ?, ?)").run(p.client_id, p.title.slice(0, 160), p.angle ?? "", p.format ?? "", p.prompt, p.notes ?? "").lastInsertRowid);
 }
-export function updatePrompt(id: number, patch: Partial<Pick<CreativePrompt, "title" | "angle" | "format" | "prompt" | "ad_ids" | "verdict" | "notes">>): void {
+export function updatePrompt(id: number, patch: Partial<Pick<CreativePrompt, "title" | "angle" | "format" | "prompt" | "ad_ids" | "verdict" | "notes" | "status" | "result" | "file_url">>): void {
   const keys = Object.keys(patch) as (keyof typeof patch)[];
   if (keys.length) db().prepare(`UPDATE creative_prompts SET ${keys.map((k) => `${k} = @${k}`).join(", ")} WHERE id = @id`).run({ ...patch, id });
 }

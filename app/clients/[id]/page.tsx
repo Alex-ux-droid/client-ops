@@ -18,6 +18,7 @@ import { googleConnected } from "@/lib/google";
 import Overview from "./Overview";
 import StrategyTab from "./strategy/StrategyTab";
 import SalesTab from "./SalesTab";
+import CreativesTab from "./CreativesTab";
 import SetupTab from "./SetupTab";
 import { clientSections } from "./sections";
 import ServiceTab from "./ServiceTab";
@@ -96,6 +97,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
 
       {tab === "overview" && <Overview c={c} services={services} paidTotal={paidTotal} isNew={sp.new === "1"} cplText={cplText} />}
       {tab === "sales" && <SalesTab clientId={id} sp={sp.sp} err={sp.err} pulled={sp.pulled} />}
+      {tab === "creatives" && <CreativesTab clientId={id} />}
       {tab === "strategy" && <StrategyTab clientId={id} sv={sp.sv} p={sp.p} />}
       {tab === "setup" && <SetupTab c={c} services={services} />}
       {service && <ServiceTab clientId={id} service={service} edit={sp.edit === "1"} saved={sp.saved === "1"} mv={sp.mv} err={sp.err} />}
