@@ -18,6 +18,7 @@ export async function register() {
   const { weeklyReportTick } = await import("./lib/clientReport");
   const { crmTick } = await import("./lib/crm");
   const { radarTick } = await import("./lib/aiRadar");
+  const { competitorTick } = await import("./lib/competitors");
   const tick = async () => {
     await digestTick().catch((e) => logError("digest", e));
     await backupTick().catch((e) => logError("backup", e));
@@ -29,6 +30,7 @@ export async function register() {
     await weeklyReportTick().catch((e) => logError("weekly-report", e));
     await crmTick().catch((e) => logError("crm", e));
     await radarTick().catch((e) => logError("ai-radar", e));
+    await competitorTick().catch((e) => logError("competitor-check", e));
   };
   setTimeout(tick, 90_000);
   setInterval(tick, 60_000);
