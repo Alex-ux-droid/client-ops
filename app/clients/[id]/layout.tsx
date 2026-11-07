@@ -3,6 +3,7 @@ import { STATUS_LABEL, STATUS_TAG } from "@/lib/labels";
 import { getClientRow } from "@/lib/repo/clients";
 import { listServices } from "@/lib/repo/services";
 import ClientNav from "./ClientNav";
+import { logoSrc } from "@/lib/repo/logos";
 import { clientSections } from "./sections";
 
 // Усередині клієнта ліва панель перетворюється на його «карту»
@@ -13,7 +14,7 @@ export default async function ClientLayout({ params, children }: { params: Promi
   return (
     <>
       <Suspense>
-        <ClientNav id={id} name={c.name} status={STATUS_LABEL[c.status]} statusTag={STATUS_TAG[c.status]} sections={clientSections(c, listServices(id))} />
+        <ClientNav id={id} name={c.name} status={STATUS_LABEL[c.status]} statusTag={STATUS_TAG[c.status]} sections={clientSections(c, listServices(id))} logo={logoSrc("client", id)} />
       </Suspense>
       {children}
     </>

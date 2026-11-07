@@ -464,7 +464,7 @@ function LeadRouting({ clientId }: { clientId: number }) {
 function CreativePrompts({ clientId }: { clientId: number; m?: Fmt; ads?: unknown }) {
   return (
     <Link href={`/clients/${clientId}?tab=creatives`} className="card cs-link" style={{ marginTop: "1rem" }}>
-      <b>Студія креативів →</b> <span className="mono">«Хто ми» для нового чату, промпти з кодом CR-N, дошка і що працює</span>
+      <b>Студія креативів →</b> <span className="mono">«Контекст клієнта» для нового чату, промпти з кодом CR-N, дошка і що працює</span>
     </Link>
   );
 }

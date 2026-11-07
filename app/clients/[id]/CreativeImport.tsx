@@ -11,9 +11,9 @@ export default function CreativeImport({ clientId }: { clientId: number }) {
   const router = useRouter();
   return (
     <div className="stack" style={{ gap: "0.5rem" }}>
-      <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Встав блок [CLIENT-OPS:КРЕАТИВ] … [/CLIENT-OPS] з кінця чату" style={{ minHeight: "5.5rem" }} />
+      <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Встав сюди відповідь Claude з кінця чату" style={{ minHeight: "9rem" }} autoFocus />
       <div className="inline">
-        <button type="button" disabled={busy || text.trim().length < 10} onClick={async () => {
+        <button type="button" className="small" disabled={busy || text.trim().length < 10} onClick={async () => {
           setBusy(true); setMsg(null);
           const r = await importCreativeAction(clientId, text);
           setBusy(false);

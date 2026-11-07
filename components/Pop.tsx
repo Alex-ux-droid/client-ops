@@ -4,8 +4,9 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-export default function Pop({ trigger, title, sub, children, className = "pop-trigger", wide }: {
+export default function Pop({ trigger, title, sub, children, className = "pop-trigger", wide, closeOnSubmit }: {
   trigger: React.ReactNode; title?: React.ReactNode; sub?: React.ReactNode; children: React.ReactNode; className?: string; wide?: boolean;
+  /** закрити після відправки форми всередині (дані збережуться і сторінка оновиться сама) */ closeOnSubmit?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -16,7 +17,7 @@ export default function Pop({ trigger, title, sub, children, className = "pop-tr
     document.documentElement.classList.add("locked");
     window.addEventListener("keydown", esc);
     window.addEventListener("assistant:open", close);
-    return () => { document.documentElement.classList.remove("locked"); window.removeEventListener("keydown", esc); window.removeEventListener("assistant:open", close); };
+    return () => { if (!document.querySelector(".pop-bg")) document.documentElement.classList.remove("locked"); window.removeEventListener("keydown", esc); window.removeEventListener("assistant:open", close); };
   }, [open]);
   return (
     <>
@@ -28,7 +29,7 @@ export default function Pop({ trigger, title, sub, children, className = "pop-tr
               <div style={{ minWidth: 0 }}>{title && <h3>{title}</h3>}{sub && <div className="mono">{sub}</div>}</div>
               <button type="button" className="ghost small" onClick={() => setOpen(false)} aria-label="Закрити">✕</button>
             </div>
-            <div className="pop-body">{children}</div>
+            <div className="pop-body" onSubmit={closeOnSubmit ? (e) => { e.stopPropagation(); setTimeout(() => setOpen(false), 350); } : undefined}>{children}</div>
           </div>
         </div>,
         document.body,

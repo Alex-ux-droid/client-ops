@@ -32,7 +32,8 @@ function Attach({ m }: { m: TgMessage }) {
 
 const KIND: Record<string, string> = { photo: "📷 Фото", document: "📎 Файл", video: "🎬 Відео", voice: "🎙 Голосове", other: "" };
 const PAGE = 150;
-const COLORS = ["#7aa2ff", "#5fd3a8", "#f0b35b", "#e88aa6", "#a98bff", "#5cc8e8", "#f08a6a"];
+// Насичені кольори авторів — читаються на білому (аватар і імʼя)
+const COLORS = ["#2f5ea8", "#1f7a5a", "#a86412", "#a8385b", "#6a46b8", "#1d6f8a", "#b2472b"];
 
 const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
 const color = (n: string) => COLORS[[...n].reduce((s, c) => s + c.charCodeAt(0), 0) % COLORS.length];

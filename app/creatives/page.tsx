@@ -88,7 +88,7 @@ function Overview() {
             <Link key={c.id} href={`/clients/${c.id}?tab=creatives`} className="card cc-client">
               <b>{c.name}</b>
               <span className="cc-row"><span>ідеї <b>{st("idea")}</b></span><span>зроблено <b>{st("ready")}</b></span><span>у рекламі <b>{st("live")}</b></span></span>
-              <span className="cs-fmt">{best ? `★ ${codeOf(best.p)} ${best.p.title} — ${money(best.n.cpl)} за лід` : list.length ? "переможця ще нема" : "креативів ще нема — почни з «Хто ми»"}</span>
+              <span className="cs-fmt">{best ? `★ ${codeOf(best.p)} ${best.p.title} — ${money(best.n.cpl)} за лід` : list.length ? "переможця ще нема" : "креативів ще нема — почни з контексту клієнта"}</span>
               {book.avgCpl != null && <span className="cs-fmt">середня ціна ліда {money(book.avgCpl)}</span>}
             </Link>
           );
@@ -152,7 +152,7 @@ function Styles() {
           <SubmitButton className="small">Зберегти</SubmitButton>
         </div>
       </form>
-      <p className="mono" style={{ margin: 0 }}>Активні шаблони самі додаються в «Хто ми» (загальні) і в кожен промпт креативу (загальні + свого формату). Оновив шаблон — усі нові промпти вже по-новому.</p>
+      <p className="mono" style={{ margin: 0 }}>Активні шаблони самі додаються в «Контекст клієнта» (загальні) і в кожен промпт креативу (загальні + свого формату). Оновив шаблон — усі нові промпти вже по-новому.</p>
       <div className="cc-styles">
         {groups.map((k) => styles.filter((s) => s.kind === k).map((s) => (
           <Pop key={s.id} wide className={`pop-card cc-style${s.active ? "" : " off"}`} title={s.title} sub={`${KINDS[s.kind] ?? s.kind} · оновлено ${fmtDate(s.updated_at)}`} trigger={

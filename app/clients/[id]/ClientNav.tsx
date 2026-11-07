@@ -7,7 +7,7 @@ import MeetingNote from "@/components/MeetingNote";
 import type { Section } from "./sections";
 
 // Ліва панель у клієнті: «карта» клієнта поверх загального меню (на компʼютері). На телефоні — вкладки в самій сторінці.
-export default function ClientNav({ id, name, status, statusTag, sections }: { id: number; name: string; status: string; statusTag: string; sections: Section[] }) {
+export default function ClientNav({ id, name, status, statusTag, sections, logo }: { id: number; name: string; status: string; statusTag: string; sections: Section[]; logo?: string }) {
   const sp = useSearchParams();
   const path = usePathname();
   const tab = path.endsWith("/edit") ? "" : sp.get("tab") ?? "overview";
@@ -16,7 +16,7 @@ export default function ClientNav({ id, name, status, statusTag, sections }: { i
     <aside className="client-side" aria-label={`Клієнт ${name}`}>
       <Link href="/clients" className="client-back" title="Усі клієнти"><Icon name="back" size={18} /> <span className="lbl">Усі клієнти</span></Link>
       <Link href={`/clients/${id}`} className="client-name" title={name}>
-        <i className="client-initial">{name.replace(/^Тест:\s*/, "").trim().slice(0, 1).toUpperCase()}</i>
+        {logo ? <img className="client-initial client-logo" src={logo} alt="" /> : <i className="client-initial">{name.replace(/^Тест:\s*/, "").trim().slice(0, 1).toUpperCase()}</i>}
         <b>{name}</b>
         <span className={`tag ${statusTag}`}>{status}</span>
       </Link>
