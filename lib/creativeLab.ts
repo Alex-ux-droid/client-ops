@@ -2,6 +2,7 @@
 // бренд клієнта, офер і результати попередніх промптів — і пише готове ТЗ, яке Саша вставляє в Claude/Claude Code.
 import Anthropic from "@anthropic-ai/sdk";
 import { agentConfig } from "./agent/config";
+import { asText } from "./llmJson";
 import { logError } from "./log";
 import { getClient } from "./repo/clients";
 import { adIdsOf, addPrompt, listChanges, listPrompts, updatePrompt, type CreativePrompt } from "./repo/creatives";
@@ -82,7 +83,8 @@ my_style — мої актуальні прийоми і правила Meta (о
   try {
     const r = await new Anthropic({ apiKey: key, timeout: 120000, maxRetries: 1 }).messages.create({ model: agentConfig().model, max_tokens: 8000, system, messages: [{ role: "user", content: user }] });
     const out = r.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("");
-    const j = JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)) as { title?: string; angle?: string; prompt?: string };
+    const raw = JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)) as Record<string, unknown>;
+    const j = { title: asText(raw.title), angle: asText(raw.angle), prompt: asText(raw.prompt) };
     if (!j.prompt) return { ok: false, error: "Порожній промпт — спробуй ще раз" };
     const id = addPrompt({ client_id: clientId, title: j.title || "Креатив", angle: j.angle || o.angle || "", format: FORMATS[o.format], prompt: j.prompt, notes: o.note });
     updatePrompt(id, { prompt: `${j.prompt.trim()}${extractFooter({ id })}` });

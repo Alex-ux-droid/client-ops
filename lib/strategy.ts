@@ -3,7 +3,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { agentConfig } from "./agent/config";
 import { logError } from "./log";
-import { askJson, llmErrorText } from "./llmJson";
+import { askJson, asText, llmErrorText } from "./llmJson";
 import { getClientRow } from "./repo/clients";
 import { getClientMemory } from "./repo/clientMemory";
 import { getApiKey } from "./secrets";
@@ -141,7 +141,32 @@ export async function importExtract(clientId: number, text: string): Promise<{ o
   }
 }
 
-export function applyOps(clientId: number, ops: Ops): { summary: string[]; partId: number | null } {
+// Привести відповідь моделі до очікуваних типів: тексти — рядки, списки — масиви обʼєктів з рядками
+function normOps(o: Ops): Ops {
+  const obj = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+  const arr = (v: unknown) => (Array.isArray(v) ? v : v == null ? [] : [v]);
+  const opt = (v: unknown) => (v == null ? null : asText(v));
+  const items = <T,>(v: unknown, keys: string[]) => arr(v).map((x) => {
+    if (typeof x === "string") return { title: x } as T;
+    const r = obj(x); if (!r) return null;
+    const out: Record<string, string> = {}; for (const k of keys) if (r[k] != null) out[k] = asText(r[k]);
+    return out as T;
+  }).filter((x): x is T => !!x && !!(x as { title?: string }).title?.trim());
+  const P = obj(o.part);
+  return {
+    part: P ? { id: Number(P.id) || null, title: opt(P.title) ?? undefined, kind: opt(P.kind) ?? undefined, status: opt(P.status) ?? undefined, summary: opt(P.summary) ?? undefined, stack: opt(P.stack) ?? undefined, pros: opt(P.pros) ?? undefined, cons: opt(P.cons) ?? undefined, next_step: opt(P.next_step) ?? undefined } : null,
+    log: obj(o.log) ? { title: asText(obj(o.log)!.title), body: opt(obj(o.log)!.body) ?? undefined } : null,
+    knowledge: items(o.knowledge, ["cat", "title", "body"]),
+    decisions: items(o.decisions, ["title", "body"]),
+    plan_add: items(o.plan_add, ["title", "horizon"]),
+    plan_done: arr(o.plan_done).map(Number).filter((n) => Number.isFinite(n) && n > 0),
+    ideas: arr(o.ideas).map(asText).filter((x) => x.trim()),
+    insights: opt(o.insights), where_now: opt(o.where_now), focus: opt(o.focus),
+  };
+}
+
+export function applyOps(clientId: number, raw: Ops): { summary: string[]; partId: number | null } {
+  const ops = normOps(raw ?? {});
   const sum: string[] = [];
   let partId: number | null = null;
   const P = ops.part;

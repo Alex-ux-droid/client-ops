@@ -36,3 +36,9 @@ export const llmErrorText = (e: unknown) =>
   : e instanceof SyntaxError ? "Модель повернула зламану відповідь — спробуй ще раз"
   : (e as { status?: number }).status === 529 || (e as { status?: number }).status === 429 ? "Anthropic перевантажений — спробуй за хвилину"
   : `Не вдалось розібрати: ${String((e as Error)?.message ?? e).slice(0, 160)}`;
+
+// Модель інколи віддає масив або обʼєкт там, де чекаємо текст — зводимо до рядка (інакше SQLite: «can only bind numbers, strings…»)
+export const asText = (v: unknown): string =>
+  v == null ? "" : typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v)
+  : Array.isArray(v) ? v.map(asText).filter(Boolean).join("\n")
+  : typeof v === "object" ? asText((v as Record<string, unknown>).title ?? (v as Record<string, unknown>).text ?? Object.values(v as object)) : String(v);
