@@ -31,6 +31,7 @@ export default function RadarView({ area, base, full }: { area?: RadarArea; base
       <div className="card cc-radar-head">
         <div className="stack" style={{ gap: "0.25rem", minWidth: 0 }}>
           <b>AI-радар{area && !full ? ` · ${RADAR_AREAS[area].label}` : ""}</b>
+          {getSetting("radar.report") && <Pop title="Звіт останнього прогону" trigger={<span className="h-link" style={{ fontSize: "0.8125rem" }}>Звіт прогону</span>}><pre className="su-iss-pre">{getSetting("radar.report")}</pre></Pop>}
           <span className="mono">6 напрямків: {Object.values(RADAR_AREAS).map((a) => a.label).join(", ")}. {autoOn("ai_radar") ? "Сам — раз на 3 дні." : "Автозапуск вимкнено (Налаштування → Можливості)."} Останній прогін: {last ? fmtDate(last) : "ще не було"}.</span>
         </div>
         <div className="inline" style={{ flexWrap: "wrap" }}>
