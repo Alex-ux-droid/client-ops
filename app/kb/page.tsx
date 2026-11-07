@@ -7,13 +7,16 @@ import { orgItemAction, saveOrgAction } from "@/app/products/actions";
 import { fmtDate } from "@/lib/dates";
 import { listClients } from "@/lib/repo/clients";
 import { listKb } from "@/lib/repo/kb";
+import RadarView from "@/app/creatives/RadarView";
+import { isArea } from "@/lib/radarConfig";
+import { radarNewCount } from "@/lib/repo/creativeCenter";
 import { getOrg, listOrgItems, listProducts, ORG_FIELDS, ORG_HORIZONS, ORG_KINDS, PRODUCT_STATUS, type OrgItem, type OrgKey } from "@/lib/repo/products";
 
 export const dynamic = "force-dynamic";
 
 // Розвиток організації: хто ми, позиціонування, послуги, підхід, куди рухаємось, план. Плюс інструкції (стара база знань).
-export default async function DevPage({ searchParams }: { searchParams: Promise<{ q?: string; v?: string }> }) {
-  const { q = "", v = q ? "docs" : "dev" } = await searchParams;
+export default async function DevPage({ searchParams }: { searchParams: Promise<{ q?: string; v?: string; a?: string }> }) {
+  const { q = "", v = q ? "docs" : "dev", a = "" } = await searchParams;
   return (
     <>
       <div className="head">
@@ -27,9 +30,10 @@ export default async function DevPage({ searchParams }: { searchParams: Promise<
       </div>
       <nav className="mx-tabs" style={{ marginBottom: "1rem" }}>
         <Link href="/kb" className={v === "dev" ? "on" : ""}>Напрямок</Link>
+        <Link href="/kb?v=radar" className={v === "radar" ? "on" : ""}>Радар{radarNewCount() ? <b className="cc-badge">{radarNewCount()}</b> : null}</Link>
         <Link href="/kb?v=docs" className={v === "docs" ? "on" : ""}>Інструкції</Link>
       </nav>
-      {v === "docs" ? <Docs q={q} /> : <Dev />}
+      {v === "docs" ? <Docs q={q} /> : v === "radar" ? <RadarView full base="/kb?v=radar" area={isArea(a) ? a : undefined} /> : <Dev />}
     </>
   );
 }

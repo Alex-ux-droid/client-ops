@@ -1,23 +1,23 @@
 // Центр креативів: огляд по всіх клієнтах, мій стиль (шаблони, що йдуть у кожен промпт) і AI-радар.
 import Link from "next/link";
-import { creativeToolsAction, radarDecideAction, styleSaveAction } from "@/app/creatives/actions";
+import { creativeToolsAction, styleSaveAction } from "@/app/creatives/actions";
 import AskAssistant from "@/components/AskAssistant";
 import Icon from "@/components/Icon";
 import ListPop from "@/components/ListPop";
 import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
-import { autoOn } from "@/lib/agent/caps";
-import { creativeTools, radarRepos, radarRunning } from "@/lib/aiRadar";
+
+import { creativeTools } from "@/lib/aiRadar";
 import { money } from "@/lib/config";
 import { FORMATS } from "@/lib/creativeLab";
 import { adBook, creativeNums, syncCodes, VERDICT } from "@/lib/creativeStudio";
 import { fmtDate } from "@/lib/dates";
 import { listClients } from "@/lib/repo/clients";
-import { getStyle, listRadar, listStyles, radarNewCount, type CStyle, type RadarItem } from "@/lib/repo/creativeCenter";
+import { listRadar, listStyles, radarNewCount, type CStyle } from "@/lib/repo/creativeCenter";
 import { codeOf, listPrompts } from "@/lib/repo/creatives";
-import { getSetting } from "@/lib/repo/settings";
-import RadarRun from "./RadarRun";
+
+import RadarView from "./RadarView";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,7 @@ const kindShort = (k: string) => (k === "general" ? "Загальне" : (FORMAT
 
 export default async function CreativesCenter({ searchParams }: { searchParams: Promise<{ v?: string }> }) {
   const { v = "overview" } = await searchParams;
-  const fresh = radarNewCount();
+  const fresh = radarNewCount("creatives");
   return (
     <>
       <div className="head">
@@ -43,7 +43,7 @@ export default async function CreativesCenter({ searchParams }: { searchParams: 
         <Link href="/creatives?v=style" className={v === "style" ? "on" : ""}>Мій стиль</Link>
         <Link href="/creatives?v=radar" className={v === "radar" ? "on" : ""}>AI-радар{fresh ? <b className="cc-badge">{fresh}</b> : null}</Link>
       </nav>
-      {v === "style" ? <Styles /> : v === "radar" ? <Radar /> : <Overview />}
+      {v === "style" ? <Styles /> : v === "radar" ? <RadarView area="creatives" base="/creatives?v=radar" /> : <Overview />}
     </>
   );
 }
@@ -69,14 +69,14 @@ function Overview() {
     byFmt.set(k, f);
   }
   const fmts = [...byFmt.entries()].sort((a, b) => b[1].win / b[1].n - a[1].win / a[1].n);
-  const radar = listRadar("new", 3);
+  const radar = listRadar("new", 3, "creatives");
   return (
     <div className="stack" style={{ gap: "1rem" }}>
       <div className="ov-kpis">
         <div className="kpi-tile"><div className="kpi-label"><Icon name="sparkles" size={15} /> В роботі</div><div className="kpi-value">{count("idea") + count("ready")}</div><div className="kpi-sub">ідеї {count("idea")} · зроблено {count("ready")}</div></div>
         <div className="kpi-tile"><div className="kpi-label"><Icon name="megaphone" size={15} /> У рекламі</div><div className="kpi-value">{count("live")}</div><div className="kpi-sub">з кодом CR-N у назві</div></div>
         <div className="kpi-tile"><div className="kpi-label"><Icon name="flag" size={15} /> Переможці</div><div className="kpi-value" style={{ color: wins.length ? "var(--ok)" : undefined }}>{wins.length}</div><div className="kpi-sub">ціна ліда ≤ 80% середньої</div></div>
-        <Link href="/creatives?v=radar" className="kpi-tile"><div className="kpi-label"><Icon name="zap" size={15} /> AI-радар</div><div className="kpi-value">{radarNewCount()}</div><div className="kpi-sub">нових карток</div></Link>
+        <Link href="/creatives?v=radar" className="kpi-tile"><div className="kpi-label"><Icon name="zap" size={15} /> AI-радар</div><div className="kpi-value">{radarNewCount("creatives")}</div><div className="kpi-sub">нових карток</div></Link>
       </div>
 
       <div className="cc-clients">
@@ -163,64 +163,6 @@ function Styles() {
           <StyleForm />
         </Pop>
       </div>
-    </div>
-  );
-}
-
-function Radar() {
-  const fresh = listRadar("new");
-  const done = listRadar(undefined, 60).filter((r) => r.status !== "new");
-  const last = getSetting("radar.last_at");
-  return (
-    <div className="stack" style={{ gap: "1rem" }}>
-      <div className="card cc-radar-head">
-        <div className="stack" style={{ gap: "0.25rem" }}>
-          <b>AI-радар</b>
-          <span className="mono">GitHub ({radarRepos().join(", ")}) + новини Anthropic, OpenAI, Meta, генераторів фото/відео. {autoOn("ai_radar") ? "Сам — щопонеділка після 9:00." : "Автозапуск вимкнено (Налаштування → Можливості)."} Останній прогін: {last ? fmtDate(last) : "ще не було"}.</span>
-        </div>
-        <div className="inline" style={{ flexWrap: "wrap" }}>
-          <RadarRun running={radarRunning()} error={getSetting("radar.error") ?? ""} />
-          <Pop title="Що читає радар" trigger={<span className="h-link">Джерела</span>}>
-            <form action={creativeToolsAction} className="stack" style={{ gap: "0.5rem" }}>
-              <label className="mono">Репозиторії GitHub (по рядку, owner/name). Потрібен підключений GitHub.</label>
-              <textarea name="repos" defaultValue={radarRepos().join("\n")} style={{ minHeight: "7rem" }} />
-              <div><SubmitButton className="small">Зберегти</SubmitButton></div>
-            </form>
-          </Pop>
-        </div>
-      </div>
-      {fresh.length ? <div className="cc-cards">{fresh.map((r) => <RadarCard key={r.id} r={r} />)}</div> : <p className="mono">Нових карток нема. Натисни «Перевірити зараз» або дочекайся понеділка.</p>}
-      {done.length > 0 && <div className="qt-grid">
-        <ListPop title="Прийняті" ico="check" tone="good" items={done.filter((r) => r.status === "accepted").map((r) => `${fmtDate(r.created_at)} · ${r.title}`)} empty="Нема" />
-        <ListPop title="Пропущені" ico="flag" items={done.filter((r) => r.status === "skipped").map((r) => `${fmtDate(r.created_at)} · ${r.title}`)} empty="Нема" />
-      </div>}
-    </div>
-  );
-}
-
-function RadarCard({ r }: { r: RadarItem }) {
-  const st = r.hint_style_id ? getStyle(r.hint_style_id) : undefined;
-  return (
-    <div className="card cc-card">
-      <div className="cs-top"><span className="cs-code">{r.source || "радар"}</span><span className="cs-fmt">{fmtDate(r.created_at)}</span></div>
-      <b>{r.title}</b>
-      {r.what && <p className="cc-p">{r.what}</p>}
-      {r.how && <p className="cc-p"><b>Як використати:</b> {r.how}</p>}
-      {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="h-link">Джерело ↗</a>}
-      <form action={radarDecideAction} className="stack" style={{ gap: "0.5rem", marginTop: "auto" }}>
-        <input type="hidden" name="radar_id" value={r.id} />
-        {r.hint_body && (
-          <>
-            <span className="mono">{st ? `Дописати в «${st.title}»:` : `Новий шаблон «${r.hint_title || r.title}» (${kindShort(r.hint_kind || "general")}):`}</span>
-            {st && <input type="hidden" name="style_id" value={st.id} />}
-            <textarea name="add" defaultValue={r.hint_body} style={{ minHeight: "4.5rem" }} />
-          </>
-        )}
-        <div className="inline">
-          <button name="op" value="accept" className="small">{r.hint_body ? "Прийняти в стиль" : "Корисно ✓"}</button>
-          <button name="op" value="skip" className="ghost small">Пропустити</button>
-        </div>
-      </form>
     </div>
   );
 }

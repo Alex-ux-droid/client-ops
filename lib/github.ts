@@ -75,3 +75,10 @@ export async function listCommits(repo: string, path = "") {
   const r = await gh<C[]>(`/repos/${repo}/commits?per_page=25${path ? `&path=${encodeURIComponent(path)}` : ""}`);
   return r.map((c) => ({ sha: c.sha.slice(0, 7), date: c.commit.author.date.slice(0, 10), by: c.commit.author.name, message: c.commit.message.split("\n")[0].slice(0, 200) }));
 }
+
+// Репозиторії, що найшвидше набирають зірки (для AI-радару): нові за період, відсортовані за зірками
+export async function trendingRepos(since: string, minStars = 150) {
+  type R = { items: { full_name: string; description: string | null; stargazers_count: number; html_url: string; topics?: string[] }[] };
+  const r = await gh<R>(`/search/repositories?q=${encodeURIComponent(`created:>${since} stars:>${minStars}`)}&sort=stars&order=desc&per_page=30`);
+  return r.items.map((x) => ({ repo: x.full_name, stars: x.stargazers_count, about: (x.description ?? "").slice(0, 160), url: x.html_url }));
+}

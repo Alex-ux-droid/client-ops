@@ -1,6 +1,6 @@
 // Помічник: один хід розмови = цикл запитів до Claude, поки він викликає інструменти.
 // Історія між ходами — тільки текст (без thinking-блоків), тож її можна вільно обрізати.
-import { orgBlock } from "../products";
+import { orgBlock, radarBlock } from "../products";
 import Anthropic from "@anthropic-ai/sdk";
 import { ymd } from "../dates";
 import { addChat, listChat, type ChatAction } from "../repo/chat";
@@ -178,6 +178,7 @@ export async function runAgent(clientId: number | null, userText: string, page =
     `Твоя пам'ять (що ти вже знаєш про Сашу і роботу):\n${memory.trim() || "поки порожньо"}`,
     updatesBlock(),
     orgBlock(),
+    radarBlock(),
     capsBlock(),
     tipsBlock(),
   ].filter(Boolean).join("\n\n");
