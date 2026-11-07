@@ -2136,3 +2136,17 @@ button.pop-card.rd-map { gap: 0.4rem; border-color: color-mix(in srgb, var(--acc
 .rd-score i { color: var(--line); font-style: normal; }
 .cc-card.rd-hot { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
 @media (max-width: 900px) { .rd-top { grid-template-columns: 1fr; } }
+
+/* Зустріч з клієнтом (MeetingNote) */
+.mt-back { position: fixed; inset: 0; z-index: 90; background: rgba(4, 6, 12, 0.72); backdrop-filter: blur(4px); display: grid; place-items: center; padding: 1rem; }
+.mt-win { width: min(56rem, 100%); height: min(46rem, calc(100dvh - 2rem)); display: flex; flex-direction: column; gap: 0.75rem; background: var(--bg-raise); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.125rem; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
+.mt-head { display: flex; align-items: flex-start; gap: 0.75rem; }
+.mt-title { font-size: 1.25rem; font-weight: 600; background: transparent; border: 0; padding: 0.125rem 0; width: 100%; color: var(--text); }
+.mt-title:focus { outline: none; border-bottom: 1px solid var(--accent); }
+.mt-win .vt { flex: 1; display: flex; min-height: 0; }
+.mt-win .vt > textarea.mt-notes { flex: 1; height: 100%; resize: none; font-size: 1.0625rem; line-height: 1.55; }
+.mt-foot { font-size: 0.8125rem; }
+.mt-item.new { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.client-meet { padding: 0 0.75rem 0.5rem; }
+.client-meet .btn { width: 100%; justify-content: center; }
+@media (max-width: 640px) { .mt-back { padding: 0; } .mt-win { height: 100dvh; border-radius: 0; } }

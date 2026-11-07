@@ -25,6 +25,9 @@ import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import { getClientMemory } from "@/lib/repo/clientMemory";
 import { saveClientMemoryAction } from "@/app/creatives/actions";
+import MeetingNote from "@/components/MeetingNote";
+import { listMeetings } from "@/lib/repo/meetings";
+import { meetingStatusAction } from "@/app/meetings/actions";
 
 const STATUS_TXT = { active: "ведемо", paused: "пауза", done: "завершено" } as const;
 
@@ -98,6 +101,7 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
       </div>
 
       <div className="qt-grid">
+        <Meetings clientId={id} clientName={c.name} />
         <Pop className="pop-card qt" title="Послуги" trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="zap" /></span><b>Послуги</b></span><span className="qt-n">{services.length}</span></span>
           {services.length ? <span className="qt-marks">{services.slice(0, 6).map((s) => <span key={s.type} className="tag accent">{SERVICES[s.type as ServiceType].short}</span>)}</span> : <span className="qt-l mono">обрати →</span>}</>}>
           <div className="stack" style={{ gap: "0.5rem" }}>
@@ -187,6 +191,35 @@ function ClientMemoryCard({ clientId }: { clientId: number; clientName: string }
           <div><SubmitButton className="small">Зберегти</SubmitButton></div>
         </form>
       </details>
+    </Pop>
+  );
+}
+
+// Зустрічі з клієнтом: тези (кнопка «Зустріч» / «Записати зустріч»), розбір з Джері
+function Meetings({ clientId, clientName }: { clientId: number; clientName: string }) {
+  const ms = listMeetings(clientId, 20);
+  const fresh = ms.filter((m) => m.status === "new");
+  return (
+    <Pop wide className={`pop-card qt${fresh.length ? " qt-accent" : ""}`} title="Зустрічі" trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="mic" /></span><b>Зустрічі</b></span><span className="qt-n">{fresh.length ? `${fresh.length} нерозібр.` : ms.length}</span></span>
+      {ms.length ? ms.slice(0, 2).map((m) => <span key={m.id} className="qt-l">{m.status === "new" ? "● " : ""}{m.title || "Зустріч"}{m.title.includes(fmtDate(m.created_at)) ? "" : ` · ${fmtDate(m.created_at)}`}</span>) : <span className="qt-l mono">записати тези під час зустрічі →</span>}</>}>
+      <div className="stack" style={{ gap: "0.75rem" }}>
+        <div><MeetingNote clientId={clientId} clientName={clientName} label="Нова зустріч" className="btn small" /></div>
+        {ms.length ? ms.map((m) => (
+          <div key={m.id} className={`card stack mt-item${m.status === "new" ? " new" : ""}`} style={{ gap: "0.5rem" }}>
+            <div className="inline" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
+              <b>{m.title || "Зустріч"}</b>
+              <span className="mono">{fmtDate(m.created_at)} · {m.status === "new" ? "не розібрано" : "розібрано"}</span>
+            </div>
+            <Markdown md={m.notes || "_порожньо_"} />
+            <div className="inline" style={{ flexWrap: "wrap" }}>
+              {m.status === "new" && <AskAssistant text={`Розбери зустріч з клієнтом «${clientName}» (meetings, meeting_id ${m.id}): що зрозуміли про клієнта і його задачі → допиши памʼять клієнта (client_memory: домовленості, гроші, терміни), нові кроки → задачі без дублів, ідеї → ідеї клієнта. Потім познач зустріч розібраною (meetings done). Коротко скажи, що записав.`}>Розібрати з Джері</AskAssistant>}
+              <MeetingNote clientId={clientId} clientName={clientName} meeting={{ id: m.id, title: m.title, notes: m.notes }} label="Дописати" className="btn ghost small" />
+              <form action={meetingStatusAction}><input type="hidden" name="meeting_id" value={m.id} /><button name="op" value={m.status === "new" ? "done" : "reopen"} className="ghost small">{m.status === "new" ? "Розібрано ✓" : "Повернути в нерозібрані"}</button></form>
+              <form action={meetingStatusAction}><input type="hidden" name="meeting_id" value={m.id} /><button name="op" value="delete" className="ghost small danger-text">Видалити</button></form>
+            </div>
+          </div>
+        )) : <p className="mono">Ще нема. Під час зустрічі тисни «Зустріч» — пиши або диктуй тези, зберігається само.</p>}
+      </div>
     </Pop>
   );
 }

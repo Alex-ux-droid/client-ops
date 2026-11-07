@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import Icon from "@/components/Icon";
 import { SideToggle } from "@/components/sideMini";
+import MeetingNote from "@/components/MeetingNote";
 import type { Section } from "./sections";
 
 // Ліва панель у клієнті: «карта» клієнта поверх загального меню (на компʼютері). На телефоні — вкладки в самій сторінці.
@@ -19,6 +20,7 @@ export default function ClientNav({ id, name, status, statusTag, sections }: { i
         <b>{name}</b>
         <span className={`tag ${statusTag}`}>{status}</span>
       </Link>
+      <div className="client-meet"><MeetingNote clientId={id} clientName={name} label="Записати зустріч" className="btn small" /></div>
       {groups.map((g) => (
         <div key={g || "main"} className="side-group">
           {g && <div className="side-title">{g}</div>}
