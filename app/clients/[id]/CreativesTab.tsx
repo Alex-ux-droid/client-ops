@@ -10,7 +10,8 @@ import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import { money } from "@/lib/config";
 import { FORMATS } from "@/lib/creativeLab";
-import { adBook, adOfferOf, brandOf, creativeBrief, creativeNums, rulesOf, syncCodes, VERDICT, type CreativeNums } from "@/lib/creativeStudio";
+import { getBrand } from "@/lib/repo/brand";
+import { adBook, creativeBrief, creativeNums, syncCodes, VERDICT, type CreativeNums } from "@/lib/creativeStudio";
 import { fmtDate } from "@/lib/dates";
 import { adIdsOf, codeOf, CREATIVE_STATUS, listPrompts, type CreativePrompt, type CreativeStatus } from "@/lib/repo/creatives";
 import { getAnalysis } from "@/lib/repo/meta";
@@ -24,7 +25,8 @@ export default function CreativesTab({ clientId }: { clientId: number }) {
   const book = adBook(clientId);
   const list = listPrompts(clientId, 300).map((p) => ({ p, n: creativeNums(p, book) }));
   const brief = creativeBrief(clientId);
-  const brand = brandOf(clientId), rules = rulesOf(clientId), offer = adOfferOf(clientId);
+  const bb = getBrand(clientId);
+  const brand = bb.notes, rules = bb.rules, offer = bb.offer;
   const linked = new Set(list.flatMap((x) => adIdsOf(x.p)));
   const noCode = book.ads.filter((a) => book.life(a).spend > 0 && !linked.has(a.ad_id));
   const rated = book.ads.map((a) => ({ a, ...book.life(a) })).filter((x) => x.leads > 0).sort((x, y) => x.spend / x.leads - y.spend / y.leads);
@@ -45,11 +47,11 @@ export default function CreativesTab({ clientId }: { clientId: number }) {
                 <input type="hidden" name="client_id" value={clientId} />
                 <label className="mono">Що рекламуємо: продукт, оффер, ціни, переваги, адреса</label>
                 <VoiceTextarea name="offer" defaultValue={offer} placeholder={"Імплантація під ключ від $450, гарантія 10 років\nКлініка на Позняках, парковка\nПерша консультація + КТ безкоштовно"} style={{ minHeight: "5rem" }} />
-                <label className="mono">Бренд: кольори, шрифти, логотип, тон, фото</label>
+                <label className="mono">Візуальний стиль (кольори і шрифти — у розділі «Бренд»)</label>
                 <VoiceTextarea name="brand" defaultValue={brand} placeholder={"Кольори: #0e3b2e, золотий акцент\nШрифт: строгий без засічок\nТон: преміально, спокійно, без «акцій»"} style={{ minHeight: "5rem" }} />
                 <label className="mono">Правила: що обовʼязково і що заборонено</label>
                 <VoiceTextarea name="rules" defaultValue={rules} placeholder={"Обовʼязково: адреса ЖК, «від забудовника»\nЗаборонено: слово «знижка», стокові фото людей"} style={{ minHeight: "5rem" }} />
-                <div><SubmitButton className="small">Зберегти</SubmitButton></div>
+                <div className="inline"><SubmitButton className="small">Зберегти</SubmitButton><a href={`/clients/${clientId}?tab=brand`} className="h-link">Повний брендбук → кольори, шрифти, логотипи</a></div>
               </form>
               <pre className="su-iss-pre cs-brief">{brief}</pre>
             </Pop>

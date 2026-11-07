@@ -141,6 +141,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "strategy_import", description: "Розкласти витяжку з іншого чату / Claude Code (мітка [CLIENT-OPS:СТРАТЕГІЯ]) по стратегії клієнта: частина, хроніка, знання, рішення, план, висновки. text — уся витяжка як є.", input_schema: obj({ client_id: int("ID клієнта"), text: str("Текст витяжки") }, ["client_id", "text"]) },
   { name: "client_memory", description: "Памʼять по клієнту: де ми зараз, домовленості (гроші, обсяг, терміни), що вже зроблено, що далі, що важливо. action get | rewrite (text — повний новий текст з розділами ## Де ми зараз / ## Домовленості (гроші, обсяг, терміни) / ## Що вже зроблено / ## Що в роботі і далі / ## Важливо памʼятати). Коли Саша розповідає про зустріч, домовленість, запуск — одразу онови.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["get", "rewrite"] }, text: str("Повний текст памʼяті") }, ["client_id", "action"]) },
   { name: "meetings", description: "Зустрічі з клієнтом — тези, які Саша записав під час зустрічі (кнопка «Зустріч» у картці). action list (client_id; нерозібрані позначені) | get (meeting_id — повний текст) | done (meeting_id — позначити розібраною після того, як розклав по памʼяті/задачах). Розбір: домовленості, гроші, терміни → client_memory; нові кроки → create_task без дублів; ідеї → ідеї клієнта.", input_schema: obj({ action: { type: "string", enum: ["list", "get", "done"] }, client_id: int("ID клієнта"), meeting_id: int("ID зустрічі") }, ["action"]) },
+  { name: "brand", description: "Брендбук клієнта (розділ «Бренд» у картці): позиціонування, для кого, що рекламуємо, головне обіцяння, тон, можна/не можна, візуальний стиль, кольори (HEX з роллю), шрифти, файли (логотипи, гайдлайни). action get | save (поля positioning/audience/offer/promise/tone/rules/notes — ПОВНИЙ текст поля) | add_color (hex, name, role primary|secondary|accent|background|text) | add_font (name, role headings|body|accent, url) | import (text — витяжка [CLIENT-OPS:БРЕНД] або опис бренду) | prompt (промпт для Claude: зробити дизайн-систему). Креативи і пропозиції роби в стилі брендбуку.", input_schema: obj({ action: { type: "string", enum: ["get", "save", "add_color", "add_font", "import", "prompt"] }, client_id: int("ID клієнта"), positioning: str("Позиціонування"), audience: str("Для кого"), offer: str("Що рекламуємо"), promise: str("Головне обіцяння"), tone: str("Тон"), rules: str("Можна / не можна"), notes: str("Візуальний стиль"), hex: str("#RRGGBB"), name: str("Назва кольору/шрифту"), role: str("Роль"), url: str("Посилання на шрифт"), text: str("Витяжка") }, ["action", "client_id"]) },
   { name: "client_money", description: "Гроші клієнта: абонплата, день оплати, БОРГ (прострочені оплати з сумами і датами), очікувані, останні отримані. Для повідомлення клієнту про заборгованість — це + message_templates (шаблон «Оплата»).", input_schema: obj({ client_id: int("ID клієнта") }, ["client_id"]) },
   { name: "comm_profile", description: "Профіль спілкування з клієнтом (звертання, хто вирішує, тон, що цікавить, чого уникати). action get — прочитати; build — скласти заново з переписки групи; save — записати текст (коли Саша сам каже, як з клієнтом говорити).", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["get", "build", "save"] }, profile: str("Текст профілю для save") }, ["client_id", "action"]) },
   { name: "message_templates", description: "Шаблони повідомлень клієнтам (Налаштування → Повідомлення): структура під подію (запуск реклами, звіт, що зробили, проблема, потрібно від клієнта, оплата) + загальні правила тону + приклад. ЗАВЖДИ викликай перед тим, як писати чернетку повідомлення клієнту, і пиши строго по структурі обраного шаблону. Без template_id — список; з template_id — повна структура.", input_schema: obj({ template_id: int("ID шаблону зі списку") }) },
@@ -477,6 +478,23 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       };
     }
 
+    case "brand": {
+      const br = await import("../repo/brand");
+      const bl = await import("../brand");
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      const a = s(input.action);
+      const href = `/clients/${cid}?tab=brand`;
+      if (a === "save") {
+        const patch: Partial<Record<keyof typeof br.BRAND_FIELDS, string>> = {};
+        for (const k of Object.keys(br.BRAND_FIELDS) as (keyof typeof br.BRAND_FIELDS)[]) if (input[k] !== undefined) patch[k] = s(input[k]);
+        br.saveBrand(cid, patch); act("client", "Брендбук оновлено", href); return { ok: true };
+      }
+      if (a === "add_color") { const r = br.addColor(cid, { hex: s(input.hex), name: s(input.name), role: s(input.role) }); if (!r) throw new Error("Колір не додано: невірний HEX або вже є"); act("client", `Колір ${s(input.hex)}`, href); return { ok: true }; }
+      if (a === "add_font") { const r = br.addFont(cid, { name: s(input.name), role: s(input.role), url: s(input.url) }); if (!r) throw new Error("Шрифт не додано: нема назви або вже є"); return { ok: true }; }
+      if (a === "import") { const r = await bl.importBrand(cid, s(input.text)); if (!r.ok) throw new Error(r.error); act("client", `Бренд: ${r.summary.join(", ")}`, href); return r; }
+      if (a === "prompt") return { prompt: bl.brandPrompt(cid) };
+      return { brandbook: bl.brandMd(cid) || "порожньо", fields: br.getBrand(cid), colors: br.listColors(cid), fonts: br.listFonts(cid), files: br.listAssets(cid).map((x) => ({ kind: x.kind, title: x.title, url: x.url || (x.file_id ? `/api/files/${x.file_id}` : "") })) };
+    }
     case "meetings": {
       const mr = await import("../repo/meetings");
       const a = s(input.action);
