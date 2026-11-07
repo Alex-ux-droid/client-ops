@@ -1,5 +1,6 @@
 // Центр креативів: огляд по всіх клієнтах, мій стиль (шаблони, що йдуть у кожен промпт) і AI-радар.
 import Link from "next/link";
+import DataTable from "@/components/DataTable";
 import { creativeToolsAction, styleSaveAction } from "@/app/creatives/actions";
 import AskAssistant from "@/components/AskAssistant";
 import Icon from "@/components/Icon";
@@ -104,8 +105,13 @@ function Overview() {
           </>
         }>
           {fmts.length ? (
-            <table className="fin-table"><thead><tr><th>Формат</th><th>З результатом</th><th>Виграли</th><th>Програли</th><th>Ціна ліда до середньої</th></tr></thead>
-              <tbody>{fmts.map(([k, f]) => <tr key={k}><td>{k}</td><td>{f.n}</td><td>{f.win}</td><td>{f.lose}</td><td>{f.rel.length ? `${Math.round((f.rel.reduce((a, b) => a + b, 0) / f.rel.length) * 100)}%` : "—"}</td></tr>)}</tbody></table>
+            <DataTable id="creatives-formats" cols={[
+              { id: "f", label: "Формат", w: 220, pin: true }, { id: "n", label: "З результатом", num: true, w: 140 }, { id: "win", label: "Виграли", num: true, w: 110 },
+              { id: "lose", label: "Програли", num: true, w: 110 }, { id: "rel", label: "Ціна ліда до середньої", num: true, w: 190 },
+            ]} rows={fmts.map(([k, f]) => { const rel = f.rel.length ? f.rel.reduce((x, y) => x + y, 0) / f.rel.length : null; return { key: k, cells: {
+              f: k, n: f.n, win: { v: f.win, tone: f.win ? "good" : undefined }, lose: { v: f.lose, tone: f.lose ? "bad" : undefined },
+              rel: { v: rel, t: rel == null ? "—" : `${Math.round(rel * 100)}%`, tone: rel == null ? undefined : rel <= 0.9 ? "good" : rel >= 1.2 ? "bad" : undefined },
+            } }; })} />
           ) : <p className="mono">Ще нема креативів з вердиктом.</p>}
         </Pop>
         <ListPop title="Свіже з AI-радару" ico="zap" tone="accent" items={radar.map((r) => r.title)} empty="Нових карток нема" />

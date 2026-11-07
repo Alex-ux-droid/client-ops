@@ -2150,3 +2150,54 @@ button.pop-card.rd-map { gap: 0.4rem; border-color: color-mix(in srgb, var(--acc
 .client-meet { padding: 0 0.75rem 0.5rem; }
 .client-meet .btn { width: 100%; justify-content: center; }
 @media (max-width: 640px) { .mt-back { padding: 0; } .mt-win { height: 100dvh; border-radius: 0; } }
+
+/* Інтерактивна таблиця (components/DataTable.tsx) */
+.dt { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
+.dt-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.dt-q { flex: 1; min-width: 10rem; max-width: 22rem; padding: 0.4rem 0.7rem; font-size: 0.875rem; }
+.dt-count { font-size: 0.8125rem; color: var(--muted); margin-right: auto; }
+.dt-dens { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.dt-dens button { all: unset; cursor: pointer; padding: 0.3rem 0.65rem; font-size: 0.8125rem; color: var(--muted); }
+.dt-dens button.on { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); }
+.dt-dens button:focus-visible { outline: 2px solid var(--accent); }
+.dt-menu-wrap { position: relative; }
+.dt-menu { position: absolute; right: 0; top: calc(100% + 0.375rem); z-index: 30; width: 18rem; max-height: 60vh; overflow: auto; background: var(--bg-raise); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45); }
+.dt-mrow { display: flex; align-items: center; gap: 0.25rem; }
+.dt-mrow label { flex: 1; display: flex; align-items: center; gap: 0.4rem; font-size: 0.875rem; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dt-mrow button { all: unset; cursor: pointer; width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border-radius: 6px; color: var(--muted); font-size: 0.8125rem; }
+.dt-mrow button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--text); }
+.dt-mrow button:disabled { opacity: 0.3; cursor: default; }
+.dt-mrow .dt-pin { filter: grayscale(1); opacity: 0.5; }
+.dt-mrow .dt-pin.on { filter: none; opacity: 1; }
+.dt-scroll { overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); background: color-mix(in srgb, var(--bg-raise) 70%, transparent); }
+.dt-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; min-width: 100%; font-size: 0.875rem; }
+.dt-table th, .dt-table td { border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; padding: 0 0.75rem; overflow: hidden; }
+.dt-table th { position: sticky; top: 0; z-index: 2; background: var(--bg-raise); color: var(--muted); font-weight: 600; height: 2.5rem; white-space: nowrap; }
+.dt-table th.num, .dt-table td.num { text-align: right; }
+.dt-table th.pin, .dt-table td.pin { position: sticky; z-index: 1; background: var(--bg-raise); }
+.dt-table th.pin { z-index: 3; }
+.dt-table td.pin { box-shadow: 1px 0 0 var(--line); }
+.dt-th { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
+.dt-table th.num .dt-th { justify-content: flex-end; }
+.dt-grip { cursor: grab; color: var(--line); font-size: 0.875rem; padding: 0 0.125rem; user-select: none; }
+.dt-table th:hover .dt-grip { color: var(--muted); }
+.dt-sort { all: unset; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; }
+.dt-sort:hover { color: var(--text); }
+.dt-sort:focus-visible { outline: 2px solid var(--accent); border-radius: 4px; }
+.dt-sort i { font-style: normal; color: var(--accent); margin-left: 0.25rem; }
+.dt-rs { position: absolute; right: 0; top: 0; bottom: 0; width: 7px; cursor: col-resize; }
+.dt-rs:hover { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.dt-table th.drop-l { box-shadow: inset 3px 0 0 var(--accent); }
+.dt-table th.drop-r { box-shadow: inset -3px 0 0 var(--accent); }
+.dt-table th.dragging { opacity: 0.45; }
+.dt-table tbody tr:hover td { background: color-mix(in srgb, var(--accent) 7%, var(--bg-raise)); }
+.dt-cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.dt-cell a { color: var(--text); text-decoration: none; border-bottom: 1px dashed var(--line); }
+.dt-sub { font-size: 0.8125rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dt-table td.t-good .dt-cell { color: var(--ok); }
+.dt-table td.t-bad .dt-cell { color: var(--bad); }
+.dt-compact .dt-table td { height: 2rem; } .dt-compact .dt-sub { display: none; }
+.dt-normal .dt-table td { height: 2.5rem; padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.dt-comfy .dt-table td { height: 3rem; padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.dt-empty { text-align: center !important; color: var(--muted); height: 4rem; }
+@media (max-width: 640px) { .dt-dens button { padding: 0.3rem 0.5rem; } .dt-q { max-width: none; } }
