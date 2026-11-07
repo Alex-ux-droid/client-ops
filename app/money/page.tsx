@@ -1,4 +1,5 @@
 import Link from "next/link";
+import DataTable from "@/components/DataTable";
 import { makeMonthInvoices, savePayment } from "@/app/actions";
 import PaymentRow from "@/components/PaymentRow";
 import { money } from "@/lib/config";
@@ -64,20 +65,9 @@ export default function MoneyPage() {
           </form>
 
           <h2 style={{ margin: "24px 0 10px" }}>Хто скільки платить</h2>
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>Клієнт</th><th className="num">Щомісяця</th><th className="num">День</th></tr></thead>
-              <tbody>
-                {payers.length ? payers.map((c) => (
-                  <tr key={c.id}>
-                    <td><Link href={`/clients/${c.id}?tab=money`}>{c.name}</Link></td>
-                    <td className="num">{money(c.fee_monthly)}</td>
-                    <td className="num">{c.pay_day}</td>
-                  </tr>
-                )) : <tr><td colSpan={3} style={{ color: "var(--dim)" }}>Вкажи щомісячну оплату в картці клієнта.</td></tr>}
-              </tbody>
-            </table>
-          </div>
+          <DataTable id="money-payers" cols={[{ id: "c", label: "Клієнт", w: 220, pin: true }, { id: "fee", label: "Щомісяця", num: true, w: 130 }, { id: "day", label: "День", num: true, w: 90 }]}
+            rows={payers.map((c) => ({ key: String(c.id), cells: { c: { v: c.name, href: `/clients/${c.id}?tab=money` }, fee: { v: c.fee_monthly, t: money(c.fee_monthly) }, day: c.pay_day } }))}
+            empty="Вкажи щомісячну оплату в картці клієнта." />
         </div>
       </div>
 

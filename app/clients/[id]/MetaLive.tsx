@@ -1,4 +1,5 @@
 import Link from "next/link";
+import DataTable from "@/components/DataTable";
 import Pop from "@/components/Pop";
 import Icon from "@/components/Icon";
 import ListPop from "@/components/ListPop";
@@ -162,21 +163,15 @@ function Overview({ clientId, m, base }: { clientId: number; m: Fmt; base: strin
               {camps.length > 2 && <span className="qt-more">ще {camps.length - 2} →</span>}
             </>
           }>
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Кампанія</th><th>Статус</th><th>Бюджет</th><th>Витрати 30 дн.</th><th>Ліди</th><th>Ціна ліда</th></tr></thead>
-                <tbody>
-                  {camps.map((c) => (
-                    <tr key={c.campaign_id}>
-                      <td>{c.name}</td>
-                      <td><span className={`tag ${c.status === "ACTIVE" ? "ok" : ""}`}>{STATUS[c.status] ?? c.status.toLowerCase()}</span></td>
-                      <td>{c.daily_budget ? `${m(c.daily_budget)}/день` : c.lifetime_budget ? `${m(c.lifetime_budget)} всього` : "—"}</td>
-                      <td>{m(c.spend)}</td><td>{fmtN(c.leads)}</td><td>{m(cplOf(c))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable id="meta-campaigns" cols={[
+              { id: "name", label: "Кампанія", w: 280, pin: true }, { id: "status", label: "Статус", w: 120 }, { id: "budget", label: "Бюджет", num: true, w: 140 },
+              { id: "spend", label: "Витрати 30 дн.", num: true }, { id: "leads", label: "Ліди", num: true, w: 90 }, { id: "cpl", label: "Ціна ліда", num: true },
+            ]} rows={camps.map((c) => ({ key: c.campaign_id, cells: {
+              name: c.name,
+              status: { v: STATUS[c.status] ?? c.status.toLowerCase(), tag: c.status === "ACTIVE" ? "ok" : "" },
+              budget: { v: c.daily_budget ?? c.lifetime_budget ?? null, t: c.daily_budget ? `${m(c.daily_budget)}/день` : c.lifetime_budget ? `${m(c.lifetime_budget)} всього` : "—" },
+              spend: { v: c.spend, t: m(c.spend) }, leads: { v: c.leads, t: fmtN(c.leads) }, cpl: { v: cplOf(c), t: m(cplOf(c)) },
+            } }))} />
           </Pop>
         )}
         {months.length > 1 && (
@@ -187,19 +182,14 @@ function Overview({ clientId, m, base }: { clientId: number; m: Fmt; base: strin
               <span className="mx-spark">{months.slice(-12).map((x) => { const mx = Math.max(...months.map((y) => y.leads), 1); return <i key={x.month} title={`${x.month}: ${x.leads} лідів`} style={{ height: `${Math.max(8, (x.leads / mx) * 100)}%` }} />; })}</span>
             </>
           }>
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Місяць</th><th>Витрати</th><th>Ліди</th><th>Ціна ліда</th><th>CTR</th>{purch && <><th>Покупки</th><th>ROAS</th></>}</tr></thead>
-                <tbody>
-                  {[...months].reverse().map((x) => (
-                    <tr key={x.month}>
-                      <td>{x.month}</td><td>{m(x.spend)}</td><td>{fmtN(x.leads)}</td><td>{m(cplOf(x))}</td><td>{pct(ctrOf(x))}</td>
-                      {purch && <><td>{fmtN(x.purchases)}</td><td>{x.spend ? (x.revenue / x.spend).toFixed(2) : "—"}</td></>}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable id="meta-months" cols={[
+              { id: "month", label: "Місяць", w: 110, pin: true }, { id: "spend", label: "Витрати", num: true }, { id: "leads", label: "Ліди", num: true, w: 90 },
+              { id: "cpl", label: "Ціна ліда", num: true }, { id: "ctr", label: "CTR", num: true, w: 90 },
+              ...(purch ? [{ id: "purch", label: "Покупки", num: true, w: 100 }, { id: "roas", label: "ROAS", num: true, w: 90 }] : []),
+            ]} rows={[...months].reverse().map((x) => ({ key: x.month, cells: {
+              month: x.month, spend: { v: x.spend, t: m(x.spend) }, leads: { v: x.leads, t: fmtN(x.leads) }, cpl: { v: cplOf(x), t: m(cplOf(x)) },
+              ctr: { v: ctrOf(x), t: pct(ctrOf(x)) }, purch: { v: x.purchases, t: fmtN(x.purchases) }, roas: { v: x.spend ? x.revenue / x.spend : null, t: x.spend ? (x.revenue / x.spend).toFixed(2) : "—" },
+            } }))} />
           </Pop>
         )}
         {bad.length > 0 && <ListPop title="Відхилені / з проблемою" ico="alert" tone="bad" items={bad.map((x) => `${x.name} — ${x.status}${x.why ? `: ${x.why}` : ""}`)} />}

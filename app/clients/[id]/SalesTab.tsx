@@ -1,4 +1,5 @@
 // Продажі клієнта з його CRM: повна воронка з усіх джерел + «реклама → продажі» по кожному оголошенню
+import DataTable from "@/components/DataTable";
 import Link from "next/link";
 import { headers } from "next/headers";
 import SubmitButton from "@/components/SubmitButton";
@@ -121,18 +122,16 @@ export default async function SalesTab({ clientId, sp, err, pulled }: { clientId
           </>
         }>
           {ads.length ? (
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Оголошення</th><th>Витрати</th><th>Ліди Meta</th><th>У CRM</th><th>Показ+</th><th>Продажі</th><th>Сума</th><th>Ціна продажу</th><th>ROAS</th></tr></thead>
-                <tbody>{ads.slice(0, 60).map((a) => (
-                  <tr key={a.ad_id}>
-                    <td><div>{a.ad_name}</div>{a.campaign_name && <small className="mono">{a.campaign_name}</small>}</td>
-                    <td>{mm(a.spend)}</td><td>{a.metaLeads ?? "—"}</td><td>{a.crmLeads}</td><td>{a.meetings}</td><td>{a.sales}</td>
-                    <td>{a.revenue ? m(a.revenue) : "—"}</td><td>{mm(a.cps)}</td><td>{a.roas == null ? "—" : a.roas.toFixed(1)}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
+            <DataTable id="sales-by-ad" cols={[
+              { id: "ad", label: "Оголошення", w: 280, pin: true }, { id: "spend", label: "Витрати", num: true }, { id: "meta", label: "Ліди Meta", num: true, w: 110 },
+              { id: "crm", label: "У CRM", num: true, w: 100 }, { id: "meet", label: "Показ+", num: true, w: 100 }, { id: "sales", label: "Продажі", num: true, w: 100 },
+              { id: "rev", label: "Сума", num: true, w: 140 }, { id: "cps", label: "Ціна продажу", num: true, w: 140 }, { id: "roas", label: "ROAS", num: true, w: 90 },
+            ]} rows={ads.map((a) => ({ key: a.ad_id, cells: {
+              ad: { v: a.ad_name, sub: a.campaign_name || undefined },
+              spend: { v: a.spend, t: mm(a.spend) }, meta: a.metaLeads ?? null, crm: a.crmLeads, meet: a.meetings, sales: { v: a.sales, tone: a.sales ? "good" : undefined },
+              rev: { v: a.revenue, t: a.revenue ? m(a.revenue) : "—" }, cps: { v: a.cps, t: mm(a.cps) },
+              roas: { v: a.roas, t: a.roas == null ? "—" : a.roas.toFixed(1), tone: a.roas == null ? undefined : a.roas >= 1 ? "good" : "bad" },
+            } }))} />
           ) : <p className="mono">Ще нема лідів з оголошеннями Meta або витрат по оголошеннях (витрати за весь час підтягуються раз на добу).</p>}
         </Pop>
         <ListPop title="Джерела" ico="funnel" items={st.bySource.map((x) => row(SOURCE_UA[x.key] ?? x.key, `${x.leads} лід. · ${x.sales} прод. · ${m(x.revenue)}`))} empty="—" />

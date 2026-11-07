@@ -4,6 +4,7 @@ import { CopyText } from "@/app/startups/[id]/CopyText";
 import { creativeRulesAction, promptUpdateAction } from "@/app/creatives/actions";
 import Icon from "@/components/Icon";
 import ListPop from "@/components/ListPop";
+import DataTable from "@/components/DataTable";
 import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
@@ -70,7 +71,25 @@ export default function CreativesTab({ clientId }: { clientId: number }) {
       <div className="qt-grid">
         <ListPop title="Переможці" ico="sparkles" tone="good" items={wins.map(line)} empty="Ще нема — потрібні ліди на креативах з кодом" />
         <ListPop title="Програли" ico="alert" tone="bad" items={loses.map(line)} empty="Нема" />
-        <ListPop title="Найдешевші ліди в кабінеті" ico="flag" items={rated.slice(0, 10).map((x) => `${x.a.name} — ${x.leads} лідів по ${money(x.spend / x.leads)}`)} empty="Цифр ще нема" />
+        <Pop wide className="pop-card qt" title="Усі оголошення — за весь час" trigger={
+          <>
+            <span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="flag" /></span><b>Усі оголошення</b></span><span className="qt-n">{book.ads.length}</span></span>
+            {rated.length ? rated.slice(0, 2).map((x) => <span key={x.a.ad_id} className="qt-l">{x.a.name} — {money(x.spend / x.leads)} за лід</span>) : <span className="qt-l mono">Цифр ще нема</span>}
+            {book.ads.length > 0 && <span className="qt-more">таблиця →</span>}
+          </>
+        }>
+          <DataTable id="creative-ads" cols={[
+            { id: "name", label: "Оголошення", w: 280, pin: true }, { id: "code", label: "Креатив", w: 100 }, { id: "kind", label: "Тип", w: 110 },
+            { id: "spend", label: "Витрати", num: true }, { id: "leads", label: "Ліди", num: true, w: 90 }, { id: "cpl", label: "Ціна ліда", num: true },
+            { id: "rel", label: "До середньої", num: true, w: 130 }, { id: "ctr", label: "CTR 30 дн.", num: true, w: 110 }, { id: "status", label: "Статус", w: 110, hide: true },
+          ]} rows={book.ads.map((a) => { const l = book.life(a); const cpl = l.leads ? l.spend / l.leads : null; const rel = cpl != null && book.avgCpl ? cpl / book.avgCpl : null; const cr = list.find((x) => adIdsOf(x.p).includes(a.ad_id)); return { key: a.ad_id, cells: {
+            name: a.name, code: cr ? codeOf(cr.p) : null, kind: a.kind || null,
+            spend: { v: l.spend, t: money(l.spend) }, leads: l.leads, cpl: { v: cpl, t: cpl == null ? "—" : money(cpl) },
+            rel: { v: rel, t: rel == null ? "—" : `${Math.round(rel * 100)}%`, tone: rel == null ? undefined : rel <= 0.8 ? "good" : rel >= 1.3 ? "bad" : undefined },
+            ctr: { v: a.impressions_30d ? (a.clicks_30d / a.impressions_30d) * 100 : null, t: a.impressions_30d ? `${((a.clicks_30d / a.impressions_30d) * 100).toFixed(2)}%` : "—" },
+            status: a.status,
+          } }; })} empty="Оголошень ще нема" />
+        </Pop>
         {patterns.length > 0 && <ListPop title="Патерни" ico="layers" tone="accent" items={patterns} />}
         {noCode.length > 0 && <ListPop title="Оголошення без коду" ico="link" items={noCode.map((a) => `${a.name} — ${money(book.life(a).spend)}`)} />}
       </div>
