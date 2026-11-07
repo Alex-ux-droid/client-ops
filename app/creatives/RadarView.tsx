@@ -35,7 +35,7 @@ export default function RadarView({ area, base, full }: { area?: RadarArea; base
           <span className="mono">6 напрямків: {Object.values(RADAR_AREAS).map((a) => a.label).join(", ")}. {autoOn("ai_radar") ? "Сам — раз на 3 дні." : "Автозапуск вимкнено (Налаштування → Можливості)."} Останній прогін: {last ? fmtDate(last) : "ще не було"}.</span>
         </div>
         <div className="inline" style={{ flexWrap: "wrap" }}>
-          <RadarRun running={radarRunning()} error={getSetting("radar.error") ?? ""} area={area} />
+          <RadarRun running={radarRunning()} error={getSetting("radar.error") ?? ""} area={area} progress={getSetting("radar.progress") ?? ""} />
           <Pop wide title="Що читає радар" trigger={<span className="h-link">Джерела</span>}>
             <form action={creativeToolsAction} className="stack" style={{ gap: "0.5rem" }}>
               <label className="mono">Блоги, ченджлоги, розсилки — Джері шукає по них (по рядку: назва — адреса)</label>
