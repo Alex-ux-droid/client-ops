@@ -71,7 +71,10 @@ const ourContext = () => `Хто ми: Саша — агенція/фрілан�
 
 export async function runRadar(onlyArea?: RadarArea): Promise<{ ok: true; added: number } | { ok: false; error: string }> {
   if (!getApiKey()) return { ok: false, error: "Нема ключа Anthropic (Налаштування → Доступи)" };
-  const since = getSetting("radar.last_at")?.slice(0, 10) ?? new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10);
+  // Вікно — від минулого прогону, але не менше 7 днів (повтори відсіює seen)
+  const week = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+  const lastRun = getSetting("radar.last_at")?.slice(0, 10) ?? week;
+  const since = lastRun < week ? lastRun : week;
   const today = new Date().toISOString().slice(0, 10);
   const raw = await rawSignals(since);
   const styles = listStyles().filter((s) => s.active).map((s) => ({ id: s.id, kind: s.kind, title: s.title }));
