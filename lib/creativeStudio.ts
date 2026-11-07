@@ -8,13 +8,16 @@ import { adIdsOf, codeOf, getPrompt, listPrompts, updatePrompt, type CreativePro
 import { adTotalsForClient, adsForClient, adsetsForClient, getAnalysis, type MetaAd } from "./repo/meta";
 import { getSetting } from "./repo/settings";
 import { getStrategy } from "./repo/strategy";
+import { getBrand } from "./repo/brand";
+import { brandMd } from "./brand";
 import { stylesFor } from "./repo/creativeCenter";
 
 export const CREATIVE_MARK = "[CLIENT-OPS:КРЕАТИВ]";
-export const rulesOf = (clientId: number) => getSetting(`creative.rules.${clientId}`) ?? "";
-export const brandOf = (clientId: number) => getSetting(`brand.${clientId}`) ?? "";
+// Тексти бренду — з брендбуку (розділ «Бренд»)
+export const rulesOf = (clientId: number) => getBrand(clientId).rules;
+export const brandOf = (clientId: number) => brandMd(clientId, { files: false });
 // Що рекламуємо кінцевому покупцю (не наша послуга клієнту): продукт, оффер, ціни, переваги, адреса
-export const adOfferOf = (clientId: number) => getSetting(`creative.offer.${clientId}`) ?? "";
+export const adOfferOf = (clientId: number) => getBrand(clientId).offer;
 
 export type Verdict = "win" | "mid" | "lose" | "few" | "";
 export const VERDICT: Record<Exclude<Verdict, "">, { label: string; tone: string }> = {
@@ -88,10 +91,9 @@ export function creativeBrief(clientId: number): string {
     `# Контекст: ${c.name} — реклама в Meta (Facebook / Instagram)`,
     `Ти — мій креативний партнер для реклами «${c.name}». Цей чат — тільки для креативів цього клієнта. Прочитай контекст і коротко підтверди в 3 рядках: хто клієнт, для кого реклама, головна думка, яка вже продає. Потім чекай завдання з кодом CR-N.\n`,
     sec("Клієнт", [c.niche && `Ніша: ${c.niche}`, c.client_vision && `Ціль клієнта: ${c.client_vision}`].filter(Boolean) as string[]),
-    sec("Що рекламуємо (продукт, оффер, ціни, переваги)", adOfferOf(clientId) || "Не заповнено — питай мене, не вигадуй."),
+    adOfferOf(clientId) ? "" : sec("Що рекламуємо", "Не заповнено — питай мене, не вигадуй."),
     sec("Фокус зараз", [st.focus, st.goal && `Куди йдемо: ${st.goal}`].filter(Boolean)),
-    sec("Бренд", brandOf(clientId) || "Не задано — стриманий сучасний стиль, місця під [логотип] і [фото обʼєкта]."),
-    sec("Правила клієнта (обовʼязково / заборонено)", rulesOf(clientId)),
+    brandOf(clientId) ? `# Брендбук\n${brandOf(clientId)}\n` : sec("Бренд", "Не задано — стриманий сучасний стиль, місця під [логотип] і [фото обʼєкта]."),
     sec("Аудиторія (з реклами)", audience),
     sec(`Що вже дає найдешевші ліди${b.avgCpl != null ? ` (середня ціна ліда ${money(b.avgCpl)})` : ""}`, best.map(adLine)),
     sec("Що не спрацювало — не повторювати", worst.map(adLine)),

@@ -42,9 +42,8 @@ export async function brandAction(fd: FormData) {
 export async function creativeRulesAction(fd: FormData) {
   await requireUser();
   const cid = Number(fd.get("client_id"));
-  if (fd.has("brand")) setSetting(`brand.${cid}`, String(fd.get("brand") ?? "").trim());
-  if (fd.has("offer")) setSetting(`creative.offer.${cid}`, String(fd.get("offer") ?? "").trim());
-  if (fd.has("rules")) setSetting(`creative.rules.${cid}`, String(fd.get("rules") ?? "").trim());
+  const { saveBrand } = await import("@/lib/repo/brand");
+  saveBrand(cid, { ...(fd.has("offer") ? { offer: String(fd.get("offer") ?? "") } : {}), ...(fd.has("rules") ? { rules: String(fd.get("rules") ?? "") } : {}), ...(fd.has("brand") ? { notes: String(fd.get("brand") ?? "") } : {}) });
   revalidatePath(`/clients/${cid}`);
 }
 export async function importCreativeAction(clientId: number, text: string) {
