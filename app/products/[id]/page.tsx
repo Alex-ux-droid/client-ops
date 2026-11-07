@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 import Markdown from "@/components/Markdown";
 import Pop from "@/components/Pop";
 import Timeline from "@/components/Timeline";
+import EditBlock from "@/components/EditBlock";
+import LogoMark from "@/components/LogoMark";
+import { logoSrc } from "@/lib/repo/logos";
 import ListPop from "@/components/ListPop";
 import Icon from "@/components/Icon";
 import SubmitButton from "@/components/SubmitButton";
@@ -54,9 +57,12 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
     <section className="st stack">
       <Link href="/products" className="h-link">← Продукти</Link>
       <div className="st-head">
-        <div style={{ minWidth: 0 }}>
+        <div className="ent-head">
+          <LogoMark kind="product" id={id} name={p.name} src={logoSrc("product", id)} size={52} editable />
+          <div style={{ minWidth: 0 }}>
           <div className="st-part-h"><h1 style={{ margin: 0 }}>{p.name}</h1><span className={`tag st-s-${p.status}`}>{PRODUCT_STATUS[p.status] ?? p.status}</span><span className="mono">{PRODUCT_KINDS[p.kind] ?? p.kind} · оновлено {fmtDate(p.updated_at)}</span></div>
           {p.summary && <p style={{ margin: "0.375rem 0 0", color: "var(--muted)" }}>{p.summary}</p>}
+          </div>
         </div>
         <div className="inline" style={{ flexWrap: "wrap" }}>
           {hasPassport(id) ? <>
@@ -232,19 +238,39 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
   }
 
   function Edit() {
+    const blocks: ["summary" | "how" | "features" | "stack" | "pros" | "cons" | "links" | "next_step" | "kit_md", string, boolean, string, boolean?][] = [
+      ["summary", "Що це і для кого", false, "1–2 речення: що робить і для кого", true],
+      ["how", "Як працює", false, "Як це працює для користувача — коротко, по кроках", true],
+      ["features", "Головні фічі", true, "Що вміє"], ["stack", "З чого складається", true, "Технології, сервіси, модулі"],
+      ["pros", "Плюси", true, "Сильні сторони"], ["cons", "Мінуси / ризики", true, "Слабкі місця"],
+      ["links", "Посилання", true, "Назва — https://…"], ["next_step", "Наступний крок", false, "Що робимо далі"],
+      ["kit_md", "Набір / промпт", false, "Для наборів: текст промпту; {{HOST}} = адреса системи", true],
+    ];
     return (
-      <form action={saveProductAction} className="card stack" style={{ gap: "0.5rem" }}>
-        {hid}
-        <div className="mk-form">
-          <input name="name" defaultValue={p!.name} required />
-          <select name="kind" defaultValue={p!.kind}>{Object.entries(PRODUCT_KINDS).map(([k, x]) => <option key={k} value={k}>{x}</option>)}</select>
-          <select name="status" defaultValue={p!.status}>{Object.entries(PRODUCT_STATUS).map(([k, x]) => <option key={k} value={k}>{x}</option>)}</select>
+      <div className="stack" style={{ gap: "1rem" }}>
+        <div className="card eb-head">
+          <LogoMark kind="product" id={id} name={p!.name} src={logoSrc("product", id)} size={48} editable />
+          <div className="stack" style={{ gap: "0.125rem", flex: 1, minWidth: 0 }}>
+            <b style={{ fontSize: "1.125rem" }}>{p!.name}</b>
+            <span className="mono">{PRODUCT_KINDS[p!.kind] ?? p!.kind} · {PRODUCT_STATUS[p!.status] ?? p!.status}</span>
+          </div>
+          <Pop className="pop-trigger pop-inline" title="Основне" trigger={<span className="btn ghost small">Назва, тип, статус</span>}>
+            <form action={saveProductAction} className="stack" style={{ gap: "0.5rem" }}>
+              {hid}
+              <input name="name" defaultValue={p!.name} required aria-label="Назва" />
+              <select name="kind" defaultValue={p!.kind} aria-label="Тип">{Object.entries(PRODUCT_KINDS).map(([k, x]) => <option key={k} value={k}>{x}</option>)}</select>
+              <select name="status" defaultValue={p!.status} aria-label="Статус">{Object.entries(PRODUCT_STATUS).map(([k, x]) => <option key={k} value={k}>{x}</option>)}</select>
+              <div className="inline"><SubmitButton className="small">Зберегти</SubmitButton><span className="grow" /><button name="delete" value="1" className="ghost small danger-text">Видалити продукт</button></div>
+            </form>
+          </Pop>
         </div>
-        {([["summary", "Що це і для кого", 3], ["how", "Як працює", 4], ["features", "Головні фічі (по рядку)", 5], ["stack", "З чого складається (по рядку)", 5], ["links", "Посилання (по рядку: Назва — https://…)", 3], ["pros", "Плюси (по рядку)", 3], ["cons", "Мінуси / ризики (по рядку)", 3], ["next_step", "Наступний крок", 2], ["kit_md", "Набір / промпт (для наборів; {{HOST}} = адреса системи)", 6]] as const).map(([k, l, r]) => (
-          <label key={k} className="cm-field"><span>{l}</span><VoiceTextarea name={k} defaultValue={p![k]} style={{ minHeight: `${r * 1.4}rem` }} /></label>
-        ))}
-        <div className="inline"><SubmitButton className="small">Зберегти</SubmitButton><span className="grow" /><button name="delete" value="1" className="ghost small danger-text">Видалити продукт</button></div>
-      </form>
+        <div className="eb-grid">
+          {blocks.filter(([k]) => k !== "kit_md" || p!.kind === "kit" || p!.kit_md).map(([k, t, list, hint, wide]) => (
+            <EditBlock key={k} title={t} name={k} value={String(p![k] ?? "")} list={list} hint={hint} wide={wide} action={saveProductAction} hidden={hid} rows={k === "kit_md" ? 16 : list ? 10 : 6} />
+          ))}
+        </div>
+      </div>
     );
   }
+
 }

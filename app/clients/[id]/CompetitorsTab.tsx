@@ -72,7 +72,7 @@ export default function CompetitorsTab({ clientId, sel, lv }: { clientId: number
           <Link href={base} className={!lv ? "on" : ""}>Усі <b>{all.length}</b></Link>
           {levels.map((l) => <Link key={l} href={`${base}&lv=${encodeURIComponent(l)}`} className={lv === l ? "on" : ""}>{l} <b>{all.filter((c) => c.level === l).length}</b></Link>)}
         </nav>
-        <Pop wide title="Новий конкурент" trigger={<span className="btn small">+ Конкурент</span>}><CompForm clientId={clientId} /></Pop>
+        <Pop wide className="pop-trigger pop-inline" title="Новий конкурент" trigger={<span className="btn small">+ Конкурент</span>}><CompForm clientId={clientId} /></Pop>
       </div>
 
       <DataTable id="competitors" search cols={[
@@ -114,7 +114,7 @@ function CompetitorCard({ c }: { c: Competitor }) {
         </div>
         <div className="bb-acts">
           <CompCheck id={c.id} />
-          <div className="inline">{flag("watch", c.watch ? "Зняти з нагляду" : "👁 Під нагляд")}<Pop wide title={`Редагувати: ${c.name}`} trigger={<span className="btn ghost small">Редагувати</span>}><CompForm clientId={c.client_id} c={c} /></Pop></div>
+          <div className="inline">{flag("watch", c.watch ? "Зняти з нагляду" : "👁 Під нагляд")}<Pop wide className="pop-trigger pop-inline" title={`Редагувати: ${c.name}`} trigger={<span className="btn ghost small">Редагувати</span>}><CompForm clientId={c.client_id} c={c} /></Pop></div>
           <div className="inline">{flag("archive", c.archived ? "З архіву" : "В архів")}{flag("delete", "Видалити", "ghost small danger-text")}</div>
         </div>
       </div>

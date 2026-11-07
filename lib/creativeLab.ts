@@ -42,7 +42,7 @@ export function promptStats(p: CreativePrompt, ads: MetaAd[]) {
   return { ads: mine, ...t, cpl: cplOf(t), ctr: ctrOf(t) };
 }
 
-export async function generateCreativePrompt(clientId: number, o: { format: CreativeFormat; angle?: string; note?: string }): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+export async function generateCreativePrompt(clientId: number, o: { format: CreativeFormat; angle?: string; note?: string }): Promise<{ ok: true; id: number; title: string; prompt: string } | { ok: false; error: string }> {
   const key = getApiKey();
   if (!key) return { ok: false, error: "Нема ключа Anthropic (Налаштування → Доступи)" };
   const c = getClient(clientId);
@@ -76,7 +76,7 @@ export async function generateCreativePrompt(clientId: number, o: { format: Crea
 - чого НЕ робити (з того, що не спрацювало);
 - в кінці попроси 2 варіації (А/Б), що відрізняються одним елементом.
 my_style — мої актуальні прийоми і правила Meta (оновлюються з AI-радару): дотримуйся їх, вони важливіші за твої загальні знання. our_tools — чим я роблю креативи, пиши під них.
-Дотримуйся rules клієнта (обовʼязково / заборонено). Контекст про клієнта Claude вже отримав окремим повідомленням «Хто ми», тому не переписуй його — тільки завдання на цей креатив.
+Дотримуйся rules клієнта (обовʼязково / заборонено). Контекст про клієнта Claude вже отримав окремим повідомленням «Контекст клієнта», тому не переписуй його — тільки завдання на цей креатив.
 Не вигадуй факти про клієнта (ціни, знижки, адреси), яких нема в даних — став [уточнити].
 Відповідай ТІЛЬКИ JSON: {"title": "коротка назва креативу", "angle": "кут одним реченням", "prompt": "повний текст промпту українською"}`;
   const user = `Формат: ${FORMATS[o.format]}\nЯк виконати: ${HOW[o.format]}${o.angle ? `\nКут, який хоче Саша: ${o.angle}` : "\nКут обери сам — найперспективніший з даних."}${o.note ? `\nПобажання Саші: ${o.note}` : ""}\n\nДАНІ:\n${JSON.stringify(data)}`;
@@ -87,8 +87,9 @@ my_style — мої актуальні прийоми і правила Meta (о
     const j = { title: asText(raw.title), angle: asText(raw.angle), prompt: asText(raw.prompt) };
     if (!j.prompt) return { ok: false, error: "Порожній промпт — спробуй ще раз" };
     const id = addPrompt({ client_id: clientId, title: j.title || "Креатив", angle: j.angle || o.angle || "", format: FORMATS[o.format], prompt: j.prompt, notes: o.note });
-    updatePrompt(id, { prompt: `${j.prompt.trim()}${extractFooter({ id })}` });
-    return { ok: true, id };
+    const full = `${j.prompt.trim()}${extractFooter({ id })}`;
+    updatePrompt(id, { prompt: full });
+    return { ok: true, id, title: j.title || "Креатив", prompt: full };
   } catch (e) {
     logError("creative-prompt", e);
     const st = (e as { status?: number }).status;

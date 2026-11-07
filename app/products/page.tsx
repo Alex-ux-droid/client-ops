@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { BrandDot, brandOf } from "@/components/Brand";
+import LogoMark from "@/components/LogoMark";
+import { logoMap } from "@/lib/repo/logos";
 import { lines } from "@/lib/repo/strategy";
 import { fmtDate } from "@/lib/dates";
 import { listProducts, PRODUCT_KINDS, PRODUCT_STATUS, productClients, listPItems } from "@/lib/repo/products";
@@ -12,6 +14,7 @@ export const dynamic = "force-dynamic";
 // Продукти: паспорти всього, що ми зробили і чим користуємось для клієнтів
 export default async function ProductsPage() {
   const ps = listProducts();
+  const logos = logoMap("product");
   return (
     <>
       <div className="head">
@@ -47,7 +50,7 @@ export default async function ProductsPage() {
                 const cl = productClients(p.id), kn = listPItems(p.id, "knowledge").length;
                 return (
                   <Link key={p.id} href={`/products/${p.id}`} className={`card st-part s-${p.status}`}>
-                    <div className="st-part-h"><b>{p.name}</b><span className={`tag st-s-${p.status}`}>{PRODUCT_STATUS[p.status] ?? p.status}</span></div>
+                    <div className="st-part-h"><LogoMark kind="product" id={p.id} name={p.name} src={logos.get(p.id)} size={32} /><b>{p.name}</b><span className={`tag st-s-${p.status}`}>{PRODUCT_STATUS[p.status] ?? p.status}</span></div>
                     {p.summary && <p className="pv-s">{p.summary}</p>}
                     {(() => { const ms = [...new Set(lines(p.stack).map((x) => brandOf(x)?.name).filter(Boolean))] as string[]; return ms.length ? <span className="qt-marks">{ms.slice(0, 8).map((m) => <BrandDot key={m} text={m} size={16} />)}</span> : null; })()}
                     <small>{[cl.length ? `клієнтів: ${cl.length}` : "", kn ? `знань: ${kn}` : "", `оновлено ${fmtDate(p.updated_at)}`].filter(Boolean).join(" · ")}</small>

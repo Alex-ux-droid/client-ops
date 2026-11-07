@@ -5,9 +5,9 @@ import { creativeRulesAction, promptUpdateAction } from "@/app/creatives/actions
 import Icon from "@/components/Icon";
 import ListPop from "@/components/ListPop";
 import DataTable from "@/components/DataTable";
+import EditBlock from "@/components/EditBlock";
 import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
-import VoiceTextarea from "@/components/VoiceTextarea";
 import { money } from "@/lib/config";
 import { FORMATS } from "@/lib/creativeLab";
 import { getBrand } from "@/lib/repo/brand";
@@ -32,41 +32,56 @@ export default function CreativesTab({ clientId }: { clientId: number }) {
   const rated = book.ads.map((a) => ({ a, ...book.life(a) })).filter((x) => x.leads > 0).sort((x, y) => x.spend / x.leads - y.spend / y.leads);
   const patterns = (getAnalysis(clientId)?.data?.patterns ?? []) as string[];
   const wins = list.filter((x) => x.n.verdict === "win"), loses = list.filter((x) => x.n.verdict === "lose");
+  const hid = <input type="hidden" name="client_id" value={clientId} />;
+  const last = list[0];
   const line = (x: { p: CreativePrompt; n: CreativeNums }) => `${codeOf(x.p)} ${x.p.title}${x.n.leads ? ` — ${x.n.leads} лідів по ${money(x.n.cpl)}` : ""}`;
 
   return (
     <div className="stack cs" style={{ gap: "1rem" }}>
       <div className="cs-flow">
         <div className="card cs-step">
-          <div className="cs-sh"><span className="cs-n">1</span><b>Хто ми</b></div>
-          <p className="mono">Контекст про клієнта: оффер, бренд, що дало дешеві ліди, що провалилось, правила. Перше повідомлення в новий чат Claude.</p>
-          <div className="inline" style={{ flexWrap: "wrap" }}>
-            <CopyText text={brief} label="Скопіювати «Хто ми»" className="small" />
-            <Pop wide title="Хто ми — контекст для нового чату" trigger={<span className="h-link">Оффер, бренд, правила</span>}>
-              <form action={creativeRulesAction} className="stack" style={{ gap: "0.5rem" }}>
-                <input type="hidden" name="client_id" value={clientId} />
-                <label className="mono">Що рекламуємо: продукт, оффер, ціни, переваги, адреса</label>
-                <VoiceTextarea name="offer" defaultValue={offer} placeholder={"Імплантація під ключ від $450, гарантія 10 років\nКлініка на Позняках, парковка\nПерша консультація + КТ безкоштовно"} style={{ minHeight: "5rem" }} />
-                <label className="mono">Візуальний стиль (кольори і шрифти — у розділі «Бренд»)</label>
-                <VoiceTextarea name="brand" defaultValue={brand} placeholder={"Кольори: #0e3b2e, золотий акцент\nШрифт: строгий без засічок\nТон: преміально, спокійно, без «акцій»"} style={{ minHeight: "5rem" }} />
-                <label className="mono">Правила: що обовʼязково і що заборонено</label>
-                <VoiceTextarea name="rules" defaultValue={rules} placeholder={"Обовʼязково: адреса ЖК, «від забудовника»\nЗаборонено: слово «знижка», стокові фото людей"} style={{ minHeight: "5rem" }} />
-                <div className="inline"><SubmitButton className="small">Зберегти</SubmitButton><a href={`/clients/${clientId}?tab=brand`} className="h-link">Повний брендбук → кольори, шрифти, логотипи</a></div>
-              </form>
-              <pre className="su-iss-pre cs-brief">{brief}</pre>
+          <div className="cs-sh"><span className="cs-ico"><Icon name="users" /></span><div><b>Контекст клієнта</b><small>1-ше повідомлення в новий чат Claude</small></div></div>
+          <div className="cs-chips">
+            <span className={offer ? "ok" : "miss"}>{offer ? "✓" : "!"} Оффер</span>
+            <span className={brand ? "ok" : ""}>{brand ? "✓" : "–"} Стиль</span>
+            <span className={rules ? "ok" : ""}>{rules ? "✓" : "–"} Правила</span>
+            <span className={rated.length ? "ok" : ""}>{rated.length ? `✓ ${Math.min(5, rated.length)} найкращих` : "– Цифр Meta нема"}</span>
+          </div>
+          <div className="cs-act">
+            <CopyText text={brief} label="Скопіювати" className="small" />
+            <Pop wide className="pop-trigger pop-inline" title="Контекст клієнта" sub="Що Джері кладе в перше повідомлення. Клікни блок, щоб змінити." trigger={<span className="btn ghost small">Налаштувати</span>}>
+              <div className="stack" style={{ gap: "0.75rem" }}>
+                <div className="eb-grid">
+                  <EditBlock title="Що рекламуємо" name="offer" value={offer} list action={creativeRulesAction} hidden={hid} hint="Продукт, оффер, ціни, переваги, адреса — по пункту в рядку" />
+                  <EditBlock title="Візуальний стиль" name="brand" value={brand} list action={creativeRulesAction} hidden={hid} hint="Тон, настрій; кольори і шрифти — у розділі «Бренд»" />
+                  <EditBlock title="Правила" name="rules" value={rules} list action={creativeRulesAction} hidden={hid} hint="Що обовʼязково і що заборонено" />
+                </div>
+                <div className="inline" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
+                  <a href={`/clients/${clientId}?tab=brand`} className="h-link">Брендбук: кольори, шрифти, логотипи →</a>
+                  <CopyText text={brief} label="Скопіювати контекст" className="small" />
+                </div>
+              </div>
             </Pop>
           </div>
-          <span className="cs-meta">{rated.length ? `${Math.min(5, rated.length)} найкращих оголошень у контексті` : "Цифр з Meta ще нема"} · {offer ? "оффер ✓" : <b className="cs-miss">оффер не заповнений</b>} · {brand ? "бренд ✓" : "бренд порожній"} · {rules ? "правила ✓" : "правил нема"}</span>
         </div>
         <div className="card cs-step">
-          <div className="cs-sh"><span className="cs-n">2</span><b>Новий креатив</b></div>
-          <p className="mono">Джері пише завдання з даних реклами під формат і кут. Друге повідомлення в той самий чат.</p>
-          <CreativeGen clientId={clientId} formats={FORMATS} />
+          <div className="cs-sh"><span className="cs-ico"><Icon name="sparkles" /></span><div><b>Промпт креативу</b><small>2-ге повідомлення в той самий чат</small></div></div>
+          {last ? <span className="cs-last"><span className="cs-code">{codeOf(last.p)}</span>{last.p.title}</span> : <span className="cs-last mono">Ще жодного — склади перший</span>}
+          <div className="cs-act">
+            <Pop wide className="pop-trigger pop-inline" title="Новий креатив" sub="Джері пише завдання з цифр реклами під формат і кут." trigger={<span className="btn small">+ Новий промпт</span>}>
+              <CreativeGen clientId={clientId} formats={FORMATS} />
+            </Pop>
+            {last && <CopyText text={last.p.prompt} label={`Копіювати ${codeOf(last.p)}`} />}
+          </div>
         </div>
         <div className="card cs-step">
-          <div className="cs-sh"><span className="cs-n">3</span><b>Витяжка назад</b></div>
-          <p className="mono">Наприкінці чату Claude дасть блок з кодом CR-N — встав сюди. Код впиши і в назву оголошення в Meta.</p>
-          <CreativeImport clientId={clientId} />
+          <div className="cs-sh"><span className="cs-ico"><Icon name="check" /></span><div><b>Результат назад</b><small>Відповідь Claude з кінця чату</small></div></div>
+          <span className="cs-last mono">Креатив переїде в «Зроблено», а з кодом у назві оголошення — сам у «У рекламі».</span>
+          <div className="cs-act">
+            <Pop wide className="pop-trigger pop-inline" title="Результат з чату" sub="Скопіюй останнє повідомлення Claude (блок з кодом CR-N) і встав." trigger={<span className="btn ghost small">Вставити результат</span>}>
+              <CreativeImport clientId={clientId} />
+            </Pop>
+          </div>
         </div>
       </div>
 
@@ -136,8 +151,7 @@ function Card({ p, n, book }: { p: CreativePrompt; n: CreativeNums; book: Return
             {n.auto && p.verdict && <span className="mono">авто: {VERDICT[n.auto as keyof typeof VERDICT]?.label}</span>}
           </div>
         )}
-        {p.result && <details open><summary className="h-link">Що зробили (витяжка)</summary><pre className="su-iss-pre">{p.result}</pre></details>}
-        <details><summary className="h-link">Промпт повністю</summary><pre className="su-iss-pre">{p.prompt}</pre></details>
+        {p.result && <div className="cs-res"><b>Що зробили</b><p>{p.result.replace(/\[\/?CLIENT-OPS[^\]]*\]/g, "").trim()}</p></div>}
         <form action={promptUpdateAction} className="stack" style={{ gap: "0.5rem" }}>
           <input type="hidden" name="prompt_id" value={p.id} />
           <div className="mk-form">
