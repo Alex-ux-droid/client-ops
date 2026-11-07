@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { radarRunAction } from "./actions";
 
-export default function RadarRun({ running, error, area }: { running: boolean; error: string; area?: string }) {
+export default function RadarRun({ running, error, area, progress }: { running: boolean; error: string; area?: string; progress?: string }) {
   const [busy, setBusy] = useState(false);
   const router = useRouter();
   useEffect(() => {
@@ -20,7 +20,7 @@ export default function RadarRun({ running, error, area }: { running: boolean; e
         setBusy(false);
         router.refresh();
       }}>{running ? "Джері шукає…" : area ? "Перевірити цей напрямок" : "Перевірити зараз"}</button>
-      {running && <span className="mono">{area ? "≈3–7 хв" : "≈10–25 хв"} у фоні — можна піти, нове прийде в Telegram.</span>}
+      {running && <span className="mono">{progress ? `${progress} · ` : ""}{area ? "≈3–7 хв" : "≈10–25 хв"} у фоні — можна піти, нове прийде в Telegram.</span>}
       {!running && error && <span className="mono" style={{ color: "var(--bad)" }}>{error}</span>}
     </span>
   );

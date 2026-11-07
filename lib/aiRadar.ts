@@ -16,6 +16,12 @@ export const radarRepos = () => (getSetting("radar.repos") ?? RADAR_REPOS_DEFAUL
 export const radarSources = () => getSetting("radar.sources") || RADAR_SOURCES_DEFAULT;
 export const creativeTools = () => getSetting("creative.tools") ?? "";
 const EVERY_DAYS = 3;
+// Ідентифікатор процесу: якщо сервер перезапустився посеред прогону — позначка «шукає» більше не дійсна
+// (globalThis — бо модуль може бути завантажений кількома бандлами Next в одному процесі)
+const g = globalThis as unknown as { __radarBoot?: string };
+const BOOT = (g.__radarBoot ??= Math.random().toString(36).slice(2, 10));
+const hhmm = () => new Date().toLocaleTimeString("uk-UA", { timeZone: "Europe/Kyiv", hour: "2-digit", minute: "2-digit" });
+const progress = (t: string) => setSetting("radar.progress", `${hhmm()} ${t}`);
 
 type Found = { title?: string; source?: string; url?: string; what?: string; how?: string; score?: number; style_id?: number | null; kind?: string; style_title?: string; add?: string; area?: string };
 
@@ -31,10 +37,10 @@ async function askWithWeb(system: string, user: string, maxTokens = 7000): Promi
   if (!key) throw new Error("Нема ключа Anthropic (Налаштування → Доступи)");
   const model = agentConfig().model;
   const { webToolsFor, webBetaFor } = await import("./agent/run");
-  const client = new Anthropic({ apiKey: key, timeout: 600_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: key, timeout: 240_000, maxRetries: 0 });
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: user }];
   let out = "";
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 3; i++) {
     const betas = webBetaFor(model);
     const r = await client.beta.messages.create({ model, max_tokens: maxTokens, system, messages, tools: webToolsFor(model), ...(betas.length ? { betas } : {}) });
     out = r.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text").map((b) => b.text).join("");
@@ -76,6 +82,7 @@ export async function runRadar(onlyArea?: RadarArea): Promise<{ ok: true; added:
   const lastRun = getSetting("radar.last_at")?.slice(0, 10) ?? week;
   const since = lastRun < week ? lastRun : week;
   const today = new Date().toISOString().slice(0, 10);
+  progress("збираю сигнали: GitHub, Hacker News…");
   const raw = await rawSignals(since);
   const styles = listStyles().filter((s) => s.active).map((s) => ({ id: s.id, kind: s.kind, title: s.title }));
   const seen = listRadar(undefined, 150).map((r) => r.title);
@@ -84,6 +91,8 @@ export async function runRadar(onlyArea?: RadarArea): Promise<{ ok: true; added:
   const report: string[] = [`сигнали: GitHub ${Array.isArray(raw.github_trending) ? `${raw.github_trending.length} репо` : raw.github_trending ? "помилка" : "не підключено"}, HN ${Array.isArray(raw.hacker_news) ? raw.hacker_news.length : "недоступний"}; з ${since}`];
   for (const area of (onlyArea ? [onlyArea] : (Object.keys(RADAR_AREAS) as RadarArea[]))) {
     const A = RADAR_AREAS[area];
+    const t0 = Date.now();
+    progress(`${A.label}: Джері шукає в мережі…`);
     const system = `Ти — AI-радар Саші. ${ourContext()}
 Напрямок цього прогону: «${A.label}» — ${A.focus}.
 Знайди, що НОВОГО зʼявилось з ${since} (сьогодні ${today}) у цьому напрямку і реально допоможе нам працювати швидше/краще або дасть ідею нового продукту для клієнтів. Перші, хто це помічає, — офіційні блоги/ченджлоги, GitHub, Hacker News, профільні розсилки; список джерел нижче.
@@ -104,9 +113,9 @@ score: 5 — змінює гру для нас/клієнтів, варто вп
           hint_style_id: sid, hint_kind: String(f.kind ?? (area === "creatives" ? "general" : "")), hint_title: String(f.style_title ?? ""), hint_body: area === "creatives" ? String(f.add ?? "") : "" });
         if (id) { added++; kept++; seen.push(String(f.title)); } else dup++;
       }
-      report.push(`${A.label}: знайдено ${got.length}, взято ${kept}${low ? `, слабких ${low}` : ""}${dup ? `, повторів ${dup}` : ""}`);
+      report.push(`${A.label}: знайдено ${got.length}, взято ${kept}${low ? `, слабких ${low}` : ""}${dup ? `, повторів ${dup}` : ""} · ${Math.round((Date.now() - t0) / 1000)} с`);
     } catch (e) {
-      report.push(`${A.label}: помилка — ${String((e as Error).message).slice(0, 100)}`);
+      report.push(`${A.label}: помилка — ${String((e as Error).message).slice(0, 100)} · ${Math.round((Date.now() - t0) / 1000)} с`);
       logError("ai-radar", e);
       errors.push(`${A.label}: ${String((e as Error).message).slice(0, 100)}`);
       if ((e as { status?: number }).status === 401) return { ok: false, error: "Ключ Anthropic не підходить" };
@@ -166,11 +175,16 @@ export async function buildMarketMap(): Promise<{ ok: true } | { ok: false; erro
 }
 
 // Прогін триває 10–25 хв (6 напрямків з пошуком) — завжди у фоні; стан у settings radar.running
-export const radarRunning = () => { const t = Date.parse(getSetting("radar.running") ?? ""); return !Number.isNaN(t) && Date.now() - t < 60 * 60_000; };
+export const radarRunning = () => {
+  const [at, boot] = (getSetting("radar.running") ?? "").split("|");
+  const t = Date.parse(at ?? "");
+  return !Number.isNaN(t) && boot === BOOT && Date.now() - t < 60 * 60_000;
+};
 export function startRadar(onlyArea?: RadarArea): boolean {
   if (radarRunning()) return false;
-  setSetting("radar.running", new Date().toISOString());
+  setSetting("radar.running", `${new Date().toISOString()}|${BOOT}`);
   setSetting("radar.error", "");
+  progress("старт");
   void runRadar(onlyArea).then((r) => (r.ok ? notifyRadar(r.added) : setSetting("radar.error", r.error))).catch((e) => logError("ai-radar", e)).finally(() => setSetting("radar.running", ""));
   return true;
 }
