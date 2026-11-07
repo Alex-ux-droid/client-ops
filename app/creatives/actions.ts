@@ -105,10 +105,10 @@ export async function creativeToolsAction(fd: FormData) {
 }
 export async function radarRunAction() {
   await requireUser();
-  const { runRadar } = await import("@/lib/aiRadar");
-  const r = await runRadar();
+  const { startRadar } = await import("@/lib/aiRadar");
+  const started = startRadar();
   revalidatePath("/creatives");
-  return r;
+  return { started };
 }
 export async function radarDecideAction(fd: FormData) {
   await requireUser();

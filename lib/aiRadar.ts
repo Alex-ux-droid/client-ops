@@ -65,6 +65,22 @@ export async function runRadar(): Promise<{ ok: true; added: number } | { ok: fa
   }
 }
 
+// Прогін триває кілька хвилин (пошук по вебу) — запускаємо у фоні; стан у settings radar.running
+export const radarRunning = () => { const t = Date.parse(getSetting("radar.running") ?? ""); return !Number.isNaN(t) && Date.now() - t < 20 * 60_000; };
+export function startRadar(): boolean {
+  if (radarRunning()) return false;
+  setSetting("radar.running", new Date().toISOString());
+  setSetting("radar.error", "");
+  void runRadar().then((r) => (r.ok ? notifyRadar(r.added) : setSetting("radar.error", r.error))).catch((e) => logError("ai-radar", e)).finally(() => setSetting("radar.running", ""));
+  return true;
+}
+async function notifyRadar(added: number) {
+  if (!added) return;
+  const { tg, tgOwner } = await import("./telegram");
+  const owner = tgOwner();
+  if (owner) await tg("sendMessage", { chat_id: owner, text: `🛰 AI-радар: ${added} нових для креативів\n${listRadar("new", added).map((x) => `• ${x.title}`).join("\n")}\n\nКреативи → AI-радар` }).catch(() => {});
+}
+
 // Раз на тиждень (понеділок після 9:00 за Києвом), одна спроба на день; нове → коротко Саші в Telegram
 export async function radarTick(): Promise<void> {
   if (!autoOn("ai_radar")) return;
@@ -73,9 +89,5 @@ export async function radarTick(): Promise<void> {
   const today = now.toISOString().slice(0, 10);
   if (getSetting("radar.tried") === today) return;
   setSetting("radar.tried", today);
-  const r = await runRadar();
-  if (!r.ok || !r.added) return;
-  const { tg, tgOwner } = await import("./telegram");
-  const owner = tgOwner();
-  if (owner) await tg("sendMessage", { chat_id: owner, text: `🛰 AI-радар: ${r.added} нових для креативів\n${listRadar("new", r.added).map((x) => `• ${x.title}`).join("\n")}\n\nКреативи → AI-радар` }).catch(() => {});
+  startRadar(); // у фоні — не тримає щохвилинний цикл (заявки, CRM) кілька хвилин
 }

@@ -8,7 +8,7 @@ import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import { autoOn } from "@/lib/agent/caps";
-import { creativeTools, radarRepos } from "@/lib/aiRadar";
+import { creativeTools, radarRepos, radarRunning } from "@/lib/aiRadar";
 import { money } from "@/lib/config";
 import { FORMATS } from "@/lib/creativeLab";
 import { adBook, creativeNums, syncCodes, VERDICT } from "@/lib/creativeStudio";
@@ -179,7 +179,7 @@ function Radar() {
           <span className="mono">GitHub ({radarRepos().join(", ")}) + новини Anthropic, OpenAI, Meta, генераторів фото/відео. {autoOn("ai_radar") ? "Сам — щопонеділка після 9:00." : "Автозапуск вимкнено (Налаштування → Можливості)."} Останній прогін: {last ? fmtDate(last) : "ще не було"}.</span>
         </div>
         <div className="inline" style={{ flexWrap: "wrap" }}>
-          <RadarRun />
+          <RadarRun running={radarRunning()} error={getSetting("radar.error") ?? ""} />
           <Pop title="Що читає радар" trigger={<span className="h-link">Джерела</span>}>
             <form action={creativeToolsAction} className="stack" style={{ gap: "0.5rem" }}>
               <label className="mono">Репозиторії GitHub (по рядку, owner/name). Потрібен підключений GitHub.</label>

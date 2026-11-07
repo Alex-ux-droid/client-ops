@@ -1,23 +1,27 @@
 "use client";
-// «Перевірити зараз»: прогін AI-радару (1–3 хв: пошук по вебу + GitHub)
+// «Перевірити зараз»: радар іде у фоні (кілька хвилин пошуку по вебу); поки йде — сторінка сама оновлюється
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { radarRunAction } from "./actions";
 
-export default function RadarRun() {
+export default function RadarRun({ running, error }: { running: boolean; error: string }) {
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
   const router = useRouter();
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(() => router.refresh(), 15000);
+    return () => clearInterval(t);
+  }, [running, router]);
   return (
-    <span className="inline">
-      <button type="button" className="small" disabled={busy} onClick={async () => {
-        setBusy(true); setMsg("");
-        const r = await radarRunAction();
+    <span className="inline" style={{ flexWrap: "wrap" }}>
+      <button type="button" className="small" disabled={busy || running} onClick={async () => {
+        setBusy(true);
+        await radarRunAction();
         setBusy(false);
-        setMsg(r.ok ? (r.added ? `Нових карток: ${r.added}` : "Нічого суттєвого нового") : r.error);
         router.refresh();
-      }}>{busy ? "Джері шукає… 1–3 хв" : "Перевірити зараз"}</button>
-      {msg && <span className="mono">{msg}</span>}
+      }}>{running ? "Джері шукає… 3–7 хв" : "Перевірити зараз"}</button>
+      {running && <span className="mono">Можна піти зі сторінки — нове прийде в Telegram.</span>}
+      {!running && error && <span className="mono" style={{ color: "var(--bad)" }}>{error}</span>}
     </span>
   );
 }
