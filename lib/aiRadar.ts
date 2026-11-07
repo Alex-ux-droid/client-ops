@@ -32,7 +32,7 @@ function parseJson<T>(out: string): T {
 }
 
 // Запит з web_search/web_fetch на боці Anthropic; pause_turn — продовжуємо до 4 кругів
-async function askWithWeb(system: string, user: string, maxTokens = 7000): Promise<string> {
+export async function askWithWeb(system: string, user: string, maxTokens = 7000): Promise<string> {
   const key = getApiKey();
   if (!key) throw new Error("Нема ключа Anthropic (Налаштування → Доступи)");
   const model = agentConfig().model;

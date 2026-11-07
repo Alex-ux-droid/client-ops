@@ -2241,3 +2241,8 @@ button.pop-card.bb-field.empty { border-style: dashed; }
 @media (max-width: 720px) { .bb-acts { align-items: flex-start; width: 100%; } }
 .bb-add .bb-picker { flex: none; width: 2.75rem !important; min-width: 0; }
 .bb-up select, .bb-add select { width: auto; flex: none; }
+
+/* Конкуренти (CompetitorsTab) */
+.cmp-f { min-width: 0; }
+.cmp-act { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.cmp-note { border-left: 2px solid var(--line); padding: 0.25rem 0 0.25rem 0.75rem; display: flex; flex-direction: column; gap: 0.25rem; }
