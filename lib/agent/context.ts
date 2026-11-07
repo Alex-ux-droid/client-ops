@@ -1,6 +1,7 @@
 // Що Джері бачить сам, без «подивись»: відкрита задача (свіжий стан галочок) і знімок клієнта —
 // реклама Meta (кабінет, кампанії з бюджетами, групи, активні креативи з текстами й цифрами, тривоги, останній розбір) і задачі в роботі.
 // Збирається з бази на кожне повідомлення — завжди актуально. Тумблер auto.context.
+import { listMeetings } from "../repo/meetings";
 import { getClientRow } from "../repo/clients";
 import { adMoreText, adsetMoreText } from "../metaExtra";
 import { monthlyForClient } from "../repo/meta";
@@ -69,6 +70,8 @@ export function clientSnapshot(clientId: number): string {
   // Головне спершу: де ми з клієнтом зараз і що вже зроблено — план будуємо ВІД ЦЬОГО, а не з нуля
   const mem = getClientMemory(clientId);
   out.push(mem?.text ? `ПАМʼЯТЬ ПО КЛІЄНТУ (де ми, домовленості, що зроблено, що далі; оновлено ${mem.updated_at.slice(0, 16)}):\n${mem.text}` : "Памʼяті по клієнту ще нема — збери стан з історії робіт, задач і переписки (get_client, telegram_messages) і запиши client_memory.");
+  const meets = listMeetings(clientId, 5).filter((m) => m.status === "new");
+  if (meets.length) out.push(`НЕРОЗІБРАНІ ЗУСТРІЧІ (тези Саші; розбери на прохання — meetings get/done):\n${meets.map((m) => `- [meeting_id ${m.id}] ${m.title} (${m.created_at.slice(0, 10)}): ${m.notes.replace(/\s+/g, " ").slice(0, 500)}`).join("\n")}`);
   const strat = strategySnapshot(clientId);
   if (strat) out.push(`СТРАТЕГІЯ КЛІЄНТА (вкладка «Стратегія»; плани і поради — в її рамках, кроки пиши strategy_item):\n${strat}`);
   const card = [

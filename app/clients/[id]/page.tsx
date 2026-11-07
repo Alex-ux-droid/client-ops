@@ -18,6 +18,7 @@ import { googleConnected } from "@/lib/google";
 import Overview from "./Overview";
 import StrategyTab from "./strategy/StrategyTab";
 import SalesTab from "./SalesTab";
+import MeetingNote from "@/components/MeetingNote";
 import CreativesTab from "./CreativesTab";
 import SetupTab from "./SetupTab";
 import { clientSections } from "./sections";
@@ -54,6 +55,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             <b>{c.name}</b>
           </Link>
           <span className={`tag ${STATUS_TAG[c.status]}`}>{STATUS_LABEL[c.status]}</span>
+          <MeetingNote clientId={id} clientName={c.name} className="btn ghost small" />
         </div>
       ) : (
       <div className="hub-head">
@@ -69,6 +71,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             </div>
           </div>
           <div className="hub-actions">
+            <span className="phone-only"><MeetingNote clientId={id} clientName={c.name} /></span>
             {c.drive_url && <a href={c.drive_url} target="_blank" rel="noreferrer" className="btn ghost">Диск ↗</a>}
             <Link href={`/clients/${id}/edit`} className="btn ghost">Редагувати</Link>
           </div>
