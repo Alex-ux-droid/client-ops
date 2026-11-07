@@ -100,28 +100,40 @@ export async function styleSaveAction(fd: FormData) {
 export async function creativeToolsAction(fd: FormData) {
   await requireUser();
   if (fd.has("tools")) setSetting("creative.tools", str(fd, "tools"));
+  if (fd.has("sources")) setSetting("radar.sources", String(fd.get("sources") ?? "").trim());
   if (fd.has("repos")) setSetting("radar.repos", String(fd.get("repos") ?? "").split("\n").map((x) => x.trim()).filter(Boolean).join("\n"));
   revalidatePath("/creatives");
+  revalidatePath("/kb");
 }
-export async function radarRunAction() {
+export async function radarRunAction(area?: string) {
   await requireUser();
   const { startRadar } = await import("@/lib/aiRadar");
-  const started = startRadar();
+  const { isArea } = await import("@/lib/radarConfig");
+  const started = startRadar(area && isArea(area) ? area : undefined);
   revalidatePath("/creatives");
+  revalidatePath("/kb");
   return { started };
 }
 export async function radarDecideAction(fd: FormData) {
   await requireUser();
-  const cc = await import("@/lib/repo/creativeCenter");
-  const it = cc.getRadar(Number(fd.get("radar_id")));
-  if (!it) return;
-  if (str(fd, "op") === "accept") {
-    const add = String(fd.get("add") ?? it.hint_body).trim();
-    const sid = Number(fd.get("style_id")) || 0;
-    const st = sid ? cc.getStyle(sid) : undefined;
-    if (add && st) cc.saveStyle({ id: st.id, kind: st.kind, title: st.title, body: `${st.body.trim()}\n${add}`, active: !!st.active });
-    else if (add) cc.saveStyle({ kind: it.hint_kind || "general", title: it.hint_title || it.title, body: add, source: "radar" });
-    cc.setRadarStatus(it.id, "accepted");
-  } else cc.setRadarStatus(it.id, "skipped");
+  const { decideRadar } = await import("@/lib/aiRadar");
+  const op = str(fd, "op");
+  const map: Record<string, "style" | "idea" | "plan" | "ok" | "skip"> = { accept: "style", style: "style", idea: "idea", plan: "plan", ok: "ok", skip: "skip" };
+  await decideRadar(Number(fd.get("radar_id")), map[op] ?? "skip", fd.has("add") ? String(fd.get("add") ?? "") : undefined, Number(fd.get("style_id")) || undefined);
   revalidatePath("/creatives");
+  revalidatePath("/kb");
+}
+export async function radarMapAction() {
+  await requireUser();
+  const { buildMarketMap } = await import("@/lib/aiRadar");
+  const r = await buildMarketMap();
+  revalidatePath("/kb");
+  return r;
+}
+export async function radarLinkAction(url: string, note: string) {
+  await requireUser();
+  const { radarFromLink } = await import("@/lib/aiRadar");
+  const r = await radarFromLink(url, note);
+  revalidatePath("/kb");
+  return r;
 }

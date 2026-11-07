@@ -1,4 +1,5 @@
 // Продукти: паспорт для Джері і промптів, промпти для Claude Code, розбір витяжки [CLIENT-OPS:ПРОДУКТ], прийом подій програм.
+import { radarAccepted } from "./repo/creativeCenter";
 import Anthropic from "@anthropic-ai/sdk";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { autoOn } from "./agent/caps";
@@ -342,6 +343,16 @@ export function productIssues(productId: number): { since: string; errors: { sum
 }
 
 // Коротко про організацію і продукти — у системний промпт Джері
+// Свіже з AI-радару, що Саша взяв, + коротко карта ринку — щоб Джері радив з сьогоднішніх інструментів, а не зі старої памʼяті
+export function radarBlock(): string {
+  const acc = radarAccepted(60, 12);
+  const map = (getSetting("radar.map") ?? "").replace(/\n{2,}/g, "\n").slice(0, 1200);
+  if (!acc.length && !map) return "";
+  return [`СВІЖЕ В AI (з радару, Розвиток → Радар; новіше за твої знання — довіряй цьому, деталі — ai_radar):`,
+    ...acc.map((r) => `- ${r.title}${r.how ? ` — ${r.how.replace(/\s+/g, " ").slice(0, 160)}` : ""}`),
+    map && `Карта ринку (${(getSetting("radar.map_at") ?? "").slice(0, 10)}):\n${map}`].filter(Boolean).join("\n");
+}
+
 export function orgBlock(): string {
   const org = orgShort();
   const ps = listProducts();

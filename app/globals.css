@@ -2124,3 +2124,15 @@ button.pop-card.cc-add { border-style: dashed; align-content: center; justify-it
 .cc-p { margin: 0; font-size: 0.875rem; color: var(--muted); line-height: 1.45; }
 .cc-p b { color: var(--text); }
 button.pop-card.cc-style { grid-template-columns: minmax(0, 1fr); }
+
+/* AI-радар (Розвиток → Радар) */
+.rd-top { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 0.75rem; align-items: stretch; }
+button.pop-card.rd-map { gap: 0.4rem; border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.rd-areas { display: flex; gap: 0.375rem; flex-wrap: wrap; }
+.rd-areas a { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.375rem 0.75rem; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 0.875rem; text-decoration: none; }
+.rd-areas a.on { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.rd-areas a b { background: var(--accent); color: #fff; border-radius: 999px; padding: 0 0.4rem; font-size: 0.75rem; }
+.rd-score { color: var(--warn); letter-spacing: 0.05em; font-size: 0.875rem; white-space: nowrap; }
+.rd-score i { color: var(--line); font-style: normal; }
+.cc-card.rd-hot { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+@media (max-width: 900px) { .rd-top { grid-template-columns: 1fr; } }
