@@ -81,6 +81,7 @@ export async function runRadar(onlyArea?: RadarArea): Promise<{ ok: true; added:
   const seen = listRadar(undefined, 150).map((r) => r.title);
   let added = 0;
   const errors: string[] = [];
+  const report: string[] = [`сигнали: GitHub ${Array.isArray(raw.github_trending) ? `${raw.github_trending.length} репо` : raw.github_trending ? "помилка" : "не підключено"}, HN ${Array.isArray(raw.hacker_news) ? raw.hacker_news.length : "недоступний"}; з ${since}`];
   for (const area of (onlyArea ? [onlyArea] : (Object.keys(RADAR_AREAS) as RadarArea[]))) {
     const A = RADAR_AREAS[area];
     const system = `Ти — AI-радар Саші. ${ourContext()}
@@ -91,20 +92,27 @@ score: 5 — змінює гру для нас/клієнтів, варто вп
 Відповідай ТІЛЬКИ JSON: {"items": [{"title": "коротко, що нового", "source": "хто/де (вкажи, якщо вторинне джерело)", "url": "посилання", "what": "що це, 1–2 речення", "how": "що це дає нам і нашим клієнтам, конкретно, 1–3 речення", "score": 3-5${area === "creatives" ? `, "style_id": id шаблону стилю креативів, який доповнити, або null, "kind": "general|square|feed|story|carousel|motion|video|ugc|imagegen", "style_title": "назва нового шаблону", "add": "що дописати в шаблон — пункти з «- », або порожньо"` : ""}}]} — до 4 карток, найважливіші першими; нічого суттєвого — {"items": []}. Українською.`;
     const user = `ДЖЕРЕЛА:\n${radarSources()}\n\nВЖЕ БАЧИЛИ (seen):\n${JSON.stringify(seen)}\n\n${area === "creatives" ? `ШАБЛОНИ СТИЛЮ КРЕАТИВІВ:\n${JSON.stringify(styles)}\n\n` : ""}СИРІ СИГНАЛИ З ${since}:\n${JSON.stringify(raw).slice(0, 18000)}`;
     try {
-      const j = parseJson<{ items?: Found[] }>(await askWithWeb(system, user));
-      for (const f of (j.items ?? []).slice(0, 5)) {
-        if (!f?.title?.trim() || Number(f.score) < 3) continue;
+      const text = await askWithWeb(system, user);
+      let j: { items?: Found[] };
+      try { j = parseJson<{ items?: Found[] }>(text); } catch { report.push(`${A.label}: не JSON — «${text.replace(/\s+/g, " ").slice(0, 120)}»`); continue; }
+      const got = j.items ?? [];
+      let low = 0, dup = 0, kept = 0;
+      for (const f of got.slice(0, 5)) {
+        if (!f?.title?.trim() || Number(f.score) < 3) { low++; continue; }
         const sid = typeof f.style_id === "number" && styles.some((s) => s.id === f.style_id) ? f.style_id : null;
         const id = addRadar({ area, score: Math.max(1, Math.min(5, Math.round(Number(f.score) || 3))), title: String(f.title).trim().slice(0, 200), source: String(f.source ?? "").slice(0, 160), url: String(f.url ?? "").slice(0, 500), what: String(f.what ?? ""), how: String(f.how ?? ""),
           hint_style_id: sid, hint_kind: String(f.kind ?? (area === "creatives" ? "general" : "")), hint_title: String(f.style_title ?? ""), hint_body: area === "creatives" ? String(f.add ?? "") : "" });
-        if (id) { added++; seen.push(String(f.title)); }
+        if (id) { added++; kept++; seen.push(String(f.title)); } else dup++;
       }
+      report.push(`${A.label}: знайдено ${got.length}, взято ${kept}${low ? `, слабких ${low}` : ""}${dup ? `, повторів ${dup}` : ""}`);
     } catch (e) {
+      report.push(`${A.label}: помилка — ${String((e as Error).message).slice(0, 100)}`);
       logError("ai-radar", e);
       errors.push(`${A.label}: ${String((e as Error).message).slice(0, 100)}`);
       if ((e as { status?: number }).status === 401) return { ok: false, error: "Ключ Anthropic не підходить" };
     }
   }
+  setSetting("radar.report", `${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC\n${report.join("\n")}`);
   if (!onlyArea) setSetting("radar.last_at", new Date().toISOString());
   if (errors.length && !added) return { ok: false, error: `Радар не вдався: ${errors.join("; ").slice(0, 300)}` };
   return { ok: true, added };
