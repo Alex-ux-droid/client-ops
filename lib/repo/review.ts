@@ -1,5 +1,6 @@
 // Тижневий рев'ю: тиждень = понеділок (Київ). Рядок на активного клієнта, рішення на тиждень, знімок при закритті.
 import { db } from "../db";
+import { hypothesesDue } from "./hypotheses";
 import { listMetrics, metricName, metricValue, fmtMetric } from "./metrics";
 
 const kyiv = (d = new Date()) => d.toLocaleString("sv-SE", { timeZone: "Europe/Kyiv" });
@@ -27,7 +28,7 @@ export function dueWeek(now = new Date()): { week: string; due: boolean } {
 export type ReviewRow = {
   client_id: number; name: string;
   metric: { name: string; now: string; weekAgo: string; target: string } | null;
-  changes: string[]; plan: string[]; decision: string; to_task: boolean; task_id: number | null;
+  changes: string[]; plan: string[]; hypotheses: string[]; decision: string; to_task: boolean; task_id: number | null;
 };
 export function reviewRows(week: string): ReviewRow[] {
   const end = addDays(week, 6);
@@ -41,8 +42,9 @@ export function reviewRows(week: string): ReviewRow[] {
     }
     const changes = (db().prepare("SELECT what FROM work_log WHERE client_id = ? AND substr(done_at,1,10) BETWEEN ? AND ? ORDER BY done_at DESC, id DESC LIMIT 5").all(c.id, week, end) as { what: string }[]).map((r) => r.what);
     const plan = (db().prepare("SELECT title FROM strategy_items WHERE client_id = ? AND kind = 'plan' AND horizon = 'week' ORDER BY id LIMIT 5").all(c.id) as { title: string }[]).map((r) => r.title);
+    const hypotheses = hypothesesDue(c.id, week, end).map((h) => `${h.statement}${h.deadline ? ` (до ${h.deadline.slice(8, 10)}.${h.deadline.slice(5, 7)})` : ""}`);
     const it = db().prepare("SELECT decision, to_task, task_id FROM weekly_review_items WHERE week = ? AND client_id = ?").get(week, c.id) as { decision: string; to_task: number; task_id: number | null } | undefined;
-    return { client_id: c.id, name: c.name, metric, changes, plan, decision: it?.decision ?? "", to_task: !!it?.to_task, task_id: it?.task_id ?? null };
+    return { client_id: c.id, name: c.name, metric, changes, plan, hypotheses, decision: it?.decision ?? "", to_task: !!it?.to_task, task_id: it?.task_id ?? null };
   });
 }
 

@@ -69,6 +69,8 @@ export function startupTasks(startupId: number, milestoneId?: number | null): Ta
 export function setTaskStatus(id: number, status: TaskStatus): void {
   db().prepare(`UPDATE tasks SET status = ?, done_at = CASE WHEN ? = 'done' THEN datetime('now') ELSE NULL END WHERE id = ?`)
     .run(status, status, id);
+  // Пункт плану стратегії, з якого зробили цю задачу, — теж зроблено
+  if (status === "done") db().prepare("UPDATE strategy_items SET horizon = 'done', done_at = datetime('now') WHERE task_id = ? AND kind = 'plan' AND horizon != 'done'").run(id);
 }
 
 export function updateTask(id: number, input: Partial<Pick<Task, "title" | "details" | "due_date" | "remind_at" | "client_id" | "priority">>): void {
