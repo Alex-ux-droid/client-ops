@@ -5,6 +5,7 @@ import { money } from "@/lib/config";
 import { fmtDate } from "@/lib/dates";
 import { STAGE_LABEL, STATUS_LABEL, STATUS_TAG } from "@/lib/labels";
 import { clientFlags, listClients } from "@/lib/repo/clients";
+import { mainMetricBrief } from "@/lib/repo/metrics";
 
 const FILTERS = [
   { k: "work", label: "В роботі" },
@@ -14,14 +15,14 @@ const FILTERS = [
   { k: "archived", label: "Архів" },
 ] as const;
 
-const KINDS = [{ k: "", label: "Усі" }, { k: "client", label: "Клієнти" }, { k: "partner", label: "Партнерства" }] as const;
+const KINDS = [{ k: "", label: "Усі" }, { k: "client", label: "Клієнти" }, { k: "partner", label: "Партнерства" }, { k: "own_product", label: "Свої продукти" }] as const;
 
 export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ f?: string; k?: string }> }) {
   const sp = await searchParams;
   const f = FILTERS.find((x) => x.k === sp.f)?.k ?? "work";
   const kind = KINDS.find((x) => x.k && x.k === sp.k)?.k ?? "";
   const everyone = listClients();
-  const hasPartners = everyone.some((c) => c.kind === "partner");
+  const hasPartners = everyone.some((c) => c.kind !== "client");
   const all = kind ? everyone.filter((c) => c.kind === kind) : everyone;
   const logos = logoMap("client");
   const clients = all.filter((c) => (f === "work" ? c.status === "active" || c.status === "lead" : c.status === f));
@@ -52,6 +53,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                 <div className="meta">
                   {c.kind === "partner" && <span className="tag accent">партнерство</span>}
                   {c.deleted_at && <span className="tag bad">у кошику</span>}
+                  {(() => { const ns = mainMetricBrief(c.id); return ns ? <span className={`tag ${ns.tone}`} title={ns.title}>★ {ns.text}</span> : null; })()}
                   <span className={`tag ${STATUS_TAG[c.status]}`}>{STATUS_LABEL[c.status]}{c.status === "lead" ? ` · ${STAGE_LABEL[c.stage]}` : ""}</span>
                   {flags.map((fl) => <span key={fl.text} className={`tag ${fl.level}`} title={fl.reason}>{fl.text}</span>)}
                   {c.next_step && <span className="mono" style={{ color: "var(--link)" }}>→ {c.next_step}</span>}

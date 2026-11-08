@@ -161,7 +161,7 @@ function attachmentBlocks(files: Attachment[]): { blocks: Anthropic.Beta.BetaCon
 export async function runAgent(clientId: number | null, userText: string, page = "", screen = "", taskId: number | null = null, files: Attachment[] = []): Promise<{ reply: string; actions: ChatAction[] }> {
   const key = getApiKey();
   if (!key) throw new NoKeyError("Нема ключа Anthropic API");
-  const client = ai("Джері", { apiKey: key });
+  const client = ai("Джері", { apiKey: key }, clientId);
 
   const history: Anthropic.Beta.BetaMessageParam[] = listChat(clientId, HISTORY).map((m) => ({ role: m.role, content: m.content }));
   // Історія має починатися з user

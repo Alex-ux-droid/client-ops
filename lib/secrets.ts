@@ -31,7 +31,7 @@ export function saveApiKey(key: string): void {
   setEnvVar("ANTHROPIC_API_KEY", key);
 }
 
-export const AGENT_TOKEN_DAYS = 90;
+export const AGENT_TOKEN_DAYS = 7; // за ТЗ v2: ключ розробника за замовчуванням на 7 днів
 export function hasAgentToken(): boolean {
   const exp = Number(process.env.AGENT_TOKEN_EXPIRES || 0);
   return (process.env.AGENT_TOKEN?.length ?? 0) >= 32 && (!exp || exp > Date.now());
@@ -47,7 +47,10 @@ export function createAgentToken(): string {
 
 // Старий ключ без терміну — ставимо термін від сьогодні (раз, при старті)
 export function ensureAgentTokenExpiry(): void {
-  if ((process.env.AGENT_TOKEN?.length ?? 0) >= 32 && !process.env.AGENT_TOKEN_EXPIRES) setEnvVar("AGENT_TOKEN_EXPIRES", String(Date.now() + AGENT_TOKEN_DAYS * 86400_000));
+  if ((process.env.AGENT_TOKEN?.length ?? 0) < 32) return;
+  const max = Date.now() + AGENT_TOKEN_DAYS * 86400_000;
+  const exp = Number(process.env.AGENT_TOKEN_EXPIRES || 0);
+  if (!exp || exp > max + 3600_000) setEnvVar("AGENT_TOKEN_EXPIRES", String(max));
 }
 
 export function revokeAgentToken(): void {

@@ -63,7 +63,7 @@ export function moneySummary(month: string) {
     expected: q(`SELECT SUM(amount) v FROM payments WHERE paid_at IS NULL AND substr(due_date,1,7) = ? AND due_date >= ?`, month, today),
     overdue: q(`SELECT SUM(amount) v FROM payments WHERE paid_at IS NULL AND due_date < ?`, today),
     overdueCount: q(`SELECT COUNT(*) v FROM payments WHERE paid_at IS NULL AND due_date < ?`, today),
-    mrr: q(`SELECT SUM(fee_monthly) v FROM clients WHERE status = 'active'`),
+    mrr: q(`SELECT SUM(fee_monthly) v FROM clients WHERE status = 'active' AND revenue_model IN ('retainer', 'mixed')`), // план доходу — тільки абонплата
   };
 }
 

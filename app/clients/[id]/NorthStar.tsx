@@ -28,6 +28,7 @@ export default function NorthStar({ clientId }: { clientId: number }) {
         {main ? <>
           <span className="ns-name">{metricName(main)}</span>
           <b className={`ns-val ${state(main, v)}`}>{fmtMetric(main, v)}</b>
+          {main.baseline != null && <span className="ns-target">база {fmtMetric(main, main.baseline)}</span>}
           {main.target != null && <span className="ns-target">ціль {fmtMetric(main, main.target)}</span>}
           <Spark pts={hist} up={main.direction === "up"} />
         </> : <span className="ns-name">Головна метрика не обрана — що для цього клієнта означає успіх?</span>}
@@ -47,6 +48,7 @@ export default function NorthStar({ clientId }: { clientId: number }) {
               <form action={metricEditAction} className="inline" style={{ flexWrap: "wrap" }}>
                 <input type="hidden" name="id" value={m.id} />
                 <input name="name" defaultValue={m.name} placeholder={METRIC_SOURCES[m.source]?.label} aria-label="Назва" style={{ flex: "1 1 12rem" }} />
+                <input name="baseline" defaultValue={m.baseline ?? ""} placeholder="база (до нас)" inputMode="decimal" aria-label="База" style={{ width: "8rem" }} />
                 <input name="target" defaultValue={m.target ?? ""} placeholder={m.direction === "up" ? "ціль: не менше" : "ціль: не більше"} inputMode="decimal" aria-label="Ціль" style={{ width: "9rem" }} />
                 <SubmitButton className="ghost small">Зберегти</SubmitButton>
               </form>
@@ -66,6 +68,7 @@ export default function NorthStar({ clientId }: { clientId: number }) {
           <select name="source" aria-label="Звідки">{Object.entries(METRIC_SOURCES).map(([k, s]) => <option key={k} value={k}>{s.label}</option>)}</select>
           <div className="inline" style={{ flexWrap: "wrap" }}>
             <input name="name" placeholder="своя назва (необовʼязково)" aria-label="Назва" style={{ flex: "1 1 12rem" }} />
+            <input name="baseline" placeholder="база" inputMode="decimal" aria-label="База" style={{ width: "6rem" }} />
             <input name="target" placeholder="ціль" inputMode="decimal" aria-label="Ціль" style={{ width: "7rem" }} />
             <select name="direction" aria-label="Що краще" defaultValue=""><option value="">як у джерела</option><option value="up">більше — краще</option><option value="down">менше — краще</option></select>
           </div>

@@ -8,6 +8,7 @@ import { deleteCrmLink, getCrmLink, saveCrmLink } from "@/lib/repo/crm";
 import { setSetting } from "@/lib/repo/settings";
 import { setEnvVar } from "@/lib/secrets";
 import { linkCrmProduct as linkOselya } from "@/lib/repo/products";
+import { ensureCrmMetrics } from "@/lib/repo/metrics";
 
 const back = (id: number, q = "") => `/clients/${id}?tab=sales${q}`;
 const err = (e: unknown) => encodeURIComponent(e instanceof Error ? e.message : "помилка");
@@ -30,6 +31,7 @@ export async function connectCrmAction(fd: FormData) {
     redirect(back(id, "&err=" + err(e)));
   }
   linkOselya(id);
+  ensureCrmMetrics(id);
   try { msg = `&pulled=${await crmPull(id)}`; } catch (e) { msg = "&err=" + err(e); }
   revalidatePath(`/clients/${id}`);
   redirect(back(id, msg));

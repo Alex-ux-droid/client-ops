@@ -10,7 +10,7 @@ export type ClientStatus = (typeof CLIENT_STATUSES)[number];
 export const LEAD_STAGES = ["new", "contacted", "proposal", "negotiation"] as const;
 export type LeadStage = (typeof LEAD_STAGES)[number];
 
-export const CLIENT_KINDS = { client: "Клієнт", partner: "Партнерство" } as const;
+export const CLIENT_KINDS = { client: "Клієнт", partner: "Партнерство", own_product: "Свій продукт" } as const;
 export type ClientKind = keyof typeof CLIENT_KINDS;
 export const REVENUE_MODELS = { retainer: "абонплата", profit_share: "частка прибутку", mixed: "абонплата + частка", project: "разова оплата", none: "без оплати" } as const;
 export type RevenueModel = keyof typeof REVENUE_MODELS;
@@ -19,7 +19,7 @@ export function earnText(c: Pick<Client, "kind" | "revenue_model" | "share_perce
   const share = c.share_percent ? `частка ${c.share_percent}%` : "частка";
   const parts = c.revenue_model === "profit_share" ? [share] : c.revenue_model === "mixed" ? [c.fee_monthly ? `${money(c.fee_monthly)}/міс` : "абонплата", share]
     : c.revenue_model === "project" ? ["разова оплата"] : c.revenue_model === "none" ? ["без оплати"] : [c.fee_monthly ? `${money(c.fee_monthly)}/міс` : "абонплату не вказано"];
-  return [c.kind === "partner" ? "партнерство" : "", ...parts].filter(Boolean).join(" · ");
+  return [c.kind === "partner" ? "партнерство" : c.kind === "own_product" ? "свій продукт" : "", ...parts].filter(Boolean).join(" · ");
 }
 
 export type Client = {

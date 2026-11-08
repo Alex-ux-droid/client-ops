@@ -12,7 +12,7 @@ export async function metricAddAction(fd: FormData) {
   await requireUser();
   const clientId = Number(fd.get("client_id")), source = String(fd.get("source")) as MetricSource;
   if (!clientId || !(source in METRIC_SOURCES)) return;
-  addMetric(clientId, { source, name: String(fd.get("name") ?? "").trim().slice(0, 80), target: n(fd.get("target")), direction: fd.get("direction") === "down" ? "down" : fd.get("direction") === "up" ? "up" : undefined, is_main: fd.get("main") === "on" });
+  addMetric(clientId, { source, name: String(fd.get("name") ?? "").trim().slice(0, 80), target: n(fd.get("target")), baseline: n(fd.get("baseline")), direction: fd.get("direction") === "down" ? "down" : fd.get("direction") === "up" ? "up" : undefined, is_main: fd.get("main") === "on" });
   back(clientId);
 }
 
@@ -24,6 +24,6 @@ export async function metricEditAction(fd: FormData) {
   if (op === "main") setMainMetric(m.id);
   else if (op === "delete") deleteMetric(m.id);
   else if (op === "value") { const v = n(fd.get("value")); if (v != null) setMetricValue(m.id, kyivDay(0), v); }
-  else updateMetric(m.id, { target: n(fd.get("target")), name: String(fd.get("name") ?? m.name).trim().slice(0, 80) });
+  else updateMetric(m.id, { target: n(fd.get("target")), baseline: n(fd.get("baseline")), name: String(fd.get("name") ?? m.name).trim().slice(0, 80) });
   back(m.client_id);
 }
