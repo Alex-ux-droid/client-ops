@@ -70,7 +70,7 @@ export default function MeetingNote({ clientId, clientName, meeting, label = "З
 
   return (
     <>
-      <button type="button" className={className} onClick={start}><Icon name="mic" size={15} /> {label}</button>
+      <button type="button" className={className} onClick={start} title={label}><Icon name="mic" size={15} /> <span className="lbl">{label}</span></button>
       {open && createPortal(
         <div className="mt-back" onMouseDown={(e) => { if (e.target === e.currentTarget) void close(); }}>
           <div className="mt-win" role="dialog" aria-label="Зустріч">
