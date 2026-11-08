@@ -17,7 +17,7 @@ function parseLoose<T>(out: string): T {
   }
 }
 
-export async function askJson<T>(system: string, user: string, opts: { maxTokens?: number; effort?: "low" | "medium" | "high" } = {}): Promise<T> {
+export async function askJson<T>(system: string, user: string | Anthropic.ContentBlockParam[], opts: { maxTokens?: number; effort?: "low" | "medium" | "high" } = {}): Promise<T> {
   const key = getApiKey();
   if (!key) throw new LlmJsonError("Нема ключа Anthropic (Налаштування → Доступи)");
   const client = new Anthropic({ apiKey: key, timeout: 600_000, maxRetries: 1 });
