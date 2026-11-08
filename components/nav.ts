@@ -6,6 +6,7 @@ export const SECTIONS: { title: string; items: { href: string; label: string; ic
     title: "Робота",
     items: [
       { href: "/", label: "Центр", ico: "home" },
+      { href: "/review", label: "Рев'ю", ico: "flag" },
       { href: "/tasks", label: "Задачі", ico: "tasks", count: "tasks" },
       { href: "/clients", label: "Клієнти", ico: "users" },
       { href: "/startups", label: "Стартапи", ico: "rocket" },

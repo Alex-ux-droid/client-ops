@@ -9,6 +9,7 @@ import { leadStats } from "./repo/leads";
 import { accountsForClient, kyivDay, totals } from "./repo/meta";
 import { listMsgTemplates } from "./repo/msgTemplates";
 import { getSetting, setSetting } from "./repo/settings";
+import { lastReviewFor } from "./repo/review";
 
 // Посилання вмикається для клієнта окремо; «нове посилання» = версія +1 (старе перестає працювати)
 const ver = (id: number) => Number(getSetting(`report.public.${id}`) || 0);
@@ -62,7 +63,8 @@ export async function weeklyReportTick(): Promise<void> {
     if (w.spend <= 0) continue;
     const ls = leadStats(c.id, 7);
     const ch = listChanges(c.id, 10).filter((x) => x.at >= kyivDay(13));
-    const note = [`Тижневий звіт за останні 7 днів.`, ls.total ? `Заявки з форм: ${ls.total}, взяли в роботу ${ls.taken}, якісних ${ls.good}, сміття ${ls.bad}.` : "", ch.length ? `Що ми змінили: ${ch.map((x) => `${x.what}${x.result ? ` → ${x.result}` : ""}`).join("; ")}.` : "", "Закінчи тим, що плануємо на наступний тиждень (з порад розбору)."].filter(Boolean).join(" ");
+    const rvw = lastReviewFor(c.id);
+    const note = [`Тижневий звіт за останні 7 днів.`, rvw ? `З тижневого рев'ю ${rvw.week}: ${rvw.row.metric ? `${rvw.row.metric.name} ${rvw.row.metric.now} (тиждень тому ${rvw.row.metric.weekAgo}). ` : ""}Що зробили: ${rvw.row.changes.join("; ") || "—"}. План на тиждень: ${rvw.row.decision || "—"}.` : "", ls.total ? `Заявки з форм: ${ls.total}, взяли в роботу ${ls.taken}, якісних ${ls.good}, сміття ${ls.bad}.` : "", ch.length ? `Що ми змінили: ${ch.map((x) => `${x.what}${x.result ? ` → ${x.result}` : ""}`).join("; ")}.` : "", "Закінчи тим, що плануємо на наступний тиждень (з порад розбору)."].filter(Boolean).join(" ");
     try {
       const r = await draftClientMessage({ clientId: c.id, templateId: tpl.id, note });
       if (!r.ok) continue;

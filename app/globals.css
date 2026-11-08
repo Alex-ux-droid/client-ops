@@ -2549,3 +2549,16 @@ button.kp-car-btn:hover { background: #fff; color: #1c1e21; }
 /* Налаштування → Витрати: стовпчики по днях */
 .us-bars { display: flex; align-items: flex-end; gap: 3px; height: 80px; margin-top: 0.5rem; }
 .us-bars i { flex: 1; background: var(--accent); border-radius: 3px 3px 0 0; min-width: 4px; opacity: 0.85; }
+
+/* Тижневий рев'ю */
+.dash-review { border-color: var(--warn); color: var(--text); }
+.rv-row { display: flex; flex-direction: column; gap: 0.5rem; }
+.rv-head { display: flex; gap: 0.75rem; align-items: baseline; flex-wrap: wrap; }
+.rv-name { font-weight: 600; font-size: 1.0625rem; color: var(--text); text-decoration: none; }
+.rv-metric { font-size: 0.875rem; color: var(--muted); }
+.rv-metric b { color: var(--text); }
+.rv-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.875rem; }
+.rv-cols ul { margin: 0.25rem 0 0; padding-left: 1.1rem; }
+.rv-h { font-size: 0.8125rem; color: var(--muted); font-weight: 600; }
+@media (max-width: 720px) { .rv-cols { grid-template-columns: 1fr; } }
+.rv-task { justify-content: flex-start; gap: 0.5rem; width: auto; }
