@@ -240,7 +240,7 @@ export async function handleUpdate(u: TgUpdate): Promise<void> {
     try {
       const t = await voiceToText(p.voiceId);
       said = t;
-      setMessageText(rowId, t || `[голосове${p.duration ? `, ${p.duration} с` : ""} — розшифровка вимкнена: підключи ElevenLabs]`);
+      setMessageText(rowId, t || `[голосове${p.duration ? `, ${p.duration} с` : ""} — ${voiceKey() ? "ElevenLabs не розпізнав мову (порожній текст)" : "розшифровка вимкнена: нема ключа ElevenLabs"}]`);
     } catch (e) {
       logError("telegram-voice", e);
       setMessageText(rowId, `[голосове${p.duration ? `, ${p.duration} с` : ""} — не вдалось розшифрувати]`);

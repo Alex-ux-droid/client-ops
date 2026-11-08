@@ -139,16 +139,16 @@ export default async function AdsPage({ searchParams }: { searchParams: Promise<
                   <div className="ads-acc-head">
                     <div style={{ minWidth: 0 }}>
                       <b>{a.client_name}</b>
-                      <div className="ads-acc-sub">{a.name}{a.business_name ? ` · ${a.business_name}` : ""}</div>
+                      <div className="ads-acc-sub">{a.name} · {a.account_id.replace(/^act_/, "")}{a.business_name ? ` · ${a.business_name}` : ""}</div>
                     </div>
                     <Spark data={series} since={14} />
                   </div>
-                  {alerts.length > 0 && <div className="ads-tags">{alerts.map((x) => <span key={x.text} className={`tag ${x.level}`}>{x.text}</span>)}</div>}
+                  {alerts.length > 0 && <div className="ads-tags">{alerts.map((x) => <span key={x.text} className={`tag ${x.level}`} title={"reason" in x ? x.reason : undefined}>{x.text}</span>)}</div>}
                   <div className="ads-nums">
                     <div><span>Сьогодні</span><b>{mm(today.spend)}</b><em>лідів {fmtN(today.leads)}</em></div>
                     <div><span>7 днів</span><b>{mm(w.spend)}</b><Delta now={w.spend} before={p.spend} /></div>
                     <div><span>Ліди 7 дн.</span><b>{fmtN(w.leads)}</b><Delta now={w.leads} before={p.leads} /></div>
-                    <div><span>Ціна ліда</span><b>{mm(cpl(w))}</b><Delta now={cpl(w)} before={cpl(p)} lowerIsBetter /></div>
+                    <div><span>Ціна ліда 7 дн.</span><b>{mm(cpl(w))}</b><Delta now={cpl(w)} before={cpl(p)} lowerIsBetter /></div>
                   </div>
                   <div className="ads-acc-foot">
                     <span>{budget.active ? `${budget.active} активн. кампаній${budget.daily ? ` · ${mm(budget.daily)}/день` : ""}` : "активних кампаній нема"}</span>
@@ -165,7 +165,7 @@ export default async function AdsPage({ searchParams }: { searchParams: Promise<
         <div className="section">
           <h2 style={{ marginBottom: 8 }}>Не привʼязані до клієнтів ({free.length})</h2>
           <p style={{ marginTop: 0, color: "var(--muted)" }}>Їх цифри не тягнуться. Привʼязати — <Link href="/settings?tab=connectors&c=meta">Налаштування → Конектори → Meta Ads</Link> або скажи Джері.</p>
-          <div className="ads-free">{free.map((a) => <span key={a.account_id} className="tag">{a.name}</span>)}</div>
+          <div className="ads-free">{free.map((a) => <span key={a.account_id} className="tag" title={a.account_id}>{a.name} · {a.account_id.replace(/^act_/, "")}</span>)}</div>
         </div>
       )}
     </>

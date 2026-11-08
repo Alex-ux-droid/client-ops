@@ -4,9 +4,9 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import SubmitButton from "@/components/SubmitButton";
 import { CopyText } from "@/app/startups/[id]/CopyText";
-import { connectCrmAction, crmDisconnectAction, crmPullAction, crmSecretAction } from "@/app/crm/actions";
+import { connectCrmAction, crmDisconnectAction, crmNotManagersAction, crmPullAction, crmSecretAction } from "@/app/crm/actions";
 import { crmByAd, crmKey, crmSecret, crmStats, REASON_UA, SOURCE_UA, STATUS_UA } from "@/lib/crm";
-import { crmEvents, crmLeads, getCrmLink } from "@/lib/repo/crm";
+import { crmEvents, crmLeads, getCrmLink, notManagers } from "@/lib/repo/crm";
 import { ComboChart } from "@/components/Charts";
 import Pop from "@/components/Pop";
 import ListPop from "@/components/ListPop";
@@ -16,6 +16,13 @@ import { accountsForClient, adTotalsForClient } from "@/lib/repo/meta";
 import { getSetting } from "@/lib/repo/settings";
 
 const BASE_UA: Record<string, string> = { leads_per_month: "лідів на місяць", conversion_pct: "конверсія в продаж, %", conversion: "конверсія в продаж", avg_check: "середній чек", revenue_per_month: "дохід на місяць", source: "звідки цифри", fixed_at: "зафіксовано", note: "примітка" };
+// Точка нуль: показуємо тільки відомі поля, дати — по-людськи
+const baseVal = (k: string, v: unknown) => {
+  const t = String(v);
+  if (k === "fixed_at" && !Number.isNaN(Date.parse(t))) return new Date(t).toLocaleDateString("uk-UA", { timeZone: "Europe/Kyiv", day: "numeric", month: "long", year: "numeric" });
+  if (typeof v === "number") return v.toLocaleString("uk-UA");
+  return t;
+};
 const PERIODS = [{ k: "30", label: "30 днів" }, { k: "90", label: "90 днів" }, { k: "365", label: "Рік" }];
 const dt = (t: string | null) => (t ? new Date(t).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—");
 const mins = (m: number | null) => (m == null ? "—" : m < 60 ? `${m} хв` : m < 1440 ? `${Math.round(m / 60)} год` : `${Math.round(m / 1440)} дн`);
@@ -106,8 +113,8 @@ export default async function SalesTab({ clientId, sp, err, pulled }: { clientId
         <span className="mx-strip-h">ще</span>
         <div><b>{m(st.avgCheck)}</b><span>середній чек</span></div>
         <div><b>{m(st.paid)}</b><span>оплачено</span></div>
-        <div><b>{mins(st.speedMin)}</b><span>до першого контакту</span></div>
-        <div><b style={st.noContact ? { color: "var(--warn)" } : undefined}>{st.noContact}</b><span>без контакту</span></div>
+        <div title={`Медіана по ${st.contacted} лідах, з якими вже звʼязались. Ті, з ким ще ні, — у «без контакту».`}><b>{mins(st.speedMin)}</b><span>до першого контакту{st.contacted ? ` (з ${st.contacted})` : ""}</span></div>
+        <div title="Нема ні першого контакту, ні спроби дзвінка (сміття не рахуємо)"><b style={st.noContact ? { color: "var(--warn)" } : undefined}>{st.noContact}{st.noContactPct ? ` (${st.noContactPct}%)` : ""}</b><span>без контакту</span></div>
       </div>
 
       {series.length > 1 && <div className="card"><ComboChart barName="Ліди" lineName="Продажі" fmtBar={(n) => String(Math.round(n))} fmtLine={(n) => String(Math.round(n))} data={series} /></div>}
@@ -139,7 +146,7 @@ export default async function SalesTab({ clientId, sp, err, pulled }: { clientId
         <ListPop title="Де зараз ліди" ico="flag" items={st.byStatus.map((x) => row(STATUS_UA[x.key] ?? x.key, String(x.n)))} empty="—" />
         <ListPop title="Чому відмовились" ico="alert" tone="bad" items={st.lost.map((x) => row(REASON_UA[x.key] ?? x.key, String(x.n)))} empty="відмов з причиною нема" />
         {baseline && Object.keys(baseline).length > 0 && (
-          <ListPop title="Точка нуль (до нас)" ico="compass" tone="accent" items={Object.entries(baseline).filter(([, v]) => v != null && typeof v !== "object").map(([k, v]) => row(BASE_UA[k] ?? k, String(v)))} />
+          <ListPop title="Точка нуль (до нас)" ico="compass" tone="accent" items={Object.entries(baseline).filter(([k, v]) => k in BASE_UA && v != null && v !== "" && typeof v !== "object").map(([k, v]) => row(BASE_UA[k], baseVal(k, v)))} empty="—" />
         )}
         <ListPop title="Події з CRM" ico="clock" items={events.map((e) => `${dt(e.occurred_at)} · ${e.event} · ${e.summary}`)} empty="подій ще не було" />
         <Pop className="pop-card qt" wide title="Підключення CRM" trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="gear" /></span><b>Підключення</b></span></span><span className="qt-l">{link.base_url.replace(/^https?:\/\//, "")}</span><span className="qt-more">вебхук, ключ →</span></>}>
@@ -150,6 +157,13 @@ export default async function SalesTab({ clientId, sp, err, pulled }: { clientId
               <input name="base_url" defaultValue={link.base_url} required aria-label="Адреса API CRM" />
               <input name="key" type="password" placeholder="Новий ключ API (порожньо — лишити старий)" autoComplete="off" aria-label="Ключ API" />
               <div><SubmitButton className="ghost small">Зберегти і перевірити</SubmitButton></div>
+            </form>
+            <form action={crmNotManagersAction} className="stack" style={{ gap: "0.5rem" }}>
+              {hid}
+              <b>Хто не менеджер</b>
+              <div className="mono">Імена з CRM, на кого ліди падають за замовчуванням (напр. власник). Їхні ліди в «Менеджерах» підуть як «не призначено». Через кому.</div>
+              <input name="names" defaultValue={notManagers(clientId).join(", ")} placeholder="напр. Олег Власник" aria-label="Хто не менеджер" />
+              <div><SubmitButton className="ghost small">Зберегти</SubmitButton></div>
             </form>
             <form action={crmDisconnectAction}>{hid}<button className="ghost small danger-text">Відключити CRM</button></form>
           </div>

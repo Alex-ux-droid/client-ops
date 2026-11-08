@@ -76,7 +76,7 @@ function Overview() {
       <div className="ov-kpis">
         <div className="kpi-tile"><div className="kpi-label"><Icon name="sparkles" size={15} /> В роботі</div><div className="kpi-value">{count("idea") + count("ready")}</div><div className="kpi-sub">ідеї {count("idea")} · зроблено {count("ready")}</div></div>
         <div className="kpi-tile"><div className="kpi-label"><Icon name="megaphone" size={15} /> У рекламі</div><div className="kpi-value">{count("live")}</div><div className="kpi-sub">з кодом CR-N у назві</div></div>
-        <div className="kpi-tile"><div className="kpi-label"><Icon name="flag" size={15} /> Переможці</div><div className="kpi-value" style={{ color: wins.length ? "var(--ok)" : undefined }}>{wins.length}</div><div className="kpi-sub">ціна ліда ≤ 80% середньої</div></div>
+        <div className="kpi-tile"><div className="kpi-label"><Icon name="flag" size={15} /> Переможці</div><div className="kpi-value" style={{ color: wins.length ? "var(--ok)" : undefined }}>{wins.length}</div><div className="kpi-sub">ціна ліда ≤ 80% середньої · за весь час</div></div>
         <Link href="/creatives?v=radar" className="kpi-tile"><div className="kpi-label"><Icon name="zap" size={15} /> AI-радар</div><div className="kpi-value">{radarNewCount("creatives")}</div><div className="kpi-sub">нових карток</div></Link>
       </div>
 
@@ -89,7 +89,7 @@ function Overview() {
               <b>{c.name}</b>
               <span className="cc-row"><span>ідеї <b>{st("idea")}</b></span><span>зроблено <b>{st("ready")}</b></span><span>у рекламі <b>{st("live")}</b></span></span>
               <span className="cs-fmt">{best ? `★ ${codeOf(best.p)} ${best.p.title} — ${money(best.n.cpl)} за лід` : list.length ? "переможця ще нема" : "креативів ще нема — почни з контексту клієнта"}</span>
-              {book.avgCpl != null && <span className="cs-fmt">середня ціна ліда {money(book.avgCpl)}</span>}
+              {book.avgCpl != null && <span className="cs-fmt">середня ціна ліда за весь час {money(book.avgCpl)}</span>}
             </Link>
           );
         })}
@@ -107,7 +107,7 @@ function Overview() {
           {fmts.length ? (
             <DataTable id="creatives-formats" cols={[
               { id: "f", label: "Формат", w: 220, pin: true }, { id: "n", label: "З результатом", num: true, w: 140 }, { id: "win", label: "Виграли", num: true, w: 110 },
-              { id: "lose", label: "Програли", num: true, w: 110 }, { id: "rel", label: "Ціна ліда до середньої", num: true, w: 190 },
+              { id: "lose", label: "Програли", num: true, w: 110 }, { id: "rel", label: "Ціна ліда до середньої (весь час)", num: true, w: 190 },
             ]} rows={fmts.map(([k, f]) => { const rel = f.rel.length ? f.rel.reduce((x, y) => x + y, 0) / f.rel.length : null; return { key: k, cells: {
               f: k, n: f.n, win: { v: f.win, tone: f.win ? "good" : undefined }, lose: { v: f.lose, tone: f.lose ? "bad" : undefined },
               rel: { v: rel, t: rel == null ? "—" : `${Math.round(rel * 100)}%`, tone: rel == null ? undefined : rel <= 0.9 ? "good" : rel >= 1.2 ? "bad" : undefined },

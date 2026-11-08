@@ -7,6 +7,7 @@ import { crmCheck, crmKey, crmPull, crmSecret, newCrmSecret, setCrmKey } from "@
 import { deleteCrmLink, getCrmLink, saveCrmLink } from "@/lib/repo/crm";
 import { setSetting } from "@/lib/repo/settings";
 import { setEnvVar } from "@/lib/secrets";
+import { linkCrmProduct as linkOselya } from "@/lib/repo/products";
 
 const back = (id: number, q = "") => `/clients/${id}?tab=sales${q}`;
 const err = (e: unknown) => encodeURIComponent(e instanceof Error ? e.message : "помилка");
@@ -28,6 +29,7 @@ export async function connectCrmAction(fd: FormData) {
     if (!prevUrl) { deleteCrmLink(id); if (key) setCrmKey(id, null); }
     redirect(back(id, "&err=" + err(e)));
   }
+  linkOselya(id);
   try { msg = `&pulled=${await crmPull(id)}`; } catch (e) { msg = "&err=" + err(e); }
   revalidatePath(`/clients/${id}`);
   redirect(back(id, msg));
@@ -57,6 +59,15 @@ export async function crmDisconnectAction(fd: FormData) {
   setEnvVar(`CRM_KEY_${id}`, null);
   setEnvVar(`CRM_SECRET_${id}`, null);
   setSetting(`crm.secret_once.${id}`, "");
+  revalidatePath(`/clients/${id}`);
+  redirect(back(id));
+}
+
+export async function crmNotManagersAction(fd: FormData) {
+  await requireUser();
+  const id = Number(fd.get("client_id"));
+  const names = String(fd.get("names") ?? "").split(/[\n,]/).map((x) => x.trim()).filter(Boolean).slice(0, 20);
+  if (id) setSetting(`crm.not_managers.${id}`, names.join(", "));
   revalidatePath(`/clients/${id}`);
   redirect(back(id));
 }

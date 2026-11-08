@@ -33,6 +33,7 @@ export function systemInfo() {
     dbKb: (() => { try { return Math.round(fs.statSync(file).size / 1024); } catch { return null; } })(),
     migrations: (db().prepare("SELECT name FROM _migrations ORDER BY name").all() as { name: string }[]).map((r) => r.name),
     counts: Object.fromEntries(COUNTED.map((t) => [t, count(t)])) as Record<(typeof COUNTED)[number], number>,
+    ideasNew: (db().prepare("SELECT COUNT(*) n FROM ideas WHERE status = 'new'").get() as { n: number }).n,
     agent: { model: agentConfig().model, effort: agentConfig().effort, hasKey: !!getApiKey(), claudeAccess: hasAgentToken() },
     backups,
     updateLog: tail(path.join(dataDir, "update.log")),

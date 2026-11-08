@@ -27,7 +27,15 @@ main() {
   # Залежності ставимо тільки коли змінились (npm ci стирає node_modules — це єдиний момент ризику)
   local deps=0
   run "git diff --quiet $old $new -- package.json package-lock.json" || deps=1
+  local migr=0
+  run "git diff --quiet $old $new -- db/migrations" || migr=1
   run "git reset -q --hard origin/main"
+  # Нові міграції → спершу копія бази (10 останніх у predeploy/). Не вийшло — не оновлюємось.
+  if [ "$migr" = 1 ] && ! run "node deploy/predeploy-backup.mjs"; then
+    echo "$(date -Is) Не вдалось зробити копію бази перед міграцією — оновлення скасовано"
+    run "git reset -q --hard $old"
+    exit 1
+  fi
   if [ "$deps" = 1 ]; then
     echo "Залежності змінились — npm ci"
     run "npm ci --no-audit --no-fund"

@@ -1,5 +1,7 @@
 import { db } from "../db";
+import { money } from "../config";
 import { metaAlerts } from "./meta";
+import { crmAlerts } from "./crmAlerts";
 
 export const CLIENT_STATUSES = ["lead", "active", "paused", "archived"] as const;
 export type ClientStatus = (typeof CLIENT_STATUSES)[number];
@@ -16,6 +18,7 @@ export type Client = {
   fee_monthly: number;
   pay_day: number;
   next_step: string;
+  next_step_at: string | null;
   owner_name: string;
   locations: number;
   city: string;
@@ -35,10 +38,10 @@ export type Client = {
   updated_at: string;
 };
 
-export type ClientInput = Omit<Client, "id" | "created_at" | "updated_at">;
+export type ClientInput = Omit<Client, "id" | "created_at" | "updated_at" | "next_step_at"> & { next_step_at?: string | null };
 
 export const CLIENT_FIELDS = [
-  "name", "niche", "status", "stage", "fee_monthly", "pay_day", "next_step", "offer", "budget", "contacts",
+  "name", "niche", "status", "stage", "fee_monthly", "pay_day", "next_step", "next_step_at", "offer", "budget", "contacts",
   "owner_name", "locations", "city", "phone", "email", "work_since", "drive_url",
   "needs", "client_vision", "my_vision", "notes", "bitwarden_ref",
 ] as const;
@@ -54,7 +57,12 @@ const ROW_SQL = `
   SELECT c.*,
     (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
     (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done' AND t.due_date < date('now','localtime')) AS overdue_tasks,
-    (SELECT MAX(done_at) FROM work_log w WHERE w.client_id = c.id) AS last_work,
+    (SELECT MAX(d) FROM (
+      SELECT MAX(substr(done_at,1,10)) d FROM work_log w WHERE w.client_id = c.id
+      UNION ALL SELECT MAX(substr(done_at,1,10)) FROM tasks t WHERE t.client_id = c.id AND t.status = 'done'
+      UNION ALL SELECT MAX(substr(created_at,1,10)) FROM strategy_items si WHERE si.client_id = c.id AND si.kind = 'log'
+      UNION ALL SELECT MAX(substr(created_at,1,10)) FROM meetings mt WHERE mt.client_id = c.id
+    )) AS last_work,
     (SELECT COALESCE(SUM(amount),0) FROM payments p WHERE p.client_id = c.id AND p.paid_at IS NULL AND p.due_date < date('now','localtime')) AS debt
   FROM clients c`;
 
@@ -68,21 +76,30 @@ export function getClientRow(id: number): ClientRow | undefined {
   return db().prepare(`${ROW_SQL} WHERE c.id = ?`).get(id) as ClientRow | undefined;
 }
 
-// Що з клієнтом не так: прострочені задачі, борг, давно без руху
-export type Flag = { level: "bad" | "warn"; text: string };
+// Що з клієнтом не так. Кожен бейдж — з причиною (підказка при наведенні) і видом:
+// гроші і продажі важливіші за рекламу і роботу — так і сортуємо.
+export type FlagKind = "money" | "sales" | "ads" | "work";
+export type Flag = { level: "bad" | "warn"; text: string; reason?: string; kind?: FlagKind };
+const KIND_RANK: Record<FlagKind, number> = { money: 0, sales: 1, ads: 2, work: 3 };
+const ymdKyiv = (d: Date) => d.toLocaleString("sv-SE", { timeZone: "Europe/Kyiv" }).slice(0, 10);
+const dayDiff = (a: string, b: string) => Math.round((Date.parse(a + "T00:00:00Z") - Date.parse(b + "T00:00:00Z")) / 86400_000);
+const ua = (iso: string) => iso.slice(0, 10).split("-").reverse().join(".");
 export function clientFlags(c: ClientRow, today = new Date()): Flag[] {
   const flags: Flag[] = [];
-  if (c.overdue_tasks) flags.push({ level: "bad", text: `${c.overdue_tasks} прострочено` });
-  if (c.debt > 0) flags.push({ level: "bad", text: "борг по оплаті" });
+  const now = ymdKyiv(today);
+  if (c.debt > 0) flags.push({ level: "bad", text: "борг по оплаті", kind: "money", reason: `Неоплачені рахунки з минулою датою: ${money(c.debt)}. Джерело: Гроші.` });
+  if (c.overdue_tasks) flags.push({ level: "bad", text: `${c.overdue_tasks} прострочено`, kind: "work", reason: "Відкриті задачі з дедлайном раніше сьогодні. Джерело: Задачі." });
   if (c.status === "active") {
-    const days = c.last_work ? Math.floor((+today - +new Date(c.last_work)) / 86400_000) : null;
-    if (days === null) flags.push({ level: "warn", text: "ще не було робіт" });
-    else if (days >= 14) flags.push({ level: "warn", text: `${days} дн. без руху` });
-    if (!c.open_tasks) flags.push({ level: "warn", text: "нема задач" });
+    const days = c.last_work ? dayDiff(now, c.last_work) : null;
+    const src = "Рахую останню дію: історія робіт, закриті задачі, хроніка стратегії, зустрічі.";
+    if (days === null) flags.push({ level: "warn", text: "ще не було робіт", kind: "work", reason: src });
+    else if (days >= 14) flags.push({ level: "warn", text: `${days} дн. без руху`, kind: "work", reason: `Остання дія ${ua(c.last_work!)}. ${src}` });
+    if (!c.open_tasks) flags.push({ level: "warn", text: "нема задач", kind: "work", reason: "Нема жодної відкритої задачі по клієнту." });
   }
-  if (c.status === "lead" && !c.next_step) flags.push({ level: "warn", text: "нема наступного кроку" });
-  flags.push(...metaAlerts(c.id));
-  return flags;
+  if (c.next_step_at && c.next_step && c.next_step_at < now) flags.push({ level: "warn", text: "наступний крок прострочено", kind: "work", reason: `«${c.next_step}» — до ${ua(c.next_step_at)}.` });
+  if (c.status === "lead" && !c.next_step) flags.push({ level: "warn", text: "нема наступного кроку", kind: "work" });
+  flags.push(...crmAlerts(c.id), ...metaAlerts(c.id));
+  return flags.sort((a, b) => (a.level === b.level ? 0 : a.level === "bad" ? -1 : 1) || KIND_RANK[a.kind ?? "work"] - KIND_RANK[b.kind ?? "work"]);
 }
 
 export function setStage(id: number, stage: LeadStage): void {
@@ -105,7 +122,7 @@ export function findClients(q: string): Client[] {
 export function createClient(input: ClientInput): number {
   const cols = CLIENT_FIELDS.join(", ");
   const vals = CLIENT_FIELDS.map((f) => "@" + f).join(", ");
-  return Number(db().prepare(`INSERT INTO clients (${cols}) VALUES (${vals})`).run(input).lastInsertRowid);
+  return Number(db().prepare(`INSERT INTO clients (${cols}) VALUES (${vals})`).run({ next_step_at: null, ...input }).lastInsertRowid);
 }
 
 export function updateClient(id: number, input: Partial<ClientInput>): void {

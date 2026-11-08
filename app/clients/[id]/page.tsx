@@ -74,7 +74,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             <div className="meta">
               <span className={`tag ${STATUS_TAG[c.status]}`}>{STATUS_LABEL[c.status]}{c.status === "lead" ? ` · ${STAGE_LABEL[c.stage]}` : ""}</span>
               {services.filter((s) => s.status === "active").map((s) => <Link key={s.type} href={`/clients/${id}?tab=${s.type}`} className="tag accent">{SERVICES[s.type as ServiceType].short}</Link>)}
-              {flags.map((f) => <span key={f.text} className={`tag ${f.level}`}>{f.text}</span>)}
+              {flags.map((f) => <span key={f.text} className={`tag ${f.level}`} title={f.reason}>{f.text}</span>)}
             </div>
             </div>
           </div>
@@ -89,6 +89,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
           <input type="hidden" name="id" value={id} />
           <span>Наступний крок</span>
           <input name="next_step" defaultValue={c.next_step} placeholder="Що робимо далі з цим клієнтом?" aria-label="Наступний крок" />
+          <input name="next_step_at" type="date" defaultValue={c.next_step_at ?? ""} aria-label="До якої дати" title="До якої дати" className="ns-date" />
           <button className="ghost small">Ок</button>
         </form>
 
