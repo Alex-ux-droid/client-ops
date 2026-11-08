@@ -1,7 +1,7 @@
 import { saveClient } from "@/app/actions";
 import { currency } from "@/lib/config";
 import { STATUS_LABEL } from "@/lib/labels";
-import { CLIENT_STATUSES, type Client } from "@/lib/repo/clients";
+import { CLIENT_KINDS, CLIENT_STATUSES, REVENUE_MODELS, type Client } from "@/lib/repo/clients";
 import VoiceTextarea from "./VoiceTextarea";
 
 const F = ({ name, label, c, area, wide, placeholder, mode, type }: { name: keyof Client; label: string; c?: Partial<Client>; area?: boolean; wide?: boolean; placeholder?: string; mode?: "decimal" | "numeric"; type?: string }) => (
@@ -43,9 +43,23 @@ export default function ClientForm({ c }: { c?: Partial<Client> }) {
 
       <h2 style={{ margin: "12px 0" }}>Гроші</h2>
       <div className="form-grid">
+        <div className="field">
+          <label htmlFor="kind">Тип</label>
+          <select id="kind" name="kind" defaultValue={c?.kind ?? "client"}>
+            {Object.entries(CLIENT_KINDS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="revenue_model">Як я заробляю</label>
+          <select id="revenue_model" name="revenue_model" defaultValue={c?.revenue_model ?? "retainer"}>
+            {Object.entries(REVENUE_MODELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </div>
+        <F name="share_percent" label="Моя частка, % (для частки прибутку)" c={c} placeholder="0" mode="decimal" />
         <F name="fee_monthly" label={`Платить мені щомісяця, ${currency()}`} c={c} placeholder="0" mode="decimal" />
         <F name="pay_day" label="День оплати (1–31)" c={c} placeholder="1" mode="numeric" />
         <F name="budget" label="Рекламний бюджет / умови" c={c} placeholder="$1000/міс на рекламу" wide />
+        <F name="partners" label="Партнери (хто за що, по рядку)" c={c} area wide />
       </div>
 
       <h2 style={{ margin: "12px 0" }}>Що в голові</h2>

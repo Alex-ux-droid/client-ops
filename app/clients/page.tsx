@@ -14,22 +14,32 @@ const FILTERS = [
   { k: "archived", label: "Архів" },
 ] as const;
 
-export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ f?: string }> }) {
+const KINDS = [{ k: "", label: "Усі" }, { k: "client", label: "Клієнти" }, { k: "partner", label: "Партнерства" }] as const;
+
+export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ f?: string; k?: string }> }) {
   const sp = await searchParams;
   const f = FILTERS.find((x) => x.k === sp.f)?.k ?? "work";
-  const all = listClients();
+  const kind = KINDS.find((x) => x.k && x.k === sp.k)?.k ?? "";
+  const everyone = listClients();
+  const hasPartners = everyone.some((c) => c.kind === "partner");
+  const all = kind ? everyone.filter((c) => c.kind === kind) : everyone;
   const logos = logoMap("client");
   const clients = all.filter((c) => (f === "work" ? c.status === "active" || c.status === "lead" : c.status === f));
   const count = (k: string) => all.filter((c) => (k === "work" ? c.status === "active" || c.status === "lead" : c.status === k)).length;
   return (
     <>
       <div className="head">
-        <div><div className="kicker">{all.length} у базі</div><h1>Клієнти</h1></div>
+        <div><div className="kicker">{everyone.length} у базі</div><h1>Клієнти</h1></div>
         <Link href="/clients/new" className="btn">+ Клієнт</Link>
       </div>
       <div className="tabs">
-        {FILTERS.map((x) => <Link key={x.k} href={`/clients?f=${x.k}`} className={x.k === f ? "on" : ""}>{x.label}{count(x.k) ? <b>{count(x.k)}</b> : null}</Link>)}
+        {FILTERS.map((x) => <Link key={x.k} href={`/clients?f=${x.k}${kind ? `&k=${kind}` : ""}`} className={x.k === f ? "on" : ""}>{x.label}{count(x.k) ? <b>{count(x.k)}</b> : null}</Link>)}
       </div>
+      {hasPartners && (
+        <div className="rd-areas">
+          {KINDS.map((x) => <Link key={x.k} href={`/clients?f=${f}${x.k ? `&k=${x.k}` : ""}`} className={x.k === kind ? "on" : ""}>{x.label}</Link>)}
+        </div>
+      )}
       <div className="list">
         {clients.length ? clients.map((c) => {
           const flags = clientFlags(c);
@@ -40,13 +50,14 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                 <div className="row-title">{c.name}</div>
                 <div className="row-sub">{[c.niche, c.offer].filter(Boolean).join(" · ")}</div>
                 <div className="meta">
+                  {c.kind === "partner" && <span className="tag accent">партнерство</span>}
                   <span className={`tag ${STATUS_TAG[c.status]}`}>{STATUS_LABEL[c.status]}{c.status === "lead" ? ` · ${STAGE_LABEL[c.stage]}` : ""}</span>
                   {flags.map((fl) => <span key={fl.text} className={`tag ${fl.level}`} title={fl.reason}>{fl.text}</span>)}
                   {c.next_step && <span className="mono" style={{ color: "var(--link)" }}>→ {c.next_step}</span>}
                 </div>
               </div>
               <div style={{ textAlign: "right", flex: "none" }}>
-                <div className="mono" style={{ color: "var(--text)" }}>{c.fee_monthly ? `${money(c.fee_monthly)}/міс` : "—"}</div>
+                <div className="mono" style={{ color: "var(--text)" }}>{c.revenue_model === "profit_share" ? `частка ${c.share_percent || "?"}%` : c.revenue_model === "mixed" ? `${c.fee_monthly ? `${money(c.fee_monthly)}/міс + ` : ""}${c.share_percent || "?"}%` : c.fee_monthly ? `${money(c.fee_monthly)}/міс` : "—"}</div>
                 <div className="mono">{c.open_tasks} задач</div>
                 <div className="mono">{c.last_work ? fmtDate(c.last_work) : "—"}</div>
               </div>

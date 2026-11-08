@@ -5,7 +5,7 @@ import { listMeetings } from "../repo/meetings";
 import { brandMd } from "../brand";
 import { competitorsSnapshot } from "../competitors";
 import { campaignsSnapshot } from "../campaigns";
-import { getClientRow } from "../repo/clients";
+import { earnText, getClientRow } from "../repo/clients";
 import { adMoreText, adsetMoreText } from "../metaExtra";
 import { monthlyForClient } from "../repo/meta";
 import { accountsForClient, adsForClient, adsetsForClient, campaignsWithStats, getAnalysis, kyivDay, metaAlerts, totals } from "../repo/meta";
@@ -38,7 +38,7 @@ export function moneySnapshot(clientId: number): string {
   const line = (p: (typeof all)[number]) => `${money(p.amount)} — ${p.paid_at ? `оплачено ${p.paid_at}` : `до ${p.due_date}`}${p.note ? ` (${p.note})` : ""} [payment_id ${p.id}]`;
   const debt = overdue.reduce((a, p) => a + p.amount, 0);
   const out = [
-    `Гроші: абонплата ${c.fee_monthly ? `${money(c.fee_monthly)}/міс, день оплати ${c.pay_day || "—"}` : "не вказана"}.`,
+    `Гроші: ${earnText(c, money)}${c.fee_monthly ? `, день оплати ${c.pay_day || "—"}` : ""}.${c.partners ? ` Партнери: ${c.partners.replace(/\n+/g, "; ")}.` : ""}`,
     overdue.length ? `БОРГ (прострочено) ${money(debt)}:\n${overdue.map((p) => `- ${line(p)}`).join("\n")}` : "Боргів нема (прострочених оплат у системі нема).",
     upcoming.length ? `Очікуються:\n${upcoming.map((p) => `- ${line(p)}`).join("\n")}` : "",
     paid.length ? `Останні отримані:\n${paid.map((p) => `- ${line(p)}`).join("\n")}` : "Отриманих оплат у системі ще нема.",
