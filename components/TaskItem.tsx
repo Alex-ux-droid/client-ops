@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { setTask } from "@/app/actions";
+import TaskCheck from "./TaskCheck";
 import { fmtDate, ymd } from "@/lib/dates";
 import type { TaskRow } from "@/lib/repo/tasks";
 import TaskOpen from "./TaskOpen";
@@ -11,14 +11,10 @@ export default function TaskItem({ t, showClient = true }: { t: TaskRow; showCli
   const overdue = !done && t.due_date && t.due_date < today;
   const isToday = !done && t.due_date === today;
   const total = t.items_total ?? 0, ok = t.items_done ?? 0;
-  const firstLine = t.details.split("\n").find((l) => l.trim())?.replace(/[*`#>]/g, "").trim() ?? "";
+  const firstLine = t.details.split("\n").map((l) => l.trim()).find((l) => l && !/^#{1,6}\s/.test(l) && !/^(-{3,}|```)/.test(l))?.replace(/^[-*>\d.\s]*(\[[ x]\]\s*)?/i, "").replace(/[*`#>]/g, "").trim() ?? "";
   return (
     <div className={`row task-row ${t.priority === "high" && !done ? "prio-high" : ""}`}>
-      <form action={setTask}>
-        <input type="hidden" name="id" value={t.id} />
-        <input type="hidden" name="status" value={done ? "todo" : "done"} />
-        <button className={`check ${done ? "done" : ""}`} title={done ? "Повернути" : "Виконано"}>✓</button>
-      </form>
+      <TaskCheck id={t.id} done={done} ok={ok} total={total} />
       <TaskOpen id={t.id} className="row-main task-open">
         <div className="row-title" style={done ? { textDecoration: "line-through", color: "var(--dim)" } : undefined}>{t.title}</div>
         {firstLine && <div className="row-sub task-sub">{firstLine}</div>}

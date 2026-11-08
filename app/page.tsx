@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { addTask } from "@/app/actions";
+import { addTask, confirmDecide, taskFromFlag } from "@/app/actions";
+import { CONFIRM_UA, pendingConfirms } from "@/lib/repo/confirm";
 import TaskItem from "@/components/TaskItem";
 import Icon from "@/components/Icon";
 import { crmStats } from "@/lib/crm";
@@ -24,6 +25,7 @@ function greeting(h: number) {
 const score = (fs: Flag[]) => fs.filter((f) => f.level === "bad").length * 10 + (fs.some((f) => f.kind === "money" || f.kind === "sales") ? 5 : 0);
 
 export default function Home() {
+  const confirms = pendingConfirms();
   const now = new Date();
   const today = ymd(now);
   const t = taskCounts();
@@ -163,15 +165,41 @@ export default function Home() {
                   ))}
                 </div>
               )}
+              {confirms.length > 0 && (
+                <div className="cf-list">
+                  <div className="cf-h" title="Джері звірив задачі з перепискою груп. ✓ — система зробить, ✕ — відкинути"><Icon name="check" size={14} /> Підтверди <span className="muted">{confirms.length}</span></div>
+                  {confirms.slice(0, 6).map((q) => (
+                    <div key={q.id} className="cf-row">
+                      <div className="cf-main">
+                        <div><span className={`tag ${q.kind === "task_new" ? "warn" : q.kind === "task_done" ? "ok" : ""}`}>{CONFIRM_UA[q.kind]}</span> <Link href={`/clients/${q.client_id}`}>{q.client_name}</Link>: {q.title}</div>
+                        {q.evidence && <div className="cf-ev">{q.evidence}</div>}
+                      </div>
+                      <form action={confirmDecide} className="cf-btns">
+                        <input type="hidden" name="id" value={q.id} />
+                        <button name="op" value="ok" className="small" title={q.kind === "task_done" ? "Закрити задачу + в історію" : q.kind === "task_new" ? "Створити задачу" : "Записати в історію"}>✓</button>
+                        <button name="op" value="skip" className="ghost small" title="Не те — відкинути">✕</button>
+                      </form>
+                    </div>
+                  ))}
+                  {confirms.length > 6 && <div className="cf-ev">ще {confirms.length - 6} — спитай Джері «що в черзі Підтверди?»</div>}
+                </div>
+              )}
               {attention.length ? (
                 <div className="list flat">
                   {attention.map(({ c, flags }) => (
-                    <Link key={c.id} href={`/clients/${c.id}`} className="row">
-                      <div className="row-main">
+                    <div key={c.id} className="row att-row">
+                      <Link href={`/clients/${c.id}`} className="row-main">
                         <div className="row-title">{c.name}</div>
                         <div className="meta">{flags.map((f) => <span key={f.text} className={`tag ${f.level}`} title={f.reason}>{f.text}</span>)}</div>
-                      </div>
-                    </Link>
+                      </Link>
+                      <form action={taskFromFlag}>
+                        <input type="hidden" name="client_id" value={c.id} />
+                        <input type="hidden" name="text" value={flags[0].text} />
+                        <input type="hidden" name="reason" value={flags.map((f) => `- ${f.text}${f.reason ? ` — ${f.reason}` : ""}`).join("\n")} />
+                        <input type="hidden" name="level" value={flags[0].level} />
+                        <button className="ghost small att-task" title={`Створити задачу: «${flags[0].text}»`}>+ задача</button>
+                      </form>
+                    </div>
                   ))}
                 </div>
               ) : broken.length ? null : clients.length ? (

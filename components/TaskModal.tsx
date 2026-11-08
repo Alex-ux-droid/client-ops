@@ -125,7 +125,16 @@ export default function TaskModal() {
           <>
             <div className="tm-head">
               <button type="button" className={`tm-check ${done ? "on" : ""}`} title={done ? "Повернути в роботу" : "Готово"} disabled={busy}
-                onClick={() => run(() => taskPatch(id, { status: done ? "todo" : "done" }))}>✓</button>
+                onClick={() => {
+                  if (done) return void run(() => taskPatch(id, { status: "todo" }));
+                  let reason = "";
+                  if (totalAll > 0 && doneAll < totalAll) {
+                    const r = window.prompt(`Закрити з ${doneAll}/${totalAll} пунктів? Чому решта не потрібна (піде в історію):`, "");
+                    if (r === null) return;
+                    reason = `закрито з ${doneAll}/${totalAll}${r.trim() ? `: ${r.trim()}` : ""}`;
+                  }
+                  void run(() => taskPatch(id, { status: "done", reason }));
+                }}>✓</button>
               <input key={`t${t!.id}${t!.title}`} className="tm-title" defaultValue={t!.title} aria-label="Назва задачі"
                 onBlur={(e) => e.target.value.trim() && e.target.value !== t!.title && run(() => taskPatch(id, { title: e.target.value }))}
                 onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
