@@ -21,6 +21,7 @@ export async function register() {
   const { competitorTick } = await import("./lib/competitors");
   const { invoiceTick } = await import("./lib/invoices");
   const { confirmTick } = await import("./lib/confirmQueue");
+  const { metricsTick } = await import("./lib/metricsTick");
   const tick = async () => {
     await digestTick().catch((e) => logError("digest", e));
     await backupTick().catch((e) => logError("backup", e));
@@ -35,6 +36,7 @@ export async function register() {
     await competitorTick().catch((e) => logError("competitor-check", e));
     await invoiceTick().catch((e) => logError("invoices", e));
     await confirmTick().catch((e) => logError("confirm-queue", e));
+    await metricsTick().catch((e) => logError("metrics", e));
   };
   setTimeout(tick, 90_000);
   setInterval(tick, 60_000);

@@ -2534,3 +2534,14 @@ button.kp-car-btn:hover { background: #fff; color: #1c1e21; }
 .cf-main { flex: 1; min-width: 0; }
 .cf-ev { color: var(--muted); font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cf-btns { display: flex; gap: 0.25rem; flex: 0 0 auto; }
+
+/* Головна метрика клієнта (Огляд) */
+.pop-card.ns-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; padding: 0.75rem 1rem; text-align: left; width: 100%; }
+.ns-ico { display: inline-flex; color: var(--muted); }
+.ns-name { color: var(--muted); font-size: 0.875rem; }
+.ns-val { font-size: 1.25rem; }
+.ns-val.ok { color: var(--ok); }
+.ns-val.bad { color: var(--bad); }
+.ns-target { color: var(--muted); font-size: 0.8125rem; }
+.ns-spark { flex: 0 0 auto; }
+.ns-bar .qt-more { margin-left: auto; }

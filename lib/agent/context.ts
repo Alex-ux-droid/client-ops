@@ -6,6 +6,7 @@ import { brandMd } from "../brand";
 import { competitorsSnapshot } from "../competitors";
 import { campaignsSnapshot } from "../campaigns";
 import { earnText, getClientRow } from "../repo/clients";
+import { fmtMetric, listMetrics, metricName, metricValue } from "../repo/metrics";
 import { adMoreText, adsetMoreText } from "../metaExtra";
 import { monthlyForClient } from "../repo/meta";
 import { accountsForClient, adsForClient, adsetsForClient, campaignsWithStats, getAnalysis, kyivDay, metaAlerts, totals } from "../repo/meta";
@@ -120,6 +121,9 @@ export function clientSnapshot(clientId: number): string {
     if (ls.total) out.push(`Заявки з лід-форм за 7 днів: ${ls.total}, взяли в роботу ${ls.taken}, якісних ${ls.good}, сміття ${ls.bad}, без оцінки ${ls.unrated} (деталі — інструмент leads).`);
     else out.push("Заявок з лід-форм за 7 днів у системі нема (або сторінка не підключена — Налаштування → Конектори → Meta → «Заявки з лід-форм»).");
   } else out.push("Meta Ads: кабінет до клієнта не привʼязаний.");
+  const metrics = listMetrics(clientId);
+  if (metrics.length) out.push(`Метрики клієнта (головна — що означає успіх): ${metrics.map((m) => `${m.is_main ? "ГОЛОВНА " : ""}${metricName(m)} = ${fmtMetric(m, metricValue(m))}${m.target != null ? ` (ціль ${fmtMetric(m, m.target)})` : ""}`).join("; ")}.`);
+  else out.push("Головна метрика клієнта не обрана (Огляд → «Головна метрика»; можна запропонувати Саші).");
   const crmLink = getCrmLink(clientId);
   if (crmLink) {
     const st = crmStats(clientId, new Date(Date.now() - 30 * 86400_000).toISOString());
