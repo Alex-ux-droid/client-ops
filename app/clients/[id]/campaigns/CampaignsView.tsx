@@ -10,7 +10,7 @@ import Icon from "@/components/Icon";
 import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
-import { adLive, adPromptFull, adUrl, formMd, adsetTargeting, campaignChatPrompt, campaignChecks, campaignLive, campaignMd, LIMITS, money2, syncCampaign, type LiveNums } from "@/lib/campaigns";
+import { adLive, adPromptFull, adUrl, campaignFolderName, fileNameFor, formMd, adsetTargeting, campaignChatPrompt, campaignChecks, campaignLive, campaignMd, LIMITS, money2, syncCampaign, type LiveNums } from "@/lib/campaigns";
 import { creativeBrief } from "@/lib/creativeStudio";
 import { fmtDate } from "@/lib/dates";
 import {
@@ -18,6 +18,7 @@ import {
   NOTE_KINDS, OBJECTIVES, variantsOf, type Ad, type AdSet, type Campaign,
 } from "@/lib/repo/campaigns";
 import { getClientRow } from "@/lib/repo/clients";
+import { listPages } from "@/lib/repo/leads";
 import { getFile } from "@/lib/repo/files";
 import { logoSrc } from "@/lib/repo/logos";
 import { adsForClient, adTotalsForClient, campaignsWithStats, kyivDay } from "@/lib/repo/meta";
@@ -245,6 +246,15 @@ function CampaignPanel({ c, checks, hid }: { c: Campaign; checks: ReturnType<typ
         <CopyField label="Розклад" value={c.start_date ? `${c.start_date}${c.end_date ? ` → ${c.end_date}` : " (без кінця)"}` : ""} />
         {c.idea && <div className="kp-idea"><b>Ідея</b><p>{c.idea}</p></div>}
       </Section>
+      <Section title="Усі назви — по черзі в Ads Manager">
+        <CopyField label="Кампанія" value={c.name} />
+        {listAdsets(c.id).map((st) => (
+          <div key={st.id} className="kp-names">
+            <CopyField label="Група оголошень" value={st.name} />
+            {listAds(st.id).map((ad) => <CopyField key={ad.id} label={`↳ Оголошення ${adCode(ad)}`} value={ad.name} />)}
+          </div>
+        ))}
+      </Section>
       <Section title={`Перевірка перед запуском${checks.length ? ` · ${checks.length}` : ""}`}>
         {checks.length ? <ul className="kp-checks">{checks.map((x, i) => <li key={i} className={x.level}><span className="kp-ck-w">{x.where}</span>{x.text}</li>)}</ul>
           : <p className="mono" style={{ margin: 0 }}>✓ Усе заповнено — можна переносити в Ads Manager.</p>}
@@ -345,6 +355,7 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
   const cards = cardsOf(a);
   const form = a.form_id ? getForm(a.form_id) : undefined;
   const forms = listForms(c.client_id, true);
+  const pages = listPages().filter((p) => p.client_id === c.client_id && !p.hidden);
   const ct = cardTextsOf(a);
   return (
     <div className="stack" style={{ gap: "0.875rem" }}>
@@ -370,6 +381,17 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
         </div>
 
         <div className="stack" style={{ gap: "0.875rem", minWidth: 0 }}>
+          <Section title="Оголошення — що вставити в Ads Manager">
+            <CopyField label="Назва оголошення" value={a.name} hint="з кодом AD-N — по ньому підтягнуться цифри" />
+            {pages.length > 0 && <CopyField label="Сторінка Facebook" value={pages.map((p) => p.name).join(" / ")} />}
+            <CopyField label="Формат" value={lbl(AD_FORMATS, a.format)} />
+            <CopyField label="Файл креативу" value={cards.length > 1 ? cards.map((_, i) => fileNameFor(a).replace("_v1", `_${i + 1}_v1`)).join(", ") : fileNameFor(a)} hint={c.drive_folder_id ? "лежить у папці кампанії" : "так назви файл"} />
+            {c.drive_folder_id && <CopyField label="Папка кампанії на Диску" value={campaignFolderName(c)} />}
+            {s.conversion === "form" && <CopyField label="Лід-форма" value={form ? `${form.name} v${form.version}` : ""} hint={form ? "" : "ще не вибрана — нижче"} />}
+            <CopyField label="Кнопка (CTA)" value={lbl(CTAS, a.cta)} />
+            {(url || s.conversion === "site") && <CopyField label="Посилання з UTM" value={url} />}
+          </Section>
+
           <Section title="3 · Креатив" action={
             <span className="inline">
               <span className="tag accent">{lbl(AD_FORMATS, a.format)}</span>{a.tool && <span className="tag">{a.tool}</span>}
@@ -466,12 +488,9 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
             )}
             {(a.primary_text || a.headline) && (
               <>
-                <CopyField label="Назва оголошення" value={a.name} hint="з кодом — не прибирай" />
                 <CopyField label="Основний текст" value={a.primary_text} limit={LIMITS.primary} soft hint="далі — під «Ще»" multiline />
                 <CopyField label="Заголовок" value={a.headline} limit={LIMITS.headline} />
                 <CopyField label="Опис" value={a.description} limit={LIMITS.description} />
-                <CopyField label="Кнопка (CTA)" value={lbl(CTAS, a.cta)} />
-                {(url || s.conversion === "site") && <CopyField label="Посилання з UTM" value={url} />}
               </>
             )}
             {cards.length > 1 && (
