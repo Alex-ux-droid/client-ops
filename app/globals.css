@@ -1192,7 +1192,7 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
 
 /* робочий простір */
 .su-head { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
-.su-title-row { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.su-title-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 .su-title-row h1 { margin: 0; }
 .su-edit-head[open] { flex: 1 1 100%; max-width: 36rem; }
 .su-line { margin: 0; font-size: 1.0625rem; color: var(--muted); max-width: 52rem; line-height: 1.5; }
@@ -1944,7 +1944,7 @@ textarea.vt-ghost::placeholder { color: transparent; }
 .tl-turn { position: absolute; top: 50%; width: 2px; height: calc(100% + 2rem); background: rgba(43, 47, 54, 0.45); z-index: 0; }
 .tl-cell { position: relative; z-index: 1; min-width: 0; }
 .tl-node { all: unset; cursor: pointer; box-sizing: border-box; display: grid; gap: 0.25rem; width: 100%; padding: 0.75rem 0.875rem 0.875rem; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--bg-raise); transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; overflow-wrap: anywhere; }
-.tl-node:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 28px rgba(43, 47, 54, 0.18); }
+.tl-node:hover { background: var(--bg-raise); color: inherit; border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 28px rgba(43, 47, 54, 0.18); }
 .tl-n { position: absolute; top: -0.7rem; left: 0.75rem; min-width: 1.4rem; height: 1.4rem; padding: 0 0.35rem; box-sizing: border-box; border-radius: 999px; background: var(--accent); color: #fff; font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; justify-content: center; }
 .tl-date { color: var(--dim); font-size: 0.8125rem; margin-top: 0.25rem; }
 .tl-title { font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -2304,3 +2304,4 @@ img.client-logo { object-fit: contain; background: #fff; padding: 2px; }
 .cs-res { border-left: 3px solid var(--ok); padding-left: 0.75rem; }
 .cs-res p { margin: 0.25rem 0 0; white-space: pre-wrap; font-size: 0.875rem; max-height: 14rem; overflow: auto; }
 .cs-last.mono { white-space: normal; font-size: 0.8125rem; }
+.su-card-name { display: flex; align-items: center; gap: 0.625rem; min-width: 0; }

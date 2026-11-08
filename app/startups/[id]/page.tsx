@@ -28,6 +28,8 @@ import ProductMap from "./views/ProductMap";
 import { IssuesView, KnowledgeView } from "./views/BuildViews";
 import { openIssueCount } from "@/lib/repo/startupIssues";
 import StartupAssistant from "./StartupAssistant";
+import LogoMark from "@/components/LogoMark";
+import { logoSrc } from "@/lib/repo/logos";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +77,7 @@ export default async function StartupPage({ params, searchParams }: { params: Pr
       <div className="su-head">
         <Link href="/startups" className="h-link">Стартапи</Link>
         <div className="su-title-row">
+          <LogoMark kind="startup" id={id} name={s.name} src={logoSrc("startup", id)} size={48} editable />
           <h1>{s.name}</h1>
           <details className="lab-edit su-edit-head">
             <summary>Редагувати</summary>

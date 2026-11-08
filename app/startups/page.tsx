@@ -1,4 +1,6 @@
 import Link from "next/link";
+import LogoMark from "@/components/LogoMark";
+import { logoMap } from "@/lib/repo/logos";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import { fmtDate } from "@/lib/dates";
@@ -16,6 +18,7 @@ const ago = (iso: string | null) => {
 export default async function StartupsPage({ searchParams }: { searchParams: Promise<{ saved?: string }> }) {
   const sp = await searchParams;
   const all = listStartups();
+  const logos = logoMap("startup");
   const raw = all.filter((s) => s.stage === "raw");
   const projects = all.filter((s) => s.stage !== "raw");
 
@@ -83,7 +86,7 @@ export default async function StartupsPage({ searchParams }: { searchParams: Pro
               return (
                 <Link key={s.id} href={`/startups/${s.id}`} className={`card su-card ${dim ? "dim" : ""}`}>
                   <div className="su-card-head">
-                    <b>{s.name}</b>
+                    <span className="su-card-name"><LogoMark kind="startup" id={s.id} name={s.name} src={logos.get(s.id)} size={36} /><b>{s.name}</b></span>
                     {s.prod_url && <span className={`su-dot ${s.health === 1 ? "ok" : s.health === 0 ? "bad" : ""}`} title={s.health === 1 ? "сайт працює" : s.health === 0 ? "сайт не відповідає" : "ще не перевіряли"} />}
                   </div>
                   {s.one_liner && <p className="su-card-line">{s.one_liner}</p>}

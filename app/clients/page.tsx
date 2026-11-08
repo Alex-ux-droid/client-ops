@@ -1,4 +1,6 @@
 import Link from "next/link";
+import LogoMark from "@/components/LogoMark";
+import { logoMap } from "@/lib/repo/logos";
 import { money } from "@/lib/config";
 import { fmtDate } from "@/lib/dates";
 import { STAGE_LABEL, STATUS_LABEL, STATUS_TAG } from "@/lib/labels";
@@ -16,6 +18,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const f = FILTERS.find((x) => x.k === sp.f)?.k ?? "work";
   const all = listClients();
+  const logos = logoMap("client");
   const clients = all.filter((c) => (f === "work" ? c.status === "active" || c.status === "lead" : c.status === f));
   const count = (k: string) => all.filter((c) => (k === "work" ? c.status === "active" || c.status === "lead" : c.status === k)).length;
   return (
@@ -32,6 +35,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
           const flags = clientFlags(c);
           return (
             <Link key={c.id} href={`/clients/${c.id}`} className="row">
+              <LogoMark kind="client" id={c.id} name={c.name} src={logos.get(c.id)} size={40} />
               <div className="row-main">
                 <div className="row-title">{c.name}</div>
                 <div className="row-sub">{[c.niche, c.offer].filter(Boolean).join(" · ")}</div>
