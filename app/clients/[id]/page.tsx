@@ -1,6 +1,7 @@
 import LogoMark from "@/components/LogoMark";
 import { logoSrc } from "@/lib/repo/logos";
 import Link from "next/link";
+import Pop from "@/components/Pop";
 import TabsScroll from "./TabsScroll";
 import { notFound, redirect } from "next/navigation";
 import { restoreClientAction, saveNextStep } from "@/app/actions";
@@ -25,7 +26,7 @@ import MeetingNote from "@/components/MeetingNote";
 import BrandTab from "./BrandTab";
 import CompetitorsTab from "./CompetitorsTab";
 import SetupTab from "./SetupTab";
-import { clientSections } from "./sections";
+import { clientSections, enableClientTab } from "./sections";
 import ServiceTab from "./ServiceTab";
 import { HistoryTab, MaterialsTab, MoneyTab, PlaybooksTab, TasksTab } from "./tabs";
 
@@ -41,6 +42,9 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const google = googleConnected();
   const tabs = clientSections(c, services);
   const tab = tabs.find((t) => t.k === sp.tab)?.k ?? "overview";
+  // «+ Розділ»: відкрили схований розділ з add=1 — тепер він завжди в меню клієнта
+  if ((sp as { add?: string }).add === "1" && tabs.find((t) => t.k === tab)?.hidden) enableClientTab(id, tab);
+  const shown = tabs.filter((t) => !t.hidden || t.k === tab), more = tabs.filter((t) => t.hidden && t.k !== tab);
   const service = services.find((s) => s.type === tab);
   const flags = clientFlags(c);
   const ns = mainMetricBrief(id);
@@ -108,11 +112,17 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
 
       {/* На телефоні — вкладки; на компʼютері навігація в лівій панелі (ClientNav) */}
       <nav className="subnav hub-tabs phone-only">
-        {tabs.map((t) => (
+        {shown.map((t) => (
           <Link key={t.k} href={`/clients/${id}?tab=${t.k}`} className={`${t.k === tab ? "on" : ""} ${t.svc ? "svc" : ""}`} scroll={false}>
             {t.k === "setup" ? "Налаштування" : t.svc ? SERVICES[t.k as ServiceType].short : t.label}{t.badge ? <b>{t.badge}</b> : null}
           </Link>
         ))}
+        {more.length > 0 && (
+          <Pop className="pop-trigger pop-inline tab-add" title="Додати розділ" trigger={<>+ Розділ</>}>
+            <p className="mono" style={{ marginTop: 0 }}>Розділи без даних сховані. Відкриєш — розділ лишиться в меню цього клієнта.</p>
+            <div className="rd-areas">{more.map((m) => <Link key={m.k} href={`/clients/${id}?tab=${m.k}&add=1`} scroll={false}>{m.label}</Link>)}</div>
+          </Pop>
+        )}
       </nav>
       <TabsScroll tab={tab} />
       {tab !== "overview" && <h1 className="desk-only section-title">{tabs.find((t) => t.k === tab)?.label}</h1>}

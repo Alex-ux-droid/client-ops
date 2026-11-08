@@ -2570,3 +2570,11 @@ button.kp-car-btn:hover { background: #fff; color: #1c1e21; }
 .hy-close summary::-webkit-details-marker { display: none; }
 .hy-row { display: grid; grid-template-columns: 1fr 2fr 10rem; gap: 0.5rem; }
 @media (max-width: 720px) { .hy-row { grid-template-columns: 1fr; } }
+
+/* Бокове меню: згорнута група «Особисте»; «+ Розділ» у клієнті */
+.side-fold summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 0.25rem; }
+.side-fold summary::-webkit-details-marker { display: none; }
+.side-fold[open] summary span { transform: rotate(180deg); }
+.side-add summary { list-style: none; cursor: pointer; color: var(--side-muted, inherit); }
+.side-add summary::-webkit-details-marker { display: none; }
+.tab-add { white-space: nowrap; opacity: 0.8; }

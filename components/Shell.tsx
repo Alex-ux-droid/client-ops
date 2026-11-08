@@ -93,10 +93,8 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
   const on = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   const all = SECTIONS.flatMap((s) => s.items);
 
-  const links = SECTIONS.map((s) => (
-    <div key={s.title} className="side-group">
-      <div className="side-title">{s.title}</div>
-      {s.items.map((i) => {
+  const links = SECTIONS.map((s) => {
+    const items = s.items.map((i) => {
         const c = i.count ? counts[i.count] : 0;
         return (
           <Link key={i.href} href={i.href} className={`side-link ${on(i.href) ? "on" : ""}`} title={i.label}>
@@ -105,9 +103,19 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
             {c > 0 && <span className={`count ${i.bad ? "bad" : ""}`}>{c}</span>}
           </Link>
         );
-      })}
-    </div>
-  ));
+    });
+    return s.collapsed ? (
+      <details key={`${s.title}-${path}`} className="side-group side-fold" open={s.items.some((i) => on(i.href))}>
+        <summary className="side-title">{s.title} <span aria-hidden>▾</span></summary>
+        {items}
+      </details>
+    ) : (
+      <div key={s.title} className="side-group">
+        <div className="side-title">{s.title}</div>
+        {items}
+      </div>
+    );
+  });
 
   return (
     <div className="shell">

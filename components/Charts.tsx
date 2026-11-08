@@ -28,7 +28,12 @@ function Axis({ max, fmt, W }: { max: number; fmt: (n: number) => string; W: num
 }
 
 // width — ширина в одиницях viewBox: для широкої картки більше, щоб текст не роздувався
+// Порожній графік не малюємо (усі нулі / нема даних)
+const emptyData = (xs: (number | null | undefined)[]) => !xs.some((v) => (v ?? 0) !== 0);
+const NoData = () => <div className="mono chart-empty">Даних за цей період ще нема.</div>;
+
 export function BarChart({ data, fmt, width: W = 600 }: { data: Point[]; fmt: (n: number) => string; width?: number }) {
+  if (emptyData(data.map((d) => d.value))) return <NoData />;
   const max = niceMax(Math.max(...data.map((d) => d.value ?? 0)));
   const iw = W - PAD.l - PAD.r;
   const ih = H - PAD.t - PAD.b;
@@ -58,6 +63,7 @@ export function BarChart({ data, fmt, width: W = 600 }: { data: Point[]; fmt: (n
 }
 
 export function LineChart({ data, fmt, width: W = 600 }: { data: Point[]; fmt: (n: number) => string; width?: number }) {
+  if (emptyData(data.map((d) => d.value))) return <NoData />;
   const vals = data.map((d) => d.value).filter((v): v is number => v !== null);
   const max = niceMax(Math.max(0, ...vals));
   const iw = W - PAD.l - PAD.r;
@@ -93,6 +99,7 @@ export function LineChart({ data, fmt, width: W = 600 }: { data: Point[]; fmt: (
 type ComboProps = { data: { label: string; bar: number; line: number; tip: string }[]; fmtBar: (n: number) => string; fmtLine: (n: number) => string; barName: string; lineName: string };
 // Дві версії: широка для компʼютера і вузька для телефону (у вузькій підписи більші відносно ширини)
 export function ComboChart(props: ComboProps) {
+  if (emptyData(props.data.flatMap((d) => [d.bar, d.line]))) return <NoData />;
   return (
     <div className="combo">
       <div className="combo-legend"><span><i className="cl-bar" />{props.barName}</span><span><i className="cl-line" />{props.lineName}</span></div>

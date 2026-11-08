@@ -14,7 +14,7 @@ export type Tip = { id: number; topic: TipTopic; title: string; body: string; so
 
 // Частота показу (хв). Налаштування → «Можливості».
 export const TIP_EVERY = [15, 30, 45, 60, 90, 120] as const;
-export const tipEvery = () => Number(getSetting("tips.every")) || 45;
+export const tipEvery = () => Number(getSetting("tips.every")) || 120; // за замовчуванням раз на 2 год (ТЗ v2)
 
 // Інтерес до теми з реакцій Саші: «нове/детальніше» піднімають, «не цікаво» сильно опускає, «знав» — трохи (рівень вищий)
 export function topicScores(): Record<string, { knew: number; new: number; boring: number; more: number; score: number }> {

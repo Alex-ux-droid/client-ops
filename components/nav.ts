@@ -1,7 +1,8 @@
 export type Counts = { tasks: number; leads: number; debts: number; ideas: number; journal: number };
 
 // Пункти меню: бокова панель на компʼютері і сторінка /menu на телефоні
-export const SECTIONS: { title: string; items: { href: string; label: string; ico: string; count?: keyof Counts; bad?: boolean }[] }[] = [
+// «Особисте» згорнуте за замовчуванням (розгортається, коли відкрита сторінка з нього)
+export const SECTIONS: { title: string; collapsed?: boolean; items: { href: string; label: string; ico: string; count?: keyof Counts; bad?: boolean }[] }[] = [
   {
     title: "Робота",
     items: [
@@ -9,19 +10,25 @@ export const SECTIONS: { title: string; items: { href: string; label: string; ic
       { href: "/review", label: "Рев'ю", ico: "flag" },
       { href: "/tasks", label: "Задачі", ico: "tasks", count: "tasks" },
       { href: "/clients", label: "Клієнти", ico: "users" },
-      { href: "/startups", label: "Стартапи", ico: "rocket" },
       { href: "/money", label: "Гроші", ico: "wallet", count: "debts", bad: true },
       { href: "/ads", label: "Реклама", ico: "megaphone" },
       { href: "/creatives", label: "Креативи", ico: "sparkles" },
+    ],
+  },
+  {
+    title: "Особисте",
+    collapsed: true,
+    items: [
+      { href: "/startups", label: "Стартапи", ico: "rocket" },
       { href: "/products", label: "Продукти", ico: "box" },
+      { href: "/kb", label: "Розвиток", ico: "compass" },
+      { href: "/ideas", label: "Ідеї", ico: "bulb", count: "ideas" },
     ],
   },
   {
     title: "Знання",
     items: [
-      { href: "/kb", label: "Розвиток", ico: "compass" },
       { href: "/playbooks", label: "Плейбуки", ico: "book" },
-      { href: "/ideas", label: "Ідеї", ico: "bulb", count: "ideas" },
       { href: "/journal", label: "Журнал системи", ico: "wrench", count: "journal" },
       { href: "/settings", label: "Налаштування", ico: "gear" },
     ],

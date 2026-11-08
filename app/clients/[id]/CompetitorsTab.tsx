@@ -39,7 +39,10 @@ export default function CompetitorsTab({ clientId, sel, lv }: { clientId: number
   const all = listCompetitors(clientId);
   const arch = listCompetitors(clientId, true);
   const levels = [...new Set(all.map((c) => c.level).filter(Boolean))].sort((a, b) => a.localeCompare(b, "uk", { numeric: true }));
-  const rows = lv ? all.filter((c) => c.level === lv) : all;
+  // За замовчуванням — тільки «висока загроза» (якщо такі є); «Усі» — lv=all
+  const highOnly = !lv && all.some((c) => c.threat === "high");
+  const rows = highOnly ? all.filter((c) => c.threat === "high") : lv && lv !== "all" ? all.filter((c) => c.level === lv) : all;
+  const watched = all.filter((c) => c.watch).length;
   const n = (t: string) => all.filter((c) => c.threat === t).length;
   const insights = getSetting(`comp.insights.${clientId}`) ?? "";
   const levelsMd = getSetting(`comp.levels.${clientId}`) ?? "";
@@ -69,18 +72,21 @@ export default function CompetitorsTab({ clientId, sel, lv }: { clientId: number
 
       <div className="inline" style={{ flexWrap: "wrap", justifyContent: "space-between" }}>
         <nav className="rd-areas">
-          <Link href={base} className={!lv ? "on" : ""}>Усі <b>{all.length}</b></Link>
+          {all.some((c) => c.threat === "high") && <Link href={base} className={highOnly ? "on" : ""}>Висока загроза <b>{all.filter((c) => c.threat === "high").length}</b></Link>}
+          <Link href={`${base}&lv=all`} className={lv === "all" || (!lv && !highOnly) ? "on" : ""}>Усі <b>{all.length}</b></Link>
           {levels.map((l) => <Link key={l} href={`${base}&lv=${encodeURIComponent(l)}`} className={lv === l ? "on" : ""}>{l} <b>{all.filter((c) => c.level === l).length}</b></Link>)}
         </nav>
         <Pop wide className="pop-trigger pop-inline" title="Новий конкурент" trigger={<span className="btn small">+ Конкурент</span>}><CompForm clientId={clientId} /></Pop>
       </div>
 
-      <DataTable id="competitors" search cols={[
-        { id: "name", label: "Компанія", w: 260, pin: true }, { id: "threat", label: "Загроза", w: 110 }, { id: "level", label: "Рівень", w: 200 },
-        { id: "region", label: "Регіон", w: 160 }, { id: "scale", label: "Масштаб", w: 110 }, { id: "what", label: "Що роблять", w: 280 },
-        { id: "for_whom", label: "Для кого", w: 200, hide: true }, { id: "pros", label: "Переваги", w: 260 }, { id: "cons", label: "Мінуси", w: 260 },
-        { id: "numbers", label: "Цифри / ціни", w: 220 }, { id: "action", label: "Що робимо", w: 300 }, { id: "watch", label: "Нагляд", w: 100 },
-        { id: "last", label: "Остання перевірка", w: 150 }, { id: "site", label: "Сайт", w: 200, hide: true }, { id: "why", label: "Чому конкурент", w: 260, hide: true },
+      {all.length > 0 && watched < 5 && <div className="mono">Підказка: постав топ-5 найнебезпечніших «під нагляд» (картка → «Нагляд») — Джері перевірятиме їх раз на тиждень. Зараз під наглядом: {watched}.</div>}
+      {/* 5 колонок на виду, решта — «Колонки ▾» */}
+      <DataTable id="competitors-v2" search cols={[
+        { id: "name", label: "Компанія", w: 260, pin: true }, { id: "threat", label: "Загроза", w: 110 }, { id: "level", label: "Рівень", w: 200, hide: true },
+        { id: "region", label: "Регіон", w: 160, hide: true }, { id: "scale", label: "Масштаб", w: 110, hide: true }, { id: "what", label: "Що роблять", w: 280 },
+        { id: "for_whom", label: "Для кого", w: 200, hide: true }, { id: "pros", label: "Переваги", w: 260, hide: true }, { id: "cons", label: "Мінуси", w: 260, hide: true },
+        { id: "numbers", label: "Цифри / ціни", w: 220, hide: true }, { id: "action", label: "Що робимо", w: 300 }, { id: "watch", label: "Нагляд", w: 100 },
+        { id: "last", label: "Остання перевірка", w: 150, hide: true }, { id: "site", label: "Сайт", w: 200, hide: true }, { id: "why", label: "Чому конкурент", w: 260, hide: true },
       ]} rows={rows.map((c) => ({ key: String(c.id), cells: {
         name: { v: c.name, href: `${base}&c=${c.id}`, sub: c.site || undefined },
         threat: { v: c.threat === "high" ? 0 : c.threat === "mid" ? 1 : c.threat === "low" ? 2 : 3, t: tl(c.threat)?.label ?? "—", tag: c.threat === "high" ? "bad" : c.threat === "mid" ? "warn" : "" },
