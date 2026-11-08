@@ -2512,3 +2512,4 @@ button.kp-car-btn:hover { background: #fff; color: #1c1e21; }
 .kp-fsum ol { margin: 0.25rem 0; padding-left: 1.25rem; font-size: 0.875rem; }
 .kp-fsum small { color: var(--muted); }
 .kp-gen select { flex: 1; min-width: 12rem; }
+.kp-names { display: flex; flex-direction: column; gap: 0.375rem; padding-left: 0.75rem; border-left: 2px solid var(--line); }

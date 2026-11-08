@@ -410,12 +410,12 @@ export function formStats(f: LeadForm): { ads: number; live: number; spend: numb
   return { ads: ads.length, live, spend, leads, cpl: leads ? spend / leads : null };
 }
 
-const formShape = `{"name":"коротка назва форми","form_type":"volume|intent","intro_headline":"≤${FORM_LIMITS.intro_headline}","intro_text":"2–4 рядки: що людина отримає, без води","questions":["Імʼя","Телефон","? Питання з варіантами | варіант 1 | варіант 2 | варіант 3","? Коротке питання"],"privacy_text":"текст посилання на політику","thanks_headline":"≤${FORM_LIMITS.thanks_headline}","thanks_text":"що буде далі і коли передзвонимо","thanks_button":"≤${FORM_LIMITS.thanks_button}","thanks_url":"сайт клієнта або порожньо"}`;
+const formShape = `{"name":"коротка назва форми БЕЗ версії (v1/v2 не пиши — версії веде система)","form_type":"volume|intent","intro_headline":"≤${FORM_LIMITS.intro_headline}","intro_text":"2–4 рядки: що людина отримає, без води","questions":["Імʼя","Телефон","? Питання з варіантами | варіант 1 | варіант 2 | варіант 3","? Коротке питання"],"privacy_text":"текст посилання на політику","thanks_headline":"≤${FORM_LIMITS.thanks_headline}","thanks_text":"що буде далі і коли передзвонимо","thanks_button":"≤${FORM_LIMITS.thanks_button}","thanks_url":"сайт клієнта або порожньо"}`;
 function formFromRaw(r: Record<string, unknown>): Partial<LeadForm> {
   const qs = (Array.isArray(r.questions) ? r.questions : asText(r.questions).split("\n")).map(asText).map((x) => x.trim()).filter(Boolean);
   const t = asText(r.form_type);
   return {
-    name: asText(r.name) || "Форма", form_type: t in FORM_TYPES ? t : "volume", intro_headline: asText(r.intro_headline), intro_text: asText(r.intro_text),
+    name: (asText(r.name) || "Форма").replace(/\s*[|·-]?\s*v\d+\s*$/i, "").trim(), form_type: t in FORM_TYPES ? t : "volume", intro_headline: asText(r.intro_headline), intro_text: asText(r.intro_text),
     questions: qs.join("\n"), privacy_text: asText(r.privacy_text) || "Політика конфіденційності", thanks_headline: asText(r.thanks_headline),
     thanks_text: asText(r.thanks_text), thanks_button: asText(r.thanks_button), thanks_url: asText(r.thanks_url),
   };
@@ -435,7 +435,8 @@ export async function genForm(input: { clientId: number; campaignId?: number; ad
       past && `ФОРМИ, ЯКІ ВЖЕ БУЛИ (враховуй, що спрацювало):\n${past}`, input.wish && `Побажання Саші: ${input.wish}`,
       `Поверни ТІЛЬКИ JSON: ${formShape}`].filter(Boolean).join("\n\n"),
     { maxTokens: 3000, effort: "medium" });
-  const id = addForm(input.clientId, formFromRaw(raw));
+  const ff = formFromRaw(raw);
+  const id = addForm(input.clientId, a ? { ...ff, name: `${ff.name} · ${adCode(a)}` } : ff);
   if (a) updateAd(a.id, { form_id: id });
   return id;
 }
