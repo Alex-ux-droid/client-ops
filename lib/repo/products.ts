@@ -67,6 +67,12 @@ export function setProductClient(productId: number, clientId: number, on: boolea
   else db().prepare("DELETE FROM product_clients WHERE product_id = ? AND client_id = ?").run(productId, clientId);
 }
 
+// CRM клієнта підключили → клієнт користується нашим продуктом Oselya CRM (тільки додає, нічого не відвʼязує)
+export function linkCrmProduct(clientId: number): void {
+  const p = db().prepare("SELECT id FROM products WHERE lower(name) LIKE '%oselya%' ORDER BY id LIMIT 1").get() as { id: number } | undefined;
+  if (p) db().prepare("INSERT OR IGNORE INTO product_clients (product_id, client_id, note) VALUES (?, ?, 'CRM підключена')").run(p.id, clientId);
+}
+
 // Події від підключених програм
 export function addProductEvent(e: { event_id: string; product_id: number; event: string; summary: string; data_json: string; occurred_at: string }): boolean {
   const ok = db().prepare("INSERT OR IGNORE INTO product_events (event_id, product_id, event, summary, data_json, occurred_at) VALUES (@event_id, @product_id, @event, @summary, @data_json, @occurred_at)").run(e).changes > 0;

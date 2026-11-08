@@ -39,3 +39,17 @@ export function addCrmEvent(e: { event_id: string; client_id: number; event: str
   return db().prepare(`INSERT OR IGNORE INTO crm_events (event_id, client_id, event, crm_id, summary, occurred_at) VALUES (@event_id, @client_id, @event, @crm_id, @summary, @occurred_at)`).run(e).changes > 0;
 }
 export const crmEvents = (clientId: number, limit = 20) => db().prepare("SELECT * FROM crm_events WHERE client_id = ? ORDER BY received_at DESC LIMIT ?").all(clientId, limit) as { event_id: string; event: string; crm_id: number | null; summary: string; occurred_at: string; received_at: string }[];
+
+// «Без контакту» — одне правило для екрана, Джері і тривоги: ніхто не звʼязався і не пробував (сміття не рахуємо)
+export const noContactLead = (l: CrmLead) => !l.first_contact_at && !l.call_attempts && l.status !== "junk";
+
+// Хто НЕ менеджер у цій CRM (напр. власник, на якого CRM ставить ліди за замовчуванням) — settings crm.not_managers.<id>, по рядку або через кому
+export function notManagers(clientId: number): string[] {
+  const r = db().prepare("SELECT value FROM settings WHERE key = ?").get(`crm.not_managers.${clientId}`) as { value: string } | undefined;
+  return (r?.value ?? "").split(/[\n,]/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+}
+export const UNASSIGNED = "не призначено";
+export function managerOf(l: CrmLead, skip: string[]): string {
+  const m = l.manager.trim();
+  return !m || skip.includes(m.toLowerCase()) ? UNASSIGNED : m;
+}

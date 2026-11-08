@@ -1,5 +1,6 @@
 // Стратегія клієнта: контекст для Джері і для Claude Code (промпт частини), імпорт витяжки [CLIENT-OPS:СТРАТЕГІЯ].
 // Витяжку розбирає модель у JSON-операції (яка частина, що оновити, план, знання, рішення, висновки) — і система застосовує.
+import { otherClientIn } from "./repo/clientMemory";
 import Anthropic from "@anthropic-ai/sdk";
 import { agentConfig } from "./agent/config";
 import { logError } from "./log";
@@ -108,7 +109,11 @@ type Ops = {
 };
 
 // Розібрати витяжку (або довільний підсумок) і розкласти по стратегії
-export async function importExtract(clientId: number, text: string): Promise<{ ok: true; summary: string[]; partId: number | null } | { ok: false; error: string }> {
+export async function importExtract(clientId: number, text: string, otherOk = false): Promise<{ ok: true; summary: string[]; partId: number | null } | { ok: false; error: string }> {
+  if (!otherOk) {
+    const other = otherClientIn(clientId, text);
+    if (other) return { ok: false, error: `Витяжка про клієнта «${other}», а ти на сторінці іншого клієнта. Відкрий «${other}» і встав там.` };
+  }
   const key = getApiKey();
   if (!key) return { ok: false, error: "Нема ключа Anthropic (Налаштування → Доступи)" };
   if (text.trim().length < 20) return { ok: false, error: "Порожня витяжка" };

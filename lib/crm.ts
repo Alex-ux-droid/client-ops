@@ -3,7 +3,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { autoOn } from "./agent/caps";
 import { logError } from "./log";
-import { addCrmEvent, crmLeads, getCrmLead, getCrmLink, listCrmLinks, patchCrmLink, upsertCrmLead, type CrmLead } from "./repo/crm";
+import { addCrmEvent, crmLeads, getCrmLead, getCrmLink, listCrmLinks, managerOf, noContactLead, notManagers, patchCrmLink, upsertCrmLead, type CrmLead } from "./repo/crm";
 import { getClientRow } from "./repo/clients";
 import { setEnvVar } from "./secrets";
 
@@ -140,7 +140,7 @@ export async function crmTick(): Promise<void> {
 // ---- Цифри для екрана і Джері (рахуємо самі з лідів — так точно знаємо, що саме)
 export type CrmStats = {
   leads: number; sales: number; revenue: number; avgCheck: number | null; conv: number | null; paid: number;
-  speedMin: number | null; noContact: number; currency: string;
+  speedMin: number | null; contacted: number; noContact: number; noContactPct: number | null; currency: string;
   bySource: { key: string; leads: number; sales: number; revenue: number }[];
   byStatus: { key: string; n: number }[];
   lost: { key: string; n: number }[];
@@ -156,17 +156,19 @@ export function crmStats(clientId: number, sinceIso: string, untilIso = new Date
   const speeds = (xs: CrmLead[]) => xs.filter((l) => l.first_contact_at).map((l) => (Date.parse(l.first_contact_at!) - Date.parse(l.created_at)) / 60000).filter((x) => x >= 0);
   const group = <K extends string>(xs: CrmLead[], key: (l: CrmLead) => K) => { const m = new Map<K, CrmLead[]>(); for (const l of xs) m.set(key(l), [...(m.get(key(l)) ?? []), l]); return m; };
   const srcKeys = new Set([...leads, ...sold].map((l) => l.source || "other"));
-  const mgrKeys = new Set([...leads, ...sold].map((l) => l.manager || "—"));
+  const skip = notManagers(clientId), mgr = (l: CrmLead) => managerOf(l, skip);
+  const mgrKeys = new Set([...leads, ...sold].map(mgr));
+  const noContact = leads.filter(noContactLead).length;
   return {
     leads: leads.length, sales: sold.length, revenue: rev(sold), avgCheck: sold.length ? rev(sold) / sold.length : null,
     conv: leads.length ? (leads.filter((l) => SOLD.has(l.status)).length / leads.length) * 100 : null,
     paid: all.filter((l) => inP(l.paid_at)).reduce((a, l) => a + (l.paid_amount ?? 0), 0),
-    speedMin: median(speeds(leads)), noContact: leads.filter((l) => !l.first_contact_at && !["lost", "junk", "no_answer"].includes(l.status)).length,
+    speedMin: median(speeds(leads)), contacted: speeds(leads).length, noContact, noContactPct: leads.length ? Math.round((noContact / leads.length) * 100) : null,
     currency: all.find((l) => l.currency)?.currency ?? "",
     bySource: [...srcKeys].map((k) => ({ key: k, leads: leads.filter((l) => (l.source || "other") === k).length, sales: sold.filter((l) => (l.source || "other") === k).length, revenue: rev(sold.filter((l) => (l.source || "other") === k)) })).sort((a, b) => b.leads - a.leads),
     byStatus: [...group(leads, (l) => l.status || "new")].map(([key, xs]) => ({ key, n: xs.length })).sort((a, b) => b.n - a.n),
     lost: [...group(leads.filter((l) => l.lost_reason), (l) => l.lost_reason)].map(([key, xs]) => ({ key, n: xs.length })).sort((a, b) => b.n - a.n),
-    managers: [...mgrKeys].map((k) => ({ key: k, leads: leads.filter((l) => (l.manager || "—") === k).length, sales: sold.filter((l) => (l.manager || "—") === k).length, revenue: rev(sold.filter((l) => (l.manager || "—") === k)), speedMin: median(speeds(leads.filter((l) => (l.manager || "—") === k))) })).sort((a, b) => b.leads - a.leads),
+    managers: [...mgrKeys].map((k) => ({ key: k, leads: leads.filter((l) => mgr(l) === k).length, sales: sold.filter((l) => mgr(l) === k).length, revenue: rev(sold.filter((l) => mgr(l) === k)), speedMin: median(speeds(leads.filter((l) => mgr(l) === k))) })).sort((a, b) => b.leads - a.leads),
   };
 }
 

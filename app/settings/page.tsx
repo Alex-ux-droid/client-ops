@@ -745,7 +745,9 @@ function System() {
         <div className="table-wrap">
           <table>
             <thead><tr><th>Записи</th><th className="num">Кількість</th></tr></thead>
-            <tbody>{Object.entries(s.counts).map(([t, n]) => <tr key={t}><td>{TABLE_LABEL[t] ?? t}</td><td className="num">{n}</td></tr>)}</tbody>
+            <tbody>{Object.entries(s.counts).map(([t, n]) => t === "ideas"
+              ? <tr key={t}><td>Ідеї (нові, як на сторінці «Ідеї»)</td><td className="num" title={`усього ${n}, з них ${n - s.ideasNew} використані або відкинуті`}>{s.ideasNew}{n > s.ideasNew ? ` · ще ${n - s.ideasNew} у використаних` : ""}</td></tr>
+              : <tr key={t}><td>{TABLE_LABEL[t] ?? t}</td><td className="num">{n}</td></tr>)}</tbody>
           </table>
         </div>
         <div className="table-wrap">

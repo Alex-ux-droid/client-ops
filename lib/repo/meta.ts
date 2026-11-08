@@ -118,22 +118,39 @@ export function topAds(clientId: number, limit = 12): MetaAd[] {
 
 const day = (offset: number) => new Date(Date.now() - offset * 86400_000).toLocaleString("sv-SE", { timeZone: "Europe/Kyiv" }).slice(0, 10);
 
-// Тривоги для «Потребують уваги»: кабінет з проблемою, гроші йдуть без лідів, ціна ліда різко виросла
-export function metaAlerts(clientId: number): { level: "bad" | "warn"; text: string }[] {
+// Тривоги для «Потребують уваги» (з причиною в підказці):
+// кабінет з проблемою; гроші йдуть, а лідів нема від ОСТАННЬОГО РЕАЛЬНОГО ліда (Insights + заявки з форм, з сьогоднішнім днем);
+// ціна ліда за 7 днів проти попередніх 7 — те саме вікно, що й на картці.
+type MetaFlag = { level: "bad" | "warn"; text: string; reason?: string; kind?: "ads" };
+export function metaAlerts(clientId: number): MetaFlag[] {
   const accs = accountsForClient(clientId);
   if (!accs.length) return [];
-  const out: { level: "bad" | "warn"; text: string }[] = [];
-  for (const a of accs) if (a.account_status && a.account_status !== 1) out.push({ level: "bad", text: `кабінет: ${ACCOUNT_STATUS[a.account_status] ?? "проблема"}` });
-  const last3 = totals(clientId, day(3), day(1));
-  const prev = totals(clientId, day(30), day(4));
+  const out: MetaFlag[] = [];
+  const cur = accs[0]?.currency ?? "";
+  const m = (v: number) => `${Math.round(v).toLocaleString("uk-UA")} ${cur}`.trim();
+  for (const a of accs) if (a.account_status && a.account_status !== 1) out.push({ level: "bad", kind: "ads", text: `кабінет: ${ACCOUNT_STATUS[a.account_status] ?? "проблема"}`, reason: `Кабінет ${a.name} (${a.account_id}). Джерело: Meta.` });
   for (const a of accs) {
     const bad = badAds(a.account_id);
-    if (bad.length) out.push({ level: "warn", text: `оголошень відхилено / з проблемою: ${bad.length}` });
+    if (bad.length) out.push({ level: "warn", kind: "ads", text: `оголошень відхилено / з проблемою: ${bad.length}`, reason: `Кабінет ${a.name} (${a.account_id}). Список — Meta → Огляд → Відхилені.` });
   }
-  if (last3.spend > 0 && last3.leads === 0 && prev.leads > 0) out.push({ level: "warn", text: "реклама 3 дні без лідів" });
-  if (last3.leads > 0 && prev.leads > 0) {
-    const now = last3.spend / last3.leads, before = prev.spend / prev.leads;
-    if (before > 0 && now > before * 1.8) out.push({ level: "warn", text: `ціна ліда ×${(now / before).toFixed(1)}` });
+  const acc = ids(clientId);
+  const today = day(0);
+  const lastInsights = (db().prepare(`SELECT MAX(date) d FROM meta_daily WHERE account_id IN (${inList(acc.length)}) AND leads > 0`).get(...acc) as { d: string | null }).d;
+  const lastFormIso = (db().prepare("SELECT MAX(created_time) d FROM leads WHERE client_id = ?").get(clientId) as { d: string | null }).d;
+  const lastForm = lastFormIso ? new Date(lastFormIso).toLocaleString("sv-SE", { timeZone: "Europe/Kyiv" }).slice(0, 10) : null;
+  const last = [lastInsights, lastForm].filter(Boolean).sort().at(-1) ?? null;
+  if (last) {
+    const gap = Math.round((Date.parse(today + "T00:00:00Z") - Date.parse(last + "T00:00:00Z")) / 86400_000);
+    const after = new Date(Date.parse(last + "T00:00:00Z") + 86400_000).toISOString().slice(0, 10);
+    const spent = totals(clientId, after > day(30) ? after : day(30), today).spend;
+    if (gap >= 3 && spent > 0) out.push({ level: gap >= 7 ? "bad" : "warn", kind: "ads", text: `${gap} дн. без лідів`,
+      reason: `Останній лід ${last.split("-").reverse().join(".")} (${last === lastForm ? "заявка з форми" : "Meta Insights"}). Витрачено відтоді: ${m(spent)}. Дні рахую з сьогоднішнім.` });
+  }
+  const w = totals(clientId, day(6), today), pw = totals(clientId, day(13), day(7));
+  if (w.leads >= 3 && pw.leads >= 3) {
+    const now = w.spend / w.leads, before = pw.spend / pw.leads;
+    if (before > 0 && now > before * 1.5) out.push({ level: "warn", kind: "ads", text: `ціна ліда ×${(now / before).toFixed(1)} за 7 дн.`,
+      reason: `Останні 7 днів: ${m(now)} за лід (${w.leads} лід.). Попередні 7: ${m(before)} (${pw.leads} лід.). Те саме, що на картці «Реклама 7 дн.».` });
   }
   return out;
 }

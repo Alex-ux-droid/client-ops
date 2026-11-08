@@ -257,7 +257,8 @@ export async function moveLead(fd: FormData) {
 export async function saveNextStep(fd: FormData) {
   await requireUser();
   const id = num(fd, "id");
-  if (id) updateClient(id, { next_step: str(fd, "next_step") });
+  const at = str(fd, "next_step_at");
+  if (id) updateClient(id, { next_step: str(fd, "next_step"), next_step_at: /^\d{4}-\d{2}-\d{2}$/.test(at) ? at : null });
   done();
 }
 

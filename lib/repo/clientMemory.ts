@@ -25,3 +25,11 @@ export function clientsMentioned(text: string, limit = 2): { id: number; name: s
   });
   return hits.slice(0, limit);
 }
+
+// Захист від запису «не в того клієнта»: текст називає іншого клієнта і жодного разу — цього.
+// Повертає назву іншого клієнта або null. (Так нотатка про ProVector потрапила в стратегію Аква Віти.)
+export function otherClientIn(clientId: number, text: string): string | null {
+  const hits = clientsMentioned(text, 5);
+  if (!hits.length || hits.some((h) => h.id === clientId)) return null;
+  return hits[0].name;
+}

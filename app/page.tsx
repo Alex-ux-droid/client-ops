@@ -9,7 +9,8 @@ import { getOrg, listProducts, productClients } from "@/lib/repo/products";
 import { money } from "@/lib/config";
 import { ymd } from "@/lib/dates";
 import { monthLabel } from "@/lib/labels";
-import { clientFlags, listClients } from "@/lib/repo/clients";
+import { clientFlags, listClients, type Flag } from "@/lib/repo/clients";
+import { pl } from "@/lib/plural";
 import { moneySummary, receivedByMonth } from "@/lib/repo/payments";
 import { listTasks, taskCounts, weekPlan } from "@/lib/repo/tasks";
 
@@ -18,6 +19,9 @@ const DAYS = ["нд", "пн", "вт", "ср", "чт", "пт", "сб"];
 function greeting(h: number) {
   return h < 5 ? "Доброї ночі" : h < 12 ? "Доброго ранку" : h < 18 ? "Доброго дня" : "Доброго вечора";
 }
+
+// Гроші і продажі — вище за рекламу і роботу
+const score = (fs: Flag[]) => fs.filter((f) => f.level === "bad").length * 10 + (fs.some((f) => f.kind === "money" || f.kind === "sales") ? 5 : 0);
 
 export default function Home() {
   const now = new Date();
@@ -30,7 +34,7 @@ export default function Home() {
     .filter((c) => c.status === "active" || c.status === "lead")
     .map((c) => ({ c, flags: clientFlags(c) }))
     .filter((x) => x.flags.length)
-    .sort((a, b) => b.flags.filter((f) => f.level === "bad").length - a.flags.filter((f) => f.level === "bad").length);
+    .sort((a, b) => score(b.flags) - score(a.flags));
   const m = moneySummary(today.slice(0, 7));
   const byMonth = receivedByMonth(6);
   const week = weekPlan();
@@ -83,7 +87,7 @@ export default function Home() {
           <div className="kpi-label">Борги</div>
           <div className="kpi-value" style={{ color: m.overdue ? "var(--bad)" : undefined }}>{money(m.overdue)}</div>
           <div className="bar"><i style={{ width: m.overdue ? "100%" : "0%", background: "var(--bad)" }} /></div>
-          <div className="kpi-sub">{m.overdue ? `${m.overdueCount} оплат прострочено` : `ще очікую ${money(m.expected)}`}</div>
+          <div className="kpi-sub">{m.overdue ? `${pl(m.overdueCount, ["оплата прострочена", "оплати прострочено", "оплат прострочено"])}` : `ще очікую ${money(m.expected)}`}</div>
         </Link>
         <Link href="/clients" className="kpi-tile">
           <div className="kpi-label">Клієнти</div>
@@ -165,7 +169,7 @@ export default function Home() {
                     <Link key={c.id} href={`/clients/${c.id}`} className="row">
                       <div className="row-main">
                         <div className="row-title">{c.name}</div>
-                        <div className="meta">{flags.map((f) => <span key={f.text} className={`tag ${f.level}`}>{f.text}</span>)}</div>
+                        <div className="meta">{flags.map((f) => <span key={f.text} className={`tag ${f.level}`} title={f.reason}>{f.text}</span>)}</div>
                       </div>
                     </Link>
                   ))}

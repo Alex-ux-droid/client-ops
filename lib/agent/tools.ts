@@ -13,7 +13,7 @@ import { addPayment, deletePayment, listPayments, markPaid, moneySummary } from 
 import { attachPlaybook, checklistItems, clientPlaybooks, detachPlaybook, getPlaybook, listPlaybooks, savePlaybook, setChecklistItem } from "../repo/playbooks";
 import { searchAll } from "../repo/search";
 import { addTaskItems, addTaskLink, createTask, deleteTask, deleteTaskItem, getTask, listTasks, setTaskItem, setTaskStatus, taskItems, taskLinks, updateTask, type TaskPriority, type TaskView } from "../repo/tasks";
-import { addWork, deleteWork, listWork } from "../repo/worklog";
+import { addWork, deleteWork, findSimilarWork, listWork } from "../repo/worklog";
 import { createClientFolders, googleConnected, listMail, mailQuery, readMail } from "../google";
 import { FOLDER_KINDS, isServiceType as isSvc } from "../services";
 import { addDevEntry } from "../repo/devlog";
@@ -64,6 +64,7 @@ const CLIENT_PROPS = {
   fee_monthly: num("Скільки клієнт платить Саші щомісяця"),
   pay_day: int("День місяця оплати 1-31"),
   next_step: str("Наступний крок"),
+  next_step_at: str("До якої дати наступний крок, YYYY-MM-DD (прострочений — бейдж у «Потребують уваги»)"),
   offer: str("Що продаємо клієнту"),
   budget: str("Рекламний бюджет / умови, текстом"),
   contacts: str("Контакти"),
@@ -137,8 +138,8 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "strategy_get", description: "Стратегія клієнта (вкладка «Стратегія» в картці): конспект (де ми / куди йдемо / фокус), частини екосистеми з part_id (що будуємо, що надаємо, сервіси), план тиждень/місяць/далі з item_id, висновки. Перед планом по клієнту — дивись сюди.", input_schema: obj({ client_id: int("ID клієнта"), part_id: int("Деталі однієї частини: склад, плюси/мінуси, знання, рішення, хроніка") }, ["client_id"]) },
   { name: "strategy_update", description: "Оновити конспект стратегії клієнта: where_now (де ми), goal (куди йдемо: місяці/роки), focus (головне зараз), insights (висновки/патерни — ПОВНИЙ текст пунктами). Передавай тільки те, що міняєш.", input_schema: obj({ client_id: int("ID клієнта"), where_now: str("Де ми зараз"), goal: str("Куди йдемо"), focus: str("Головне зараз"), insights: str("Висновки повністю") }, ["client_id"]) },
   { name: "strategy_part", description: "Частина екосистеми клієнта. action add | update | delete. kind: build (будуємо: CRM, сайт, бот) | service (надаємо: реклама, навчання) | tool (сервіси й інтеграції). status: plan|building|live|improving|paused. stack/pros/cons — по рядку, ПОВНИЙ перелік. Не створюй частини, про які Саша не казав.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["add", "update", "delete"] }, part_id: int("Для update/delete"), title: str("Назва"), kind: { type: "string", enum: ["build", "service", "tool"] }, status: { type: "string", enum: ["plan", "building", "live", "improving", "paused"] }, summary: str("Що це, 1–2 речення"), stack: str("З чого складається, по рядку"), pros: str("Плюси, по рядку"), cons: str("Мінуси/ризики, по рядку"), next_step: str("Наступний крок") }, ["client_id", "action"]) },
-  { name: "strategy_item", description: "Запис у стратегії клієнта. action add | update | delete | done | to_task. kind: plan (крок плану, horizon week|month|later) | log (хроніка: що зроблено) | knowledge (cat fix|integration|lesson) | decision | idea. part_id — привʼязка до частини. to_task — зробити з кроку задачу.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["add", "update", "delete", "done", "to_task"] }, item_id: int("Для update/delete/done/to_task"), kind: { type: "string", enum: ["plan", "log", "knowledge", "decision", "idea"] }, title: str("Заголовок"), body: str("Деталі"), horizon: { type: "string", enum: ["week", "month", "later", "done"] }, cat: { type: "string", enum: ["fix", "integration", "lesson"] }, part_id: int("ID частини") }, ["client_id", "action"]) },
-  { name: "strategy_import", description: "Розкласти витяжку з іншого чату / Claude Code (мітка [CLIENT-OPS:СТРАТЕГІЯ]) по стратегії клієнта: частина, хроніка, знання, рішення, план, висновки. text — уся витяжка як є.", input_schema: obj({ client_id: int("ID клієнта"), text: str("Текст витяжки") }, ["client_id", "text"]) },
+  { name: "strategy_item", description: "Запис у стратегії клієнта. action add | update | delete | done | to_task. kind: plan (крок плану, horizon week|month|later) | log (хроніка: що зроблено) | knowledge (cat fix|integration|lesson) | decision | idea. part_id — привʼязка до частини. to_task — зробити з кроку задачу.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["add", "update", "delete", "done", "to_task"] }, item_id: int("Для update/delete/done/to_task"), kind: { type: "string", enum: ["plan", "log", "knowledge", "decision", "idea"] }, title: str("Заголовок"), body: str("Деталі"), horizon: { type: "string", enum: ["week", "month", "later", "done"] }, cat: { type: "string", enum: ["fix", "integration", "lesson"] }, part_id: int("ID частини"), other_client_ok: { type: "boolean", description: "Тільки якщо система сказала, що текст про іншого клієнта, а Саша підтвердив, що писати сюди" } }, ["client_id", "action"]) },
+  { name: "strategy_import", description: "Розкласти витяжку з іншого чату / Claude Code (мітка [CLIENT-OPS:СТРАТЕГІЯ]) по стратегії клієнта: частина, хроніка, знання, рішення, план, висновки. text — уся витяжка як є.", input_schema: obj({ client_id: int("ID клієнта"), text: str("Текст витяжки"), other_client_ok: { type: "boolean", description: "Тільки після підтвердження Саші, що витяжку про іншого клієнта писати сюди" } }, ["client_id", "text"]) },
   { name: "client_memory", description: "Памʼять по клієнту: де ми зараз, домовленості (гроші, обсяг, терміни), що вже зроблено, що далі, що важливо. action get | rewrite (text — повний новий текст з розділами ## Де ми зараз / ## Домовленості (гроші, обсяг, терміни) / ## Що вже зроблено / ## Що в роботі і далі / ## Важливо памʼятати). Коли Саша розповідає про зустріч, домовленість, запуск — одразу онови.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["get", "rewrite"] }, text: str("Повний текст памʼяті") }, ["client_id", "action"]) },
   { name: "meetings", description: "Зустрічі з клієнтом — тези, які Саша записав під час зустрічі (кнопка «Зустріч» у картці). action list (client_id; нерозібрані позначені) | get (meeting_id — повний текст) | done (meeting_id — позначити розібраною після того, як розклав по памʼяті/задачах). Розбір: домовленості, гроші, терміни → client_memory; нові кроки → create_task без дублів; ідеї → ідеї клієнта.", input_schema: obj({ action: { type: "string", enum: ["list", "get", "done"] }, client_id: int("ID клієнта"), meeting_id: int("ID зустрічі") }, ["action"]) },
   { name: "brand", description: "Брендбук клієнта (розділ «Бренд» у картці): позиціонування, для кого, що рекламуємо, головне обіцяння, тон, можна/не можна, візуальний стиль, кольори (HEX з роллю), шрифти, файли (логотипи, гайдлайни). action get | save (поля positioning/audience/offer/promise/tone/rules/notes — ПОВНИЙ текст поля) | add_color (hex, name, role primary|secondary|accent|background|text) | add_font (name, role headings|body|accent, url) | import (text — витяжка [CLIENT-OPS:БРЕНД] або опис бренду) | prompt (промпт для Claude: зробити дизайн-систему). Креативи і пропозиції роби в стилі брендбуку.", input_schema: obj({ action: { type: "string", enum: ["get", "save", "add_color", "add_font", "import", "prompt"] }, client_id: int("ID клієнта"), positioning: str("Позиціонування"), audience: str("Для кого"), offer: str("Що рекламуємо"), promise: str("Головне обіцяння"), tone: str("Тон"), rules: str("Можна / не можна"), notes: str("Візуальний стиль"), hex: str("#RRGGBB"), name: str("Назва кольору/шрифту"), role: str("Роль"), url: str("Посилання на шрифт"), text: str("Витяжка") }, ["action", "client_id"]) },
@@ -175,7 +176,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "tips_stats", description: "Поради дня: скільки показано, як Саша реагує по темах (знав / нове / не цікаво / детальніше) і які саме поради зачепили чи були відомі. Дивись, щоб розуміти його рівень і інтереси.", input_schema: obj({}) },
   { name: "system_updates", description: "Журнал оновлень системи: що Claude додав або змінив і коли (твої нові можливості). Дивись, коли не впевнений, чи щось уже вміє система.", input_schema: obj({ limit: int("Скільки останніх, за замовчуванням 20") }, []) },
   { name: "product_get", description: "Наші продукти (вкладка «Продукти»): без product_id — список; з product_id — повний паспорт: що це, як працює, фічі, склад, посилання, плюси/мінуси, знання (що ламалось, інтеграції, юридичне), рішення, план, клієнти, події з програми. Перед роботою з продуктом або порадою клієнту про інструмент — дивись сюди.", input_schema: obj({ product_id: int("ID продукту") }) },
-  { name: "product_save", description: "Створити (без product_id) або оновити паспорт продукту. kind: app (програма) | kit (набір / промпт) | service (послуга). status: idea|building|live|improving|paused. features/stack/links/pros/cons — ПОВНИЙ перелік по рядку. clients — назви або id клієнтів, які користуються (замінює список).", input_schema: obj({ product_id: int("ID для оновлення"), name: str("Назва"), kind: { type: "string", enum: ["app", "kit", "service"] }, status: { type: "string", enum: ["idea", "building", "live", "improving", "paused"] }, summary: str("Що це"), how: str("Як працює"), features: str("Фічі по рядку"), stack: str("Склад по рядку"), links: str("Посилання по рядку"), pros: str("Плюси"), cons: str("Мінуси"), next_step: str("Наступний крок"), clients: { type: "array", items: { type: "string" }, description: "Клієнти, що користуються" } }) },
+  { name: "product_save", description: "Створити (без product_id) або оновити паспорт продукту. kind: app (програма) | kit (набір / промпт) | service (послуга). status: idea|building|live|improving|paused. features/stack/links/pros/cons — ПОВНИЙ перелік по рядку. clients — назви або id клієнтів, які користуються (тільки ДОДАЄ; відвʼязати — лише Саша руками на сторінці продукту).", input_schema: obj({ product_id: int("ID для оновлення"), name: str("Назва"), kind: { type: "string", enum: ["app", "kit", "service"] }, status: { type: "string", enum: ["idea", "building", "live", "improving", "paused"] }, summary: str("Що це"), how: str("Як працює"), features: str("Фічі по рядку"), stack: str("Склад по рядку"), links: str("Посилання по рядку"), pros: str("Плюси"), cons: str("Мінуси"), next_step: str("Наступний крок"), clients: { type: "array", items: { type: "string" }, description: "Клієнти, що користуються" } }) },
   { name: "product_item", description: "Запис у продукті. action add | done | delete. kind: knowledge (cat fix|integration|legal|lesson — що ламалось, як підключали, юридичне/доступи/платежі, урок) | log (що зроблено) | decision | plan | idea. Саша розповідає про нюанс (напр. «телефонію важко підключити, бо…») — одразу knowledge.", input_schema: obj({ product_id: int("ID продукту"), action: { type: "string", enum: ["add", "done", "delete"] }, item_id: int("Для done/delete"), kind: { type: "string", enum: ["knowledge", "log", "decision", "plan", "idea"] }, cat: { type: "string", enum: ["fix", "integration", "legal", "lesson"] }, title: str("Коротко"), body: str("Деталі") }, ["product_id", "action"]) },
   { name: "product_import", description: "Розкласти витяжку [CLIENT-OPS:ПРОДУКТ] (повний паспорт) або [CLIENT-OPS:ОНОВЛЕННЯ] (оновлення N — тільки нове) з Claude Code у паспорт продукту (без product_id — знайде за назвою або створить новий). text — уся витяжка як є.", input_schema: obj({ product_id: int("ID продукту, якщо відомо"), text: str("Текст витяжки") }, ["text"]) },
   { name: "org_get", description: "Розвиток організації Саші (вкладка «Розвиток»): хто ми, позиціонування, що надаємо, підхід, куди рухаємось, головне зараз; план (зараз/далі/потім), рішення, уроки, ідеї; наші продукти.", input_schema: obj({}) },
@@ -225,7 +226,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       return listClients().map((c) => ({
         id: c.id, name: c.name, status: c.status, stage: c.status === "lead" ? c.stage : undefined, niche: c.niche, offer: c.offer,
         fee_monthly: c.fee_monthly, next_step: c.next_step, open_tasks: c.open_tasks, last_work: c.last_work, debt: c.debt,
-        flags: clientFlags(c).map((f) => f.text),
+        flags: clientFlags(c).map((f) => (f.reason ? `${f.text} — ${f.reason}` : f.text)),
       }));
 
     case "get_client": {
@@ -233,7 +234,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const c = need(getClientRow(cid), `Клієнта ${cid} нема`);
       return {
         ...c,
-        flags: clientFlags(c).map((f) => f.text),
+        flags: clientFlags(c).map((f) => (f.reason ? `${f.text} — ${f.reason}` : f.text)),
         open_tasks: listTasks("all", cid).map((t) => ({ id: t.id, title: t.title, due_date: t.due_date, status: t.status })),
         recent_work: listWork(cid, 15).map((w) => ({ id: w.id, date: w.done_at, what: w.what, why: w.why, result: w.result })),
         materials: listMaterials(cid).map((m) => ({ id: m.id, kind: m.kind, title: m.title, created_at: m.created_at })),
@@ -252,6 +253,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
         if (f === "fee_monthly") fields.fee_monthly = n(input[f]);
         else if (f === "locations") fields.locations = Math.max(Math.trunc(n(input[f])) || 1, 1);
         else if (f === "work_since") fields.work_since = date(input[f]);
+        else if (f === "next_step_at") fields.next_step_at = date(input[f]);
         else if (f === "pay_day") fields.pay_day = Math.min(Math.max(Math.trunc(n(input[f])) || 1, 1), 31);
         else if (f === "status") { if (CLIENT_STATUSES.includes(s(input[f]) as never)) fields.status = s(input[f]) as ClientInput["status"]; }
         else if (f === "stage") { if (LEAD_STAGES.includes(s(input[f]) as never)) fields.stage = s(input[f]) as ClientInput["stage"]; }
@@ -346,7 +348,10 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
     case "log_work": {
       const cid = need(id(input.client_id), "client_id обов'язковий");
       const what = need(s(input.what), "what обов'язковий");
-      addWork({ client_id: cid, what, why: s(input.why), result: s(input.result), done_at: date(input.done_at) ?? ymd() });
+      const day = date(input.done_at) ?? ymd();
+      const dup = findSimilarWork(cid, day, what);
+      if (dup) return { ok: true, duplicate: true, note: `Такий запис за цей день уже є (id ${dup}) — другий не додаю.` };
+      addWork({ client_id: cid, what, why: s(input.why), result: s(input.result), done_at: day });
       act("work", `В історію ${clientName(cid)}: ${what}`, `/clients/${cid}?tab=history`);
       return { ok: true };
     }
@@ -716,6 +721,11 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       need(getClientRow(cid), "Клієнта нема");
       const r = await import("../repo/strategy");
       const href = `/clients/${cid}?tab=strategy&sv=plan`;
+      if (input.action === "add" && input.other_client_ok !== true) {
+        const { otherClientIn } = await import("../repo/clientMemory");
+        const other = otherClientIn(cid, `${s(input.title)}\n${s(input.body)}`);
+        if (other) return { error: `Текст про клієнта «${other}», а пишу в «${clientName(cid)}». Перевір client_id. Якщо справді сюди — повтори з other_client_ok: true.` };
+      }
       if (input.action === "add") {
         const kind = (r.ITEM_KINDS as readonly string[]).includes(s(input.kind)) ? (s(input.kind) as (typeof r.ITEM_KINDS)[number]) : "plan";
         const iid = r.addItem(cid, { kind, title: need(s(input.title), "title обовʼязковий"), body: s(input.body), part_id: id(input.part_id), horizon: s(input.horizon) || (kind === "plan" ? "week" : ""), cat: s(input.cat), source: "jerry" });
@@ -743,7 +753,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const cid = need(id(input.client_id), "client_id обов'язковий");
       need(getClientRow(cid), "Клієнта нема");
       const { importExtract } = await import("../strategy");
-      const res = await importExtract(cid, s(input.text));
+      const res = await importExtract(cid, s(input.text), input.other_client_ok === true);
       if (!res.ok) return { error: res.error };
       act("client", `Стратегія: ${res.summary.join(", ") || "без змін"}`, res.partId ? `/clients/${cid}?tab=strategy&sv=part&p=${res.partId}` : `/clients/${cid}?tab=strategy`);
       return { ok: true, recorded: res.summary };
@@ -980,7 +990,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       if (Array.isArray(input.clients)) {
         const { listClients } = await import("../repo/clients");
         const all = listClients();
-        for (const c of r.productClients(pid)) r.setProductClient(pid, c.client_id, false);
+        // Тільки додає: відвʼязати клієнта можна лише руками на сторінці продукту
         for (const x of input.clients as unknown[]) {
           const c = all.find((cl) => String(cl.id) === s(x) || cl.name.toLowerCase().includes(s(x).toLowerCase()));
           if (c) r.setProductClient(pid, c.id, true);
@@ -1055,7 +1065,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const r2 = (v: number | null) => (v == null ? null : +v.toFixed(2));
       return {
         currency: st.currency, period_days: d, last_event: link.last_event_at, last_pull: link.last_pull_at, error: link.last_error || undefined,
-        totals: { leads: st.leads, sales: st.sales, revenue: r2(st.revenue), avg_check: r2(st.avgCheck), conv_pct: r2(st.conv), paid: r2(st.paid), first_contact_median_min: st.speedMin, leads_without_contact: st.noContact },
+        totals: { leads: st.leads, sales: st.sales, revenue: r2(st.revenue), avg_check: r2(st.avgCheck), conv_pct: r2(st.conv), paid: r2(st.paid), first_contact_median_min: st.speedMin, median_over_contacted: st.contacted, leads_without_contact: st.noContact, without_contact_pct: st.noContactPct },
         by_source: st.bySource, managers: st.managers, statuses: st.byStatus, lost_reasons: st.lost,
         ads_to_sales_all_time: crm.crmByAd(cid, adTotalsForClient(cid)).slice(0, 25).map((a) => ({ ...a, spend: r2(a.spend), cps: r2(a.cps), roas: r2(a.roas) })),
         recent_deals: crmLeads(cid).filter((l) => l.won_at).sort((a, b) => (b.won_at ?? "").localeCompare(a.won_at ?? "")).slice(0, 10)
