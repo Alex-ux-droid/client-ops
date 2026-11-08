@@ -1,3 +1,4 @@
+import { SERVICES } from "@/lib/services";
 import { savePlaybookAction } from "@/app/actions";
 import type { Playbook } from "@/lib/repo/playbooks";
 
@@ -20,6 +21,8 @@ export default function PlaybookForm({ p }: { p?: Playbook }) {
       <div className="form-grid">
         <div className="field"><label htmlFor="title">Назва</label><input id="title" name="title" defaultValue={p?.title} required placeholder="Налаштування CRM" /></div>
         <div className="field"><label htmlFor="tags">Теги</label><input id="tags" name="tags" defaultValue={p?.tags} placeholder="crm, facebook" /></div>
+        <div className="field"><label htmlFor="service">Послуга</label><select id="service" name="service" defaultValue={p?.service ?? ""}><option value="">—</option>{Object.entries(SERVICES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
+        <div className="field wide"><label htmlFor="description">Опис (для чого плейбук)</label><input id="description" name="description" defaultValue={p?.description} placeholder="Від брифу до першого тижня реклами" /></div>
       </div>
       <div className="field">
         <label htmlFor="body_md">Чекліст (рядок «- [ ] …» = пункт з галочкою, «#» = заголовок)</label>

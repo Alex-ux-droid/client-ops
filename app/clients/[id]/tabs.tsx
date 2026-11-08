@@ -2,7 +2,7 @@ import Pop from "@/components/Pop";
 import Timeline from "@/components/Timeline";
 import Link from "next/link";
 import {
-  attachPlaybookAction, detachPlaybookAction, logWork, playbookToTasks, removeMaterial, removeWork,
+  applyPlaybookAction, attachPlaybookAction, detachPlaybookAction, logWork, playbookToTasks, removeMaterial, removeWork,
   saveMaterial, savePayment, toggleItem,
 } from "@/app/actions";
 import AddTask from "@/components/AddTask";
@@ -13,7 +13,7 @@ import { fmtDate, ymd } from "@/lib/dates";
 import { KIND_LABEL } from "@/lib/labels";
 import { listMaterials, MATERIAL_KINDS } from "@/lib/repo/materials";
 import { listPayments } from "@/lib/repo/payments";
-import { checklistItems, clientPlaybooks, listPlaybooks } from "@/lib/repo/playbooks";
+import { checklistItems, clientPlaybooks, listPlaybooks, playbookProgress, playbookSteps } from "@/lib/repo/playbooks";
 import { listTasks } from "@/lib/repo/tasks";
 import { listWork } from "@/lib/repo/worklog";
 import VoiceTextarea from "@/components/VoiceTextarea";
@@ -139,6 +139,18 @@ export function PlaybooksTab({ id }: { id: number }) {
                 <span className="mono">{cp.checked.length}/{items.length} · {pct}%</span>
               </div>
               <div className={`bar ${pct === 100 ? "ok" : ""}`} style={{ marginBottom: 8 }}><i style={{ width: `${pct}%` }} /></div>
+              {(() => {
+                const pr = playbookProgress(cp.id), steps = playbookSteps(cp.playbook_id);
+                if (pr.total) return <div className="callout" style={{ marginBottom: 8 }}>Кроки: {pr.done}/{pr.total}{pr.current ? <> · зараз: <b>{pr.current}</b>{pr.currentDue ? ` (до ${pr.currentDue.split("-").reverse().join(".")})` : ""}</> : " · усе зроблено ✓"}</div>;
+                if (steps.length) return (
+                  <form action={applyPlaybookAction} className="inline" style={{ marginBottom: 8, flexWrap: "wrap" }}>
+                    <input type="hidden" name="client_id" value={id} /><input type="hidden" name="playbook_id" value={cp.playbook_id} />
+                    <span className="mono">{steps.length} кроків → задачі з дедлайнами. Старт</span><input type="date" name="start" defaultValue={new Date().toISOString().slice(0, 10)} />
+                    <button className="small">Застосувати</button>
+                  </form>
+                );
+                return null;
+              })()}
               {items.map((it, i) => {
                 const on = cp.checked.includes(i);
                 return (

@@ -405,7 +405,7 @@ export async function savePlaybookAction(fd: FormData) {
   await requireUser();
   const title = str(fd, "title");
   if (!title) return;
-  const id = savePlaybook({ id: num(fd, "id"), title, body_md: String(fd.get("body_md") ?? ""), tags: str(fd, "tags") });
+  const id = savePlaybook({ id: num(fd, "id"), title, body_md: String(fd.get("body_md") ?? ""), tags: str(fd, "tags"), service: str(fd, "service"), description: str(fd, "description") });
   done(`/playbooks/${id}`);
 }
 
@@ -590,4 +590,24 @@ export async function restoreClientAction(fd: FormData) {
   const id = num(fd, "id");
   if (id) restoreClient(id);
   done(`/clients/${id}`);
+}
+
+// ---- Плейбук: кроки і «Застосувати до клієнта» (задачі з дедлайнами старт + N днів)
+export async function playbookStepAction(fd: FormData) {
+  await requireUser();
+  const { deletePlaybookStep, moveStep, savePlaybookStep } = await import("@/lib/repo/playbooks");
+  const pid = num(fd, "playbook_id"), sid = num(fd, "step_id"), op = str(fd, "op");
+  if (!pid) return;
+  if (op === "delete" && sid) deletePlaybookStep(sid);
+  else if ((op === "up" || op === "down") && sid) moveStep(sid, op === "up" ? -1 : 1);
+  else if (str(fd, "title")) savePlaybookStep(pid, { id: sid, title: str(fd, "title").slice(0, 200), description: str(fd, "description"), minutes: Math.max(0, Math.round(amount(fd, "minutes"))), offset_days: Math.max(0, Math.round(amount(fd, "offset_days"))) });
+  done(`/playbooks/${pid}`);
+}
+export async function applyPlaybookAction(fd: FormData) {
+  await requireUser();
+  const { applyPlaybook } = await import("@/lib/repo/playbooks");
+  const cid = num(fd, "client_id"), pid = num(fd, "playbook_id");
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(str(fd, "start")) ? str(fd, "start") : ymd();
+  if (cid && pid) applyPlaybook(cid, pid, start);
+  done(str(fd, "back") || `/clients/${cid}?tab=playbooks`);
 }

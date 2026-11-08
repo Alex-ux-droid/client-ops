@@ -2578,3 +2578,12 @@ button.kp-car-btn:hover { background: #fff; color: #1c1e21; }
 .side-add summary { list-style: none; cursor: pointer; color: var(--side-muted, inherit); }
 .side-add summary::-webkit-details-marker { display: none; }
 .tab-add { white-space: nowrap; opacity: 0.8; }
+
+/* Плейбук: кроки */
+.pb-step { border-top: 1px dashed var(--line); padding: 0.375rem 0; }
+.pb-step summary { cursor: pointer; list-style: none; }
+.pb-step summary::-webkit-details-marker { display: none; }
+.pb-day { display: inline-block; min-width: 4.5rem; font-size: 0.8125rem; color: var(--muted); }
+.pb-nums { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.pb-nums label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8125rem; color: var(--muted); width: 9rem; }
+.pb-new { border-top: 1px solid var(--line); padding-top: 0.5rem; }
