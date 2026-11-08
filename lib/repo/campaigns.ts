@@ -14,7 +14,7 @@ export const AD_FORMATS = {
   video: "Відео 9:16 · 15–30 с", carousel: "Карусель 1:1 · 3–5 карток", wide: "16:9 · 1920×1080",
 } as const;
 export const isMotion = (f: string) => f === "motion" || f === "video";
-export const CREATIVE_TOOLS = ["Midjourney", "Higgsfield", "Claude (HTML)", "CapCut", "Canva", "Фото/зйомка"] as const;
+export const CREATIVE_TOOLS = ["Claude"] as const;
 export const AD_STATUS = { draft: "Чернетка", ready: "Готове", live: "У рекламі", off: "Вимкнено" } as const;
 // Кнопки Meta: англійська назва як у кабінеті + наш переклад-підказка
 export const CTAS = {
