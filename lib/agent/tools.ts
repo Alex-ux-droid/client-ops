@@ -144,7 +144,8 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "strategy_get", description: "Стратегія клієнта (вкладка «Стратегія» в картці): конспект (де ми / куди йдемо / фокус), частини екосистеми з part_id (що будуємо, що надаємо, сервіси), план тиждень/місяць/далі з item_id, висновки. Перед планом по клієнту — дивись сюди.", input_schema: obj({ client_id: int("ID клієнта"), part_id: int("Деталі однієї частини: склад, плюси/мінуси, знання, рішення, хроніка") }, ["client_id"]) },
   { name: "strategy_update", description: "Оновити конспект стратегії клієнта: where_now (де ми), goal (куди йдемо: місяці/роки), focus (головне зараз), insights (висновки/патерни — ПОВНИЙ текст пунктами). Передавай тільки те, що міняєш.", input_schema: obj({ client_id: int("ID клієнта"), where_now: str("Де ми зараз"), goal: str("Куди йдемо"), focus: str("Головне зараз"), insights: str("Висновки повністю") }, ["client_id"]) },
   { name: "strategy_part", description: "Частина екосистеми клієнта. action add | update | delete. kind: build (будуємо: CRM, сайт, бот) | service (надаємо: реклама, навчання) | tool (сервіси й інтеграції). status: plan|building|live|improving|paused. stack/pros/cons — по рядку, ПОВНИЙ перелік. Не створюй частини, про які Саша не казав.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["add", "update", "delete"] }, part_id: int("Для update/delete"), title: str("Назва"), kind: { type: "string", enum: ["build", "service", "tool"] }, status: { type: "string", enum: ["plan", "building", "live", "improving", "paused"] }, summary: str("Що це, 1–2 речення"), stack: str("З чого складається, по рядку"), pros: str("Плюси, по рядку"), cons: str("Мінуси/ризики, по рядку"), next_step: str("Наступний крок") }, ["client_id", "action"]) },
-  { name: "strategy_item", description: "Запис у стратегії клієнта. action add | update | delete | done | to_task. kind: plan (крок плану, horizon week|month|later) | log (хроніка: що зроблено) | knowledge (cat fix|integration|lesson) | decision | idea. part_id — привʼязка до частини. to_task — зробити з кроку задачу.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["add", "update", "delete", "done", "to_task"] }, item_id: int("Для update/delete/done/to_task"), kind: { type: "string", enum: ["plan", "log", "knowledge", "decision", "idea"] }, title: str("Заголовок"), body: str("Деталі"), horizon: { type: "string", enum: ["week", "month", "later", "done"] }, cat: { type: "string", enum: ["fix", "integration", "lesson"] }, part_id: int("ID частини"), other_client_ok: { type: "boolean", description: "Тільки якщо система сказала, що текст про іншого клієнта, а Саша підтвердив, що писати сюди" } }, ["client_id", "action"]) },
+  { name: "strategy_item", description: "Запис у стратегії клієнта. action add | update | delete | done | to_task. kind: plan (крок плану, horizon week|month|later) | log (хроніка: що зроблено) | knowledge (cat fix|integration|lesson) | decision | idea. part_id — привʼязка до частини. to_task — зробити з кроку задачу.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["add", "update", "delete", "done", "to_task"] }, item_id: int("Для update/delete/done/to_task"), kind: { type: "string", enum: ["plan", "log", "knowledge", "decision", "idea"] }, title: str("Заголовок"), body: str("Деталі"), horizon: { type: "string", enum: ["week", "month", "later", "done"] }, cat: { type: "string", enum: ["fix", "integration", "lesson"] }, part_id: int("ID частини"), owner: str("Для рішення: хто відповідає"), review_date: str("Для рішення: переглянути до YYYY-MM-DD"), other_client_ok: { type: "boolean", description: "Тільки якщо система сказала, що текст про іншого клієнта, а Саша підтвердив, що писати сюди" } }, ["client_id", "action"]) },
+  { name: "hypotheses", description: "Гіпотези клієнта (Стратегія → Гіпотези). action list | add (statement «Якщо …, то …», action, metric_id з client_metrics, expected, deadline YYYY-MM-DD) | update (hypothesis_id + поля) | close (hypothesis_id, status confirmed|rejected, result, to_insights — дописати у Висновки) | delete. Одна гіпотеза = одна зміна + метрика + дата.", input_schema: obj({ action: { type: "string", enum: ["list", "add", "update", "close", "delete"] }, client_id: int("ID клієнта"), hypothesis_id: int("ID гіпотези"), statement: str("Якщо …, то …"), action_text: str("Що робимо"), metric_id: int("ID метрики"), expected: str("Що очікуємо"), deadline: str("YYYY-MM-DD"), status: { type: "string", enum: ["idea", "running", "confirmed", "rejected"] }, result: str("Результат"), to_insights: { type: "boolean" } }, ["action", "client_id"]) },
   { name: "strategy_import", description: "Розкласти витяжку з іншого чату / Claude Code (мітка [CLIENT-OPS:СТРАТЕГІЯ]) по стратегії клієнта: частина, хроніка, знання, рішення, план, висновки. text — уся витяжка як є.", input_schema: obj({ client_id: int("ID клієнта"), text: str("Текст витяжки"), other_client_ok: { type: "boolean", description: "Тільки після підтвердження Саші, що витяжку про іншого клієнта писати сюди" } }, ["client_id", "text"]) },
   { name: "client_memory", description: "Памʼять по клієнту: де ми зараз, домовленості (гроші, обсяг, терміни), що вже зроблено, що далі, що важливо. action get | rewrite (text — повний новий текст з розділами ## Де ми зараз / ## Домовленості (гроші, обсяг, терміни) / ## Що вже зроблено / ## Що в роботі і далі / ## Важливо памʼятати). Коли Саша розповідає про зустріч, домовленість, запуск — одразу онови.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["get", "rewrite"] }, text: str("Повний текст памʼяті") }, ["client_id", "action"]) },
   { name: "meetings", description: "Зустрічі з клієнтом — тези, які Саша записав під час зустрічі (кнопка «Зустріч» у картці). action list (client_id; нерозібрані позначені) | get (meeting_id — повний текст) | done (meeting_id — позначити розібраною після того, як розклав по памʼяті/задачах). Розбір: домовленості, гроші, терміни → client_memory; нові кроки → create_task без дублів; ідеї → ідеї клієнта.", input_schema: obj({ action: { type: "string", enum: ["list", "get", "done"] }, client_id: int("ID клієнта"), meeting_id: int("ID зустрічі") }, ["action"]) },
@@ -778,7 +779,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       }
       if (input.action === "add") {
         const kind = (r.ITEM_KINDS as readonly string[]).includes(s(input.kind)) ? (s(input.kind) as (typeof r.ITEM_KINDS)[number]) : "plan";
-        const iid = r.addItem(cid, { kind, title: need(s(input.title), "title обовʼязковий"), body: s(input.body), part_id: id(input.part_id), horizon: s(input.horizon) || (kind === "plan" ? "week" : ""), cat: s(input.cat), source: "jerry" });
+        const iid = r.addItem(cid, { kind, title: need(s(input.title), "title обовʼязковий"), body: s(input.body), part_id: id(input.part_id), horizon: s(input.horizon) || (kind === "plan" ? "week" : ""), cat: s(input.cat), source: "jerry", owner: s(input.owner), review_date: date(input.review_date) });
         act("client", `Стратегія: ${s(input.title)}`, href);
         return { ok: true, item_id: iid };
       }
@@ -793,9 +794,46 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
         return { ok: true, task_id: tid };
       }
       const patch: Record<string, unknown> = {};
-      for (const k of ["title", "body", "horizon", "cat"] as const) if (input[k] != null) patch[k] = s(input[k]);
+      for (const k of ["title", "body", "horizon", "cat", "owner"] as const) if (input[k] != null) patch[k] = s(input[k]);
       if (input.part_id != null) patch.part_id = id(input.part_id);
+      if (input.review_date != null) patch.review_date = date(input.review_date);
       r.updateItem(it.id, patch);
+      return { ok: true };
+    }
+
+    case "hypotheses": {
+      const cid = need(id(input.client_id), "client_id обовʼязковий");
+      const r = await import("../repo/hypotheses");
+      const href = `/clients/${cid}?tab=strategy&sv=hypotheses`;
+      if (input.action === "list") return { hypotheses: r.listHypotheses(cid) };
+      if (input.action === "add") {
+        const hid = r.addHypothesis(cid, { statement: need(s(input.statement), "statement обовʼязковий"), action: s(input.action_text), metric_id: id(input.metric_id), expected: s(input.expected), deadline: date(input.deadline), status: (s(input.status) || "idea") as import("../repo/hypotheses").HypStatus });
+        act("client", `Гіпотеза: ${s(input.statement).slice(0, 60)}`, href);
+        return { ok: true, hypothesis_id: hid };
+      }
+      const h = need(r.getHypothesis(need(id(input.hypothesis_id), "hypothesis_id обовʼязковий")), "Гіпотези нема");
+      if (h.client_id !== cid) throw new Error("Гіпотеза іншого клієнта");
+      if (input.action === "delete") { r.deleteHypothesis(h.id); return { ok: true }; }
+      if (input.action === "close") {
+        const st = s(input.status) === "rejected" ? "rejected" : "confirmed";
+        r.updateHypothesis(h.id, { status: st, result: s(input.result) });
+        if (input.to_insights !== false) {
+          const { getStrategy, saveStrategy } = await import("../repo/strategy");
+          const g = getStrategy(cid);
+          saveStrategy(cid, { insights: `${g.insights.trim()}\n- ${st === "confirmed" ? "✅" : "❌"} ${h.statement}${s(input.result) ? ` → ${s(input.result)}` : ""}`.trim() });
+        }
+        act("client", `Гіпотеза закрита: ${h.statement.slice(0, 60)}`, href);
+        return { ok: true };
+      }
+      const patch: Record<string, unknown> = {};
+      if (input.statement != null) patch.statement = s(input.statement);
+      if (input.action_text != null) patch.action = s(input.action_text);
+      if (input.expected != null) patch.expected = s(input.expected);
+      if (input.deadline != null) patch.deadline = date(input.deadline);
+      if (input.metric_id != null) patch.metric_id = id(input.metric_id);
+      if (input.status && s(input.status) in r.HYP_STATUS) patch.status = s(input.status);
+      if (input.result != null) patch.result = s(input.result);
+      r.updateHypothesis(h.id, patch);
       return { ok: true };
     }
 

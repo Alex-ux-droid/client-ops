@@ -13,7 +13,7 @@ export const KNOW_CATS = { fix: "Зламалось → виправили", int
 
 export type Strategy = { client_id: number; where_now: string; goal: string; focus: string; insights: string; updated_at: string };
 export type Part = { id: number; client_id: number; kind: PartKind; title: string; status: PartStatus; summary: string; stack: string; pros: string; cons: string; next_step: string; position: number; created_at: string; updated_at: string };
-export type SItem = { id: number; client_id: number; part_id: number | null; kind: SItemKind; horizon: string; cat: string; title: string; body: string; source: string; task_id: number | null; created_at: string; done_at: string | null };
+export type SItem = { id: number; client_id: number; part_id: number | null; kind: SItemKind; horizon: string; cat: string; title: string; body: string; source: string; task_id: number | null; owner: string; review_date: string | null; created_at: string; done_at: string | null };
 
 export function getStrategy(clientId: number): Strategy {
   return (db().prepare("SELECT * FROM strategy WHERE client_id = ?").get(clientId) as Strategy | undefined)
@@ -54,12 +54,24 @@ export function listItems(clientId: number, opts: { kind?: SItemKind; part?: num
   return db().prepare(`SELECT * FROM strategy_items WHERE ${w.join(" AND ")} ORDER BY created_at DESC, id DESC LIMIT ?`).all(...a, opts.limit ?? 500) as SItem[];
 }
 export const getItem = (id: number) => db().prepare("SELECT * FROM strategy_items WHERE id = ?").get(id) as SItem | undefined;
-export function addItem(clientId: number, i: { kind: SItemKind; title: string; body?: string; part_id?: number | null; horizon?: string; cat?: string; source?: string }): number {
-  return Number(db().prepare("INSERT INTO strategy_items (client_id, part_id, kind, horizon, cat, title, body, source) VALUES (?,?,?,?,?,?,?,?)")
-    .run(clientId, i.part_id ?? null, i.kind, i.kind === "plan" ? (i.horizon && i.horizon in HORIZONS ? i.horizon : "week") : "", i.cat ?? "", i.title.slice(0, 300), i.body ?? "", i.source ?? "manual").lastInsertRowid);
+export function addItem(clientId: number, i: { kind: SItemKind; title: string; body?: string; part_id?: number | null; horizon?: string; cat?: string; source?: string; owner?: string; review_date?: string | null }): number {
+  return Number(db().prepare("INSERT INTO strategy_items (client_id, part_id, kind, horizon, cat, title, body, source, owner, review_date) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run(clientId, i.part_id ?? null, i.kind, i.kind === "plan" ? (i.horizon && i.horizon in HORIZONS ? i.horizon : "week") : "", i.cat ?? "", i.title.slice(0, 300), i.body ?? "", i.source ?? "manual", i.owner ?? "", i.review_date || null).lastInsertRowid);
 }
-export function updateItem(id: number, patch: Partial<Pick<SItem, "title" | "body" | "horizon" | "cat" | "part_id" | "task_id">>): void {
-  const keys = (["title", "body", "horizon", "cat", "part_id", "task_id"] as const).filter((k) => patch[k] !== undefined);
+// Перевірка пріоритетів: висновки / тривога кажуть «обробка заявок», а план тижня — про більше лідів без пункту про обробку
+const PROCESSING = /обробк|дзвін|дзвон|контакт|менеджер|crm|відповід|передзвон|реакц/i;
+const MORE_LEADS = /більше лід|збільш|бюджет|масштаб|нов(і|а|у) кампан|запуст|ліди|лідів/i;
+export function planConflict(clientId: number, noContactAlert: boolean): string | null {
+  const s = getStrategy(clientId);
+  const insightSaysProcessing = /обробк[аиу]?\s*(заяв|лід)|заявк\S*\s*не\s*обробл|не\s*(дзвон|передзвон)|без контакту|проблем\S*\s*(в|з|у)\s*обробц/i.test(s.insights);
+  if (!insightSaysProcessing && !noContactAlert) return null;
+  const week = listItems(clientId, { kind: "plan" }).filter((i) => i.horizon === "week");
+  const more = week.filter((i) => MORE_LEADS.test(i.title) && !PROCESSING.test(i.title));
+  if (!more.length || week.some((i) => PROCESSING.test(i.title))) return null;
+  return `План суперечить висновку: ${insightSaysProcessing ? "у Висновках — проблема з обробкою заявок" : "горить «без контакту»"}, а на тиждень — «${more[0].title}» без жодного пункту про обробку лідів. Спершу обробка, потім більше лідів.`;
+}
+export function updateItem(id: number, patch: Partial<Pick<SItem, "title" | "body" | "horizon" | "cat" | "part_id" | "task_id" | "owner" | "review_date">>): void {
+  const keys = (["title", "body", "horizon", "cat", "part_id", "task_id", "owner", "review_date"] as const).filter((k) => patch[k] !== undefined);
   if (!keys.length) return;
   db().prepare(`UPDATE strategy_items SET ${keys.map((k) => `${k} = @${k}`).join(", ")}${patch.horizon === "done" ? ", done_at = datetime('now')" : patch.horizon ? ", done_at = NULL" : ""} WHERE id = @id`).run({ ...patch, id });
 }

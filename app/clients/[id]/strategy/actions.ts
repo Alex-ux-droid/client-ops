@@ -4,7 +4,8 @@ import { requireUser } from "@/lib/auth";
 import { capOn } from "@/lib/agent/caps";
 import { importExtract, partPrompt } from "@/lib/strategy";
 import { createTask } from "@/lib/repo/tasks";
-import { addItem, addPart, deleteItem, deletePart, getItem, getPart, HORIZONS, saveStrategy, updateItem, updatePart, type PartKind, type PartStatus, type SItemKind } from "@/lib/repo/strategy";
+import { addHypothesis, deleteHypothesis, getHypothesis, HYP_STATUS, updateHypothesis, type HypStatus } from "@/lib/repo/hypotheses";
+import { addItem, addPart, getStrategy, deleteItem, deletePart, getItem, getPart, HORIZONS, saveStrategy, updateItem, updatePart, type PartKind, type PartStatus, type SItemKind } from "@/lib/repo/strategy";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const re = (cid: number) => revalidatePath(`/clients/${cid}`);
@@ -29,7 +30,8 @@ export async function addItemAction(fd: FormData) {
   await requireUser();
   const cid = Number(fd.get("client_id"));
   const title = str(fd, "title");
-  if (title) addItem(cid, { kind: str(fd, "kind") as SItemKind, title, body: str(fd, "body"), part_id: Number(fd.get("part_id")) || null, horizon: str(fd, "horizon"), cat: str(fd, "cat") });
+  const rd = str(fd, "review_date");
+  if (title) addItem(cid, { kind: str(fd, "kind") as SItemKind, title, body: str(fd, "body"), part_id: Number(fd.get("part_id")) || null, horizon: str(fd, "horizon"), cat: str(fd, "cat"), owner: str(fd, "owner"), review_date: /^\d{4}-\d{2}-\d{2}$/.test(rd) ? rd : null });
   re(cid);
 }
 export async function itemAction(fd: FormData) {
@@ -56,4 +58,32 @@ export async function importAction(clientId: number, text: string) {
 export async function promptAction(clientId: number, partId: number | null) {
   await requireUser();
   return partPrompt(clientId, partId);
+}
+
+// Гіпотези: додати / змінити статус / закрити з результатом (+ у Висновки)
+export async function hypothesisAction(fd: FormData) {
+  await requireUser();
+  const cid = Number(fd.get("client_id"));
+  const id = Number(fd.get("id")) || 0;
+  const dl = str(fd, "deadline"), deadline = /^\d{4}-\d{2}-\d{2}$/.test(dl) ? dl : null;
+  if (!id) {
+    if (str(fd, "statement")) addHypothesis(cid, { statement: str(fd, "statement"), action: str(fd, "action"), metric_id: Number(fd.get("metric_id")) || null, expected: str(fd, "expected"), deadline });
+    return re(cid);
+  }
+  const h = getHypothesis(id);
+  if (!h || h.client_id !== cid) return;
+  const op = str(fd, "op");
+  if (op === "delete") deleteHypothesis(id);
+  else if (op === "status") {
+    const status = str(fd, "status") as HypStatus;
+    if (!(status in HYP_STATUS)) return;
+    updateHypothesis(id, { status, ...(fd.has("result") ? { result: str(fd, "result") } : {}) });
+    // Закрили — результат у Висновки (галочка за замовчуванням)
+    if ((status === "confirmed" || status === "rejected") && fd.get("to_insights") === "on") {
+      const s = getStrategy(cid);
+      const line = `- ${status === "confirmed" ? "✅" : "❌"} ${h.statement}${str(fd, "result") ? ` → ${str(fd, "result")}` : ""}`;
+      saveStrategy(cid, { insights: `${s.insights.trim()}\n${line}`.trim() });
+    }
+  }
+  re(cid);
 }

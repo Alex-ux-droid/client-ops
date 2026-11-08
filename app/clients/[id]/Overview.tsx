@@ -179,7 +179,8 @@ function ClientMemoryCard({ clientId }: { clientId: number; clientName: string }
     <Pop className="pop-card ov-tile" wide title="Що Джері памʼятає про клієнта" sub={mem ? `оновлено ${fmtDate(mem.updated_at)} · сам після розмов` : "ще порожньо"} trigger={
       <>
         <span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="bot" /></span><b>Памʼять Джері</b></span>{mem && <span className="qt-n">{fmtDate(mem.updated_at)}</span>}</span>
-        {plain.length ? <span className="pv-s l4">{plain.slice(0, 6).join(" · ")}</span> : <span className="qt-l mono">ще порожньо — відкрий і натисни «Зібрати»</span>}
+        {plain.length ? <span className="pv-s l2">{plain.at(-1)}</span> : <span className="qt-l mono">ще порожньо — відкрий і натисни «Зібрати»</span>}
+        <span className="qt-more">повністю — Стратегія → Хроніка</span>
       </>
     }>
       {mem?.text ? <div className="tm-details"><Markdown md={mem.text} /></div> : <p className="mono">Розкажи Джері, де ви з клієнтом (зустріч, домовленості, що вже зроблено) — або «Зібрати»: він збере з історії, задач і переписки.</p>}

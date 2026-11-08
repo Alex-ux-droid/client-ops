@@ -11,7 +11,10 @@ import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import { fmtDate } from "@/lib/dates";
 import { listLabForClient } from "@/lib/repo/lab";
-import { getStrategy, HORIZONS, KNOW_CATS, lines, listItems, listParts, PART_KINDS, PART_STATUS, type Part, type SItem } from "@/lib/repo/strategy";
+import { getStrategy, HORIZONS, planConflict, KNOW_CATS, lines, listItems, listParts, PART_KINDS, PART_STATUS, type Part, type SItem } from "@/lib/repo/strategy";
+import Hypotheses from "./Hypotheses";
+import { crmAlerts } from "@/lib/repo/crmAlerts";
+import { getClientMemory } from "@/lib/repo/clientMemory";
 import { addItemAction, itemAction, savePartAction, saveSummaryAction } from "./actions";
 import { ImportBox, PromptCopy } from "./StrategyClient";
 
@@ -19,6 +22,7 @@ const VIEWS = [
   { k: "overview", label: "Огляд" },
   { k: "systems", label: "Екосистема" },
   { k: "plan", label: "План" },
+  { k: "hypotheses", label: "Гіпотези" },
   { k: "log", label: "Хроніка" },
   { k: "knowledge", label: "Знання і рішення" },
   { k: "insights", label: "Висновки" },
@@ -45,7 +49,8 @@ export default function StrategyTab({ clientId, sv, p }: { clientId: number; sv?
       {part ? <PartView part={part} base={base} hid={hid} />
         : v === "overview" ? <Overview clientId={clientId} parts={parts} base={base} hid={hid} />
         : v === "systems" ? <Systems clientId={clientId} parts={parts} base={base} hid={hid} />
-        : v === "plan" ? <Plan clientId={clientId} parts={parts} hid={hid} />
+        : v === "plan" ? <><Conflict clientId={clientId} /><Plan clientId={clientId} parts={parts} hid={hid} /></>
+        : v === "hypotheses" ? <Hypotheses clientId={clientId} />
         : v === "log" ? <Log clientId={clientId} parts={parts} />
         : v === "knowledge" ? <Knowledge clientId={clientId} parts={parts} hid={hid} />
         : <Insights clientId={clientId} hid={hid} />}
@@ -54,7 +59,14 @@ export default function StrategyTab({ clientId, sv, p }: { clientId: number; sv?
 }
 
 const statusTag = (s: Part["status"]) => <span className={`tag st-s-${s}`}>{PART_STATUS[s]}</span>;
-const partName = (parts: Part[], id: number | null) => (id ? parts.find((p) => p.id === id)?.title : undefined);
+// B22: назву частини показуємо, тільки коли частин більше однієї
+const partName = (parts: Part[], id: number | null) => (id && parts.length > 1 ? parts.find((p) => p.id === id)?.title : undefined);
+
+// Перевірка пріоритетів: висновок / тривога «обробка заявок» проти плану «більше лідів»
+function Conflict({ clientId }: { clientId: number }) {
+  const msg = planConflict(clientId, crmAlerts(clientId).some((a) => a.text.startsWith("без контакту")));
+  return msg ? <div className="mx-warn"><Icon name="alert" size={15} /><span>{msg}</span></div> : null;
+}
 
 function Overview({ clientId, parts, base, hid }: { clientId: number; parts: Part[]; base: string; hid: React.ReactNode }) {
   const s = getStrategy(clientId);
@@ -80,6 +92,7 @@ function Overview({ clientId, parts, base, hid }: { clientId: number; parts: Par
   );
   return (
     <div className="stack" style={{ gap: "1rem" }}>
+      <Conflict clientId={clientId} />
       <div className="st-sum3">
         {field("focus", "Головне зараз", "1–2 речі, на яких фокус", "flag", true)}
         {field("where_now", "Де ми зараз", "що вже є і що болить", "compass")}
@@ -235,14 +248,20 @@ function PlanItem({ i, parts }: { i: SItem; parts: Part[] }) {
 
 function Log({ clientId, parts }: { clientId: number; parts: Part[] }) {
   const log = listItems(clientId, { kind: "log", limit: 200 }).reverse();
-  return <Timeline items={log.map((l) => ({ id: l.id, at: l.created_at, title: l.title, body: l.body, tag: [partName(parts, l.part_id), l.source === "extract" ? "з витяжки" : ""].filter(Boolean).join(" · ") || undefined, actions: delForm(l.id) }))} empty="Хроніка порожня. Кожна вставлена витяжка лягає сюди." />;
+  const mem = getClientMemory(clientId);
+  return <>
+    <details className="card"><summary><b>Памʼять Джері по клієнту</b> <span className="mono">{mem ? `оновлено ${fmtDate(mem.updated_at)} · сам після розмов` : "ще порожньо"}</span></summary>
+      {mem?.text ? <div className="tm-details" style={{ marginTop: "0.5rem" }}><Markdown md={mem.text} /></div> : <p className="mono">Розкажи Джері про клієнта — він запише сам.</p>}
+    </details>
+    <Timeline items={log.map((l) => ({ id: l.id, at: l.created_at, title: l.title, body: l.body, tag: [partName(parts, l.part_id), l.source === "extract" ? "з витяжки" : ""].filter(Boolean).join(" · ") || undefined, actions: delForm(l.id) }))} empty="Хроніка порожня. Кожна вставлена витяжка лягає сюди." />
+  </>;
 }
 
 const delForm = (id: number) => <form action={itemAction}><input type="hidden" name="item_id" value={id} /><input type="hidden" name="op" value="delete" /><button className="ghost small">Прибрати</button></form>;
 
 // Плитка: коротко на екрані, повністю — у попапі (з кнопкою «Прибрати»)
 function tile(i: SItem, tag?: string, parts?: Part[]) {
-  const sub = [tag, parts && partName(parts, i.part_id), fmtDate(i.created_at)].filter(Boolean).join(" · ");
+  const sub = [tag, parts && partName(parts, i.part_id), fmtDate(i.created_at), i.owner && `відповідає ${i.owner}`, i.review_date && `переглянути до ${fmtDate(i.review_date)}`].filter(Boolean).join(" · ");
   return (
     <Pop key={i.id} title={i.title} sub={sub} trigger={<div className="pv"><div className="pv-t">{i.title}</div>{i.body && <div className="pv-s">{i.body}</div>}<div className="pv-m">{sub}</div></div>}>
       {i.body ? <div className="tm-details"><Markdown md={i.body} /></div> : <p className="mono">Деталей нема.</p>}
@@ -262,6 +281,8 @@ function Knowledge({ clientId, parts, hid }: { clientId: number; parts: Part[]; 
         <select name="cat" defaultValue="fix">{Object.entries(KNOW_CATS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
         <input name="title" required placeholder="Коротко" className="wide" />
         <input name="body" placeholder="Деталі: причина → рішення / чому" className="wide" />
+        <input name="owner" placeholder="Хто відповідає (для рішення)" />
+        <input name="review_date" type="date" aria-label="Переглянути до (для рішення)" title="Переглянути рішення до" />
         <select name="part_id" defaultValue=""><option value="">— частина —</option>{parts.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</select>
         <div><SubmitButton className="small">Записати</SubmitButton></div>
       </form>

@@ -35,7 +35,8 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
             </div>
             <div className="rv-cols">
               <div><div className="rv-h">Що змінилось</div>{r.changes.length ? <ul>{r.changes.map((x, i) => <li key={i}>{x}</li>)}</ul> : <div className="mono">нічого не записано</div>}</div>
-              <div><div className="rv-h">План стратегії на тиждень</div>{r.plan.length ? <ul>{r.plan.map((x, i) => <li key={i}>{x}</li>)}</ul> : <div className="mono">—</div>}</div>
+              <div><div className="rv-h">План стратегії на тиждень</div>{r.plan.length ? <ul>{r.plan.map((x, i) => <li key={i}>{x}</li>)}</ul> : <div className="mono">—</div>}
+                {(r.hypotheses ?? []).length > 0 && <><div className="rv-h" style={{ marginTop: "0.5rem" }}>Гіпотези з дедлайном цього тижня</div><ul>{r.hypotheses.map((x, i) => <li key={i}>{x}</li>)}</ul></>}</div>
             </div>
             <label className="rv-h" htmlFor={`d${r.client_id}`}>Рішення на тиждень *</label>
             {snap ? <div>{r.decision || "—"}{r.task_id ? <span className="mono"> · задача #{r.task_id}</span> : null}</div> : (
