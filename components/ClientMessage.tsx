@@ -1,7 +1,7 @@
 "use client";
 // Вікно «Повідомлення клієнту»: шаблон → (що сказати) → чернетка від Джері → правка → копіювати / надіслати в групу від бота.
 import { useEffect, useRef, useState } from "react";
-import { commProfileBuildAction, commProfileSaveAction, msgDraftAction, msgPromisesAction, msgPromisesSaveAction, msgSendAction, msgSetupAction } from "@/app/messages/actions";
+import { msgToMeAction, commProfileBuildAction, commProfileSaveAction, msgDraftAction, msgPromisesAction, msgPromisesSaveAction, msgSendAction, msgSetupAction } from "@/app/messages/actions";
 import { OPEN_CLIENT_MSG, type ClientMsgTarget } from "./tasks";
 import VoiceTextarea from "./VoiceTextarea";
 
@@ -26,7 +26,11 @@ export default function ClientMessage() {
     const on = (e: Event) => {
       const t = (e as CustomEvent<ClientMsgTarget>).detail;
       setTarget(t); setSetup(null); setTpl(null); setText(""); setMsg(""); setProfile(""); setProfMsg(""); setPromises(null); setPromMsg("");
-      void msgSetupAction(t.clientId).then((s) => { setSetup(s); setTpl(s.templates[0]?.id ?? null); setProfile(s.profile); });
+      void msgSetupAction(t.clientId).then((s) => {
+        setSetup(s); setProfile(s.profile);
+        const want = t.template?.toLowerCase();
+        setTpl((want && s.templates.find((x) => x.title.toLowerCase().includes(want))?.id) || s.templates[0]?.id || null);
+      });
     };
     window.addEventListener(OPEN_CLIENT_MSG, on);
     return () => window.removeEventListener(OPEN_CLIENT_MSG, on);
@@ -112,7 +116,7 @@ export default function ClientMessage() {
             <div className="cm-tpls">
               {setup.templates.map((t) => <button key={t.id} type="button" className={`cm-tpl ${tpl === t.id ? "on" : ""}`} title={t.when_hint} onClick={() => setTpl(t.id)}>{t.title}</button>)}
             </div>
-            <VoiceTextarea ref={note} rows={2} placeholder="Що обовʼязково сказати (не обовʼязково): «вже опубліковано», «зустріч о 13:00», сума, дата…" className="cm-note" />
+            <VoiceTextarea ref={note} rows={2} defaultValue={target.note ?? ""} key={`${target.clientId}-${target.note ?? ""}`} placeholder="Що обовʼязково сказати (не обовʼязково): «вже опубліковано», «зустріч о 13:00», сума, дата…" className="cm-note" />
             <div className="cm-row">
               <button type="button" disabled={!tpl || !!busy} onClick={() => draft(false)}>{busy === "draft" ? "Джері пише…" : text ? "Скласти заново" : "Скласти"}</button>
               {text && <button type="button" className="ghost" disabled={!!busy} onClick={() => draft(true)} title="Інший варіант з урахуванням уточнення вище">Інакше</button>}
@@ -123,6 +127,7 @@ export default function ClientMessage() {
                 <textarea className="cm-text" value={text} onChange={(e) => setText(e.target.value)} rows={Math.min(18, text.split("\n").length + 3)} aria-label="Текст повідомлення" />
                 <div className="cm-row">
                   <button type="button" onClick={copy}>Копіювати</button>
+                  <button type="button" className="ghost" disabled={!!busy} onClick={() => void msgToMeAction(text).then((r) => setMsg(r.ok ? "Надіслав тобі в Telegram ✓ — перешли клієнту сам" : r.error))}>Мені в Telegram</button>
                   {setup.canSend && setup.chats.map((c) => (
                     <button key={c.chat_id} type="button" className="ghost" disabled={!!busy} onClick={() => send(c.chat_id, c.title)}>{busy === "send" ? "Надсилаю…" : `В групу «${c.title}» від бота`}</button>
                   ))}

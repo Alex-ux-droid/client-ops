@@ -13,6 +13,8 @@ import { ymd } from "@/lib/dates";
 import { monthLabel } from "@/lib/labels";
 import { clientFlags, listClients, type Flag } from "@/lib/repo/clients";
 import { pl } from "@/lib/plural";
+import DebtRemind from "@/components/DebtRemind";
+import { listPayments } from "@/lib/repo/payments";
 import { mainMetricBrief } from "@/lib/repo/metrics";
 import { moneySummary, receivedByMonth } from "@/lib/repo/payments";
 import { listTasks, taskCounts, weekPlan } from "@/lib/repo/tasks";
@@ -29,6 +31,9 @@ const score = (fs: Flag[]) => fs.filter((f) => f.level === "bad").length * 10 + 
 export default function Home() {
   const confirms = pendingConfirms();
   const rv = dueWeek();
+  const todayK = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Kyiv" }).slice(0, 10);
+  const debts = listPayments({ open: true }).filter((p) => p.due_date < todayK)
+    .map((p) => ({ ...p, days: Math.round((Date.parse(todayK) - Date.parse(p.due_date)) / 86400_000) })).sort((a, b) => b.days - a.days);
   const now = new Date();
   const today = ymd(now);
   const t = taskCounts();
@@ -167,6 +172,21 @@ export default function Home() {
                       </div>
                     </Link>
                   ))}
+                </div>
+              )}
+              {debts.length > 0 && (
+                <div className="cf-list">
+                  <div className="cf-h" title="Прострочені оплати. «Нагадування» — чернетка за шаблоном «Оплата»: копіюєш або собі в Telegram; клієнту само нічого не йде"><Icon name="wallet" size={14} /> Борги <span className="muted">{pl(debts.length, ["оплата", "оплати", "оплат"])}</span></div>
+                  {debts.slice(0, 5).map((p) => (
+                    <div key={p.id} className="cf-row">
+                      <div className="cf-main">
+                        <div><Link href={`/clients/${p.client_id}?tab=money`}>{p.client_name}</Link>: <b>{money(p.amount)}</b></div>
+                        <div className="cf-ev">прострочено {pl(p.days, ["день", "дні", "днів"])}{p.note ? ` · ${p.note}` : ""}</div>
+                      </div>
+                      <DebtRemind clientId={p.client_id} clientName={p.client_name} note={`Нагадати про оплату ${money(p.amount)} — мала бути ${p.due_date.split("-").reverse().join(".")} (${pl(p.days, ["день", "дні", "днів"])} тому)${p.note ? `, ${p.note}` : ""}. Ввічливо, без тиску.`} />
+                    </div>
+                  ))}
+                  {debts.length > 5 && <Link href="/money" className="cf-ev">ще {debts.length - 5} → Гроші</Link>}
                 </div>
               )}
               {confirms.length > 0 && (

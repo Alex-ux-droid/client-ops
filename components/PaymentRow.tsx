@@ -1,4 +1,5 @@
 import Link from "next/link";
+import DebtRemind from "./DebtRemind";
 import { removePayment, togglePaid } from "@/app/actions";
 import { money } from "@/lib/config";
 import { fmtDate, ymd } from "@/lib/dates";
@@ -23,6 +24,7 @@ export default function PaymentRow({ p, showClient = true }: { p: P; showClient?
           {p.note && <span className="mono">{p.note}</span>}
         </div>
       </div>
+      {late && <DebtRemind clientId={p.client_id} clientName={p.client_name} note={`Нагадати про оплату ${money(p.amount)} — мала бути ${p.due_date.split("-").reverse().join(".")}${p.note ? `, ${p.note}` : ""}. Ввічливо, без тиску.`} />}
       <form action={removePayment}>
         <input type="hidden" name="id" value={p.id} />
         <button className="ghost small" title="Видалити">✕</button>

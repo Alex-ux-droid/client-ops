@@ -85,3 +85,12 @@ export async function msgPromisesSaveAction(clientId: number, items: Found[], te
   revalidatePath("/tasks");
   return { ok: true, count: ids.filter(Boolean).length };
 }
+
+// Чернетку — тільки Саші в Telegram (переслати клієнту він вирішує сам)
+export async function msgToMeAction(text: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireUser();
+  const { tg, tgOwner } = await import("@/lib/telegram");
+  const owner = tgOwner();
+  if (!owner || !process.env.TELEGRAM_BOT_TOKEN) return { ok: false, error: "Telegram не підключений (Конектори → Telegram)" };
+  try { await tg("sendMessage", { chat_id: owner, text: text.slice(0, 4000) }); return { ok: true }; } catch (e) { return { ok: false, error: e instanceof Error ? e.message : "не вдалось" }; }
+}
