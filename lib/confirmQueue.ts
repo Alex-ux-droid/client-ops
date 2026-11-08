@@ -50,18 +50,40 @@ export async function scanClient(clientId: number): Promise<number> {
   return n;
 }
 
+// Правила без ШІ (безкоштовно): задача з усіма виконаними пунктами; прострочений наступний крок;
+// у стратегії «пауза», а реклама в Meta крутиться
+export function ruleScan(clientId: number): number {
+  let n = 0;
+  const today = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Kyiv" }).slice(0, 10);
+  const full = db().prepare(`SELECT t.id, t.title, COUNT(i.id) total, SUM(i.done) ok FROM tasks t JOIN task_items i ON i.task_id = t.id
+    WHERE t.client_id = ? AND t.status != 'done' GROUP BY t.id HAVING total > 0 AND ok = total`).all(clientId) as { id: number; title: string; total: number }[];
+  for (const t of full) if (addConfirm({ client_id: clientId, kind: "task_done", task_id: t.id, title: `Закрити «${t.title}»`, evidence: `усі пункти виконані (${t.total}/${t.total})` })) n++;
+  const c = db().prepare("SELECT next_step, next_step_at FROM clients WHERE id = ?").get(clientId) as { next_step: string; next_step_at: string | null } | undefined;
+  if (c?.next_step && c.next_step_at && c.next_step_at < today && addConfirm({ client_id: clientId, kind: "next_step", title: `«${c.next_step}» — зроблено?`, evidence: `строк був до ${c.next_step_at.split("-").reverse().join(".")}; ✓ — запишу в історію і очищу крок` })) n++;
+  const st = db().prepare("SELECT where_now, focus FROM strategy WHERE client_id = ?").get(clientId) as { where_now: string; focus: string } | undefined;
+  const pauseLine = `${st?.where_now ?? ""}\n${st?.focus ?? ""}`.split("\n").find((l) => /пауз|зупин|вимкн/i.test(l) && /реклам|кампан|meta|таргет/i.test(l));
+  if (pauseLine) {
+    const two = db().prepare(`SELECT COALESCE(SUM(d.spend),0) s FROM meta_daily d JOIN meta_accounts a ON a.account_id = d.account_id WHERE a.client_id = ? AND d.date >= date('now','-1 day')`).get(clientId) as { s: number };
+    if (two.s > 0 && addConfirm({ client_id: clientId, kind: "strategy", title: "Реклама активна (у стратегії — пауза)", evidence: `Meta: витрати за 2 дні ${Math.round(two.s)}; у стратегії: «${pauseLine.trim().slice(0, 120)}». ✓ — запис у Хроніку, текст стратегії поправ сам` })) n++;
+  }
+  return n;
+}
+
 // Раз на день о 19:00 Київ — усі активні клієнти з новими повідомленнями;
 // «одразу» (тумблер auto.confirm_live) — клієнт, у групі якого 3+ нових повідомлень, тиша 20 хв, не частіше разу на 3 год.
 export async function confirmTick(now = new Date()): Promise<void> {
-  if (!autoOn("confirm_queue") || !getApiKey()) return;
+  if (!autoOn("confirm_queue")) return;
   const k = now.toLocaleString("sv-SE", { timeZone: "Europe/Kyiv" });
   const today = k.slice(0, 10), hour = Number(k.slice(11, 13));
   const clients = db().prepare(`SELECT DISTINCT c.id FROM clients c JOIN tg_chats t ON t.client_id = c.id WHERE c.status = 'active'`).all() as { id: number }[];
   const daily = hour >= 19 && getSetting("confirm.daily_last") !== today;
-  if (daily) setSetting("confirm.daily_last", today);
+  if (daily) {
+    setSetting("confirm.daily_last", today);
+    for (const { id } of db().prepare("SELECT id FROM clients WHERE status = 'active'").all() as { id: number }[]) { try { ruleScan(id); } catch (e) { logError("confirm-rules", e); } }
+  }
   for (const { id } of clients) {
     try {
-      if (daily) { await scanClient(id); continue; }
+      if (daily) { if (getApiKey()) await scanClient(id); continue; }
       if (!autoOn("confirm_live")) continue;
       const last = getSetting(`confirm.scan_at.${id}`) || "";
       if (last && Date.now() - Date.parse(last.replace(" ", "T") + "+02:00") < 3 * 3600_000) continue;

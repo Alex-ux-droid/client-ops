@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { addWork } from "./worklog";
 
 export type MetaAccount = {
   account_id: string; name: string; currency: string; account_status: number | null; disable_reason: number | null; business_name: string;
@@ -50,12 +51,21 @@ export function saveSync(accountId: string, data: {
   adsets?: Omit<MetaAdset, "account_id">[];
   breakdowns?: Breakdown[];
 }): void {
+  // Автоісторія: кампанію запустили / поставили на паузу в Meta → запис в Історію клієнта з позначкою «авто»
+  const before = new Map((db().prepare("SELECT campaign_id, status FROM meta_campaigns WHERE account_id = ?").all(accountId) as { campaign_id: string; status: string }[]).map((r) => [r.campaign_id, r.status]));
+  const clientId = (db().prepare("SELECT client_id FROM meta_accounts WHERE account_id = ?").get(accountId) as { client_id: number | null } | undefined)?.client_id ?? null;
   const tx = db().transaction(() => {
     const c = db().prepare(`INSERT INTO meta_campaigns (campaign_id, account_id, name, status, objective, daily_budget, lifetime_budget, updated_at)
       VALUES (@campaign_id, @account_id, @name, @status, @objective, @daily_budget, @lifetime_budget, datetime('now'))
       ON CONFLICT(campaign_id) DO UPDATE SET name = excluded.name, status = excluded.status, objective = excluded.objective,
         daily_budget = excluded.daily_budget, lifetime_budget = excluded.lifetime_budget, updated_at = excluded.updated_at`);
-    for (const x of data.campaigns) c.run({ ...x, account_id: accountId });
+    for (const x of data.campaigns) {
+      c.run({ ...x, account_id: accountId });
+      const was = before.get(x.campaign_id);
+      if (clientId && was && was !== x.status && (x.status === "ACTIVE" || was === "ACTIVE")) {
+        addWork({ client_id: clientId, done_at: day(0), what: `Кампанія «${x.name}» ${x.status === "ACTIVE" ? "запущена" : x.status === "PAUSED" ? "на паузі" : `→ ${x.status}`}`, result: "авто: зміна в Meta" });
+      }
+    }
     db().prepare("DELETE FROM meta_daily WHERE account_id = ? AND date >= ?").run(accountId, data.since);
     const d = db().prepare(`INSERT OR REPLACE INTO meta_daily (account_id, campaign_id, date, spend, impressions, clicks, leads)
       VALUES (@account_id, @campaign_id, @date, @spend, @impressions, @clicks, @leads)`);
