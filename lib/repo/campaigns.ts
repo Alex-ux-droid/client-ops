@@ -42,7 +42,7 @@ export type AdSet = {
 };
 export type Ad = {
   id: number; adset_id: number; name: string; angle: string; format: string; file_id: number | null; media_url: string; creative_id: number | null;
-  creative_prompt: string; overlay: string; tool: string; files_json: string; cards_json: string;
+  creative_prompt: string; overlay: string; tool: string; files_json: string; cards_json: string; form_id: number | null;
   primary_text: string; headline: string; description: string; variants_json: string; cta: string; url: string; utm: string;
   status: string; notes: string; sort: number; meta_ad_id: string; created_at: string;
 };
@@ -54,7 +54,7 @@ export const variantsOf = (a: Ad): Variants => { try { return JSON.parse(a.varia
 
 const C_FIELDS = ["name", "objective", "status", "budget_level", "budget_type", "budget", "start_date", "end_date", "idea", "target_cpl", "special_category", "notes", "meta_campaign_id", "drive_folder_id", "drive_folder_name", "plan_json"] as const;
 const S_FIELDS = ["name", "conversion", "form", "url", "budget", "locations", "age_min", "age_max", "gender", "languages", "interests", "exclusions", "audiences", "advantage", "placements", "notes", "sort", "meta_adset_id"] as const;
-const A_FIELDS = ["name", "angle", "format", "creative_prompt", "overlay", "tool", "files_json", "cards_json", "file_id", "media_url", "creative_id", "primary_text", "headline", "description", "variants_json", "cta", "url", "utm", "status", "notes", "sort", "meta_ad_id"] as const;
+const A_FIELDS = ["name", "angle", "format", "creative_prompt", "overlay", "tool", "files_json", "cards_json", "form_id", "file_id", "media_url", "creative_id", "primary_text", "headline", "description", "variants_json", "cta", "url", "utm", "status", "notes", "sort", "meta_ad_id"] as const;
 
 function patchSql<T extends string>(table: string, fields: readonly T[], id: number, patch: Partial<Record<T, unknown>>, touch = false) {
   const keys = fields.filter((k) => k in patch);
@@ -149,3 +149,43 @@ export const hasMediaOf = (a: Ad) => cardsOf(a).length > 0 || !!a.media_url;
 export type CardText = { headline?: string; description?: string; url?: string };
 export const cardTextsOf = (a: Ad): Record<string, CardText> => { try { const v = JSON.parse(a.cards_json || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; } };
 export const CARD_LIMITS = { headline: 40, description: 20 } as const;
+
+// ---------- бібліотека лід-форм
+export const FORM_TYPES = { volume: "Більше заявок (More volume)", intent: "Вища якість (Higher intent) — з екраном підтвердження" } as const;
+export type LeadForm = {
+  id: number; client_id: number; name: string; version: number; parent_id: number | null; status: string; form_type: string;
+  intro_headline: string; intro_text: string; questions: string; privacy_text: string; privacy_url: string;
+  thanks_headline: string; thanks_text: string; thanks_button: string; thanks_url: string; changes: string; notes: string;
+  created_at: string; updated_at: string;
+};
+export const FORM_FIELDS = ["name", "status", "form_type", "intro_headline", "intro_text", "questions", "privacy_text", "privacy_url", "thanks_headline", "thanks_text", "thanks_button", "thanks_url", "changes", "notes"] as const;
+export const FORM_LIMITS = { intro_headline: 60, thanks_headline: 60, thanks_button: 30, question: 80 } as const;
+// Питання: «Імʼя»/«Телефон»/… — стандартні поля Meta; «? Питання | варіант | варіант» — з варіантами; «? Питання» — коротка відповідь
+export type FormQ = { kind: "prefill" | "choice" | "short"; label: string; options: string[] };
+export const parseQuestions = (s: string): FormQ[] => s.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
+  if (!l.startsWith("?")) return { kind: "prefill", label: l.replace(/^[-•*]\s*/, ""), options: [] };
+  const [q, ...opts] = l.slice(1).split("|").map((x) => x.trim());
+  return opts.filter(Boolean).length ? { kind: "choice", label: q, options: opts.filter(Boolean) } : { kind: "short", label: q, options: [] };
+});
+export const listForms = (clientId: number, all = false) =>
+  db().prepare(`SELECT f.*, (SELECT COUNT(*) FROM cm_ads a WHERE a.form_id = f.id) AS ads FROM cm_forms f WHERE client_id = ? ${all ? "" : "AND status = 'active'"} ORDER BY name, version DESC`).all(clientId) as (LeadForm & { ads: number })[];
+export const getForm = (id: number) => db().prepare("SELECT * FROM cm_forms WHERE id = ?").get(id) as LeadForm | undefined;
+export const formVersions = (f: LeadForm) => {
+  const root = (() => { let x: LeadForm | undefined = f; while (x?.parent_id) { const p = getForm(x.parent_id); if (!p) break; x = p; } return x!; })();
+  return db().prepare(`WITH RECURSIVE t(id) AS (SELECT ? UNION SELECT c.id FROM cm_forms c JOIN t ON c.parent_id = t.id) SELECT f.* FROM cm_forms f JOIN t ON t.id = f.id ORDER BY version`).all(root.id) as LeadForm[];
+};
+export function addForm(clientId: number, p: Partial<LeadForm> = {}): number {
+  const id = Number(db().prepare("INSERT INTO cm_forms (client_id, name) VALUES (?, ?)").run(clientId, p.name || "Нова форма").lastInsertRowid);
+  patchSql("cm_forms", FORM_FIELDS, id, p);
+  if (p.version != null || p.parent_id != null) db().prepare("UPDATE cm_forms SET version = ?, parent_id = ? WHERE id = ?").run(p.version ?? 1, p.parent_id ?? null, id);
+  return id;
+}
+export const updateForm = (id: number, p: Partial<LeadForm>) => patchSql("cm_forms", FORM_FIELDS, id, p, true);
+export const adsWithForm = (formId: number) => db().prepare("SELECT * FROM cm_ads WHERE form_id = ?").all(formId) as Ad[];
+// Нова версія для тесту: копія з version+1, стара лишається як була (і на старих оголошеннях)
+export function newFormVersion(id: number, changes: string): number {
+  const f = getForm(id)!;
+  const max = Math.max(...formVersions(f).map((x) => x.version));
+  const { id: _i, client_id, created_at: _c, updated_at: _u, version: _v, parent_id: _p, ...rest } = f;
+  return addForm(client_id, { ...rest, changes, version: max + 1, parent_id: f.id, status: "active" });
+}

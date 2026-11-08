@@ -1,4 +1,5 @@
 import CampaignsView, { NewCampaign } from "./campaigns/CampaignsView";
+import FormsView from "./campaigns/FormsView";
 import Link from "next/link";
 import DataTable from "@/components/DataTable";
 import Pop from "@/components/Pop";
@@ -35,6 +36,7 @@ const pct = (n: number | null, d = 2) => (n == null ? "—" : `${n.toFixed(d)}%`
 const VIEWS = [
   { k: "overview", label: "Огляд" },
   { k: "campaigns", label: "Кампанії" },
+  { k: "forms", label: "Лід-форми" },
   { k: "tree", label: "Структура" },
   { k: "creatives", label: "Креативи" },
   { k: "audience", label: "Аудиторія" },
@@ -52,7 +54,7 @@ function Delta({ now, before, lowerIsBetter = false }: { now: number | null; bef
 }
 
 // Живі цифри з Meta, розбиті на підвкладки (?mv=)
-export default function MetaLive({ clientId, view = "overview", err, cmp, sel }: { clientId: number; view?: string; err?: string; cmp?: string; sel?: string }) {
+export default function MetaLive({ clientId, view = "overview", err, cmp, sel, form }: { clientId: number; view?: string; err?: string; cmp?: string; sel?: string; form?: string }) {
   const accs = accountsForClient(clientId);
   if (!accs.length) return null;
   const cur = accs[0].currency || "";
@@ -85,6 +87,7 @@ export default function MetaLive({ clientId, view = "overview", err, cmp, sel }:
           <Link key={x.k} href={x.k === "overview" ? base : `${base}&mv=${x.k}`} scroll={false} className={x.k === v ? "on" : ""}>{x.label}</Link>
         ))}
       </nav>
+      {v === "forms" && <FormsView clientId={clientId} form={form} />}
       {v === "campaigns" && <CampaignsView clientId={clientId} cmp={cmp} sel={sel} err={err} />}
       {v === "overview" && <Overview clientId={clientId} m={m} base={base} />}
       {v === "tree" && <Tree clientId={clientId} m={m} />}

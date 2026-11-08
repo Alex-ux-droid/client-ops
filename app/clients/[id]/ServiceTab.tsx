@@ -8,6 +8,7 @@ import { serviceDef, type ServiceType } from "@/lib/services";
 import { accountsForClient } from "@/lib/repo/meta";
 import MetaLive from "./MetaLive";
 import CampaignsView from "./campaigns/CampaignsView";
+import FormsView from "./campaigns/FormsView";
 import Pop from "@/components/Pop";
 import Icon from "@/components/Icon";
 import VoiceTextarea from "@/components/VoiceTextarea";
@@ -19,7 +20,7 @@ const STATUS = [
 ] as const;
 
 // Вкладка однієї послуги: налаштування, інструмент, поля, папка; для реклами — цифри по періодах
-export default function ServiceTab({ clientId, service, edit, saved, mv, err, cmp, sel }: { clientId: number; service: ClientService; edit: boolean; saved: boolean; mv?: string; err?: string; cmp?: string; sel?: string }) {
+export default function ServiceTab({ clientId, service, edit, saved, mv, err, cmp, sel, form }: { clientId: number; service: ClientService; edit: boolean; saved: boolean; mv?: string; err?: string; cmp?: string; sel?: string; form?: string }) {
   const type = service.type as ServiceType;
   const def = serviceDef(type);
   const tools = def.tool ? listTools(def.tool.category) : [];
@@ -36,7 +37,7 @@ export default function ServiceTab({ clientId, service, edit, saved, mv, err, cm
   const live = type === "meta_ads" && accountsForClient(clientId).length > 0;
   const editing = edit || (!filled && !live);
   // на підвкладках Meta (структура, креативи…) анкету не показуємо — тільки на «Огляді»
-  const showForm = mv !== "campaigns" && (!live || !mv || mv === "overview");
+  const showForm = mv !== "campaigns" && mv !== "forms" && (!live || !mv || mv === "overview");
 
   return (
     <div className="stack" style={{ gap: "1.5rem" }}>
@@ -53,9 +54,9 @@ export default function ServiceTab({ clientId, service, edit, saved, mv, err, cm
         )}
       </div>
 
-      {live && <MetaLive clientId={clientId} view={mv} err={err} cmp={cmp} sel={sel} />}
+      {live && <MetaLive clientId={clientId} view={mv} err={err} cmp={cmp} sel={sel} form={form} />}
       {/* Без привʼязаного кабінету конструктор кампаній теж працює */}
-      {type === "meta_ads" && !live && (mv === "campaigns" ? <CampaignsView clientId={clientId} cmp={cmp} sel={sel} err={err} />
+      {type === "meta_ads" && !live && (mv === "campaigns" ? <CampaignsView clientId={clientId} cmp={cmp} sel={sel} err={err} /> : mv === "forms" ? <FormsView clientId={clientId} form={form} />
         : <div className="card kp-promo"><div><b>Конструктор кампаній</b><span className="mono">Готуєш кампанію тут — групи, таргетинг, оголошення з креативом і текстами від Джері — і копіюєш у Ads Manager.</span></div><Link href={`/clients/${clientId}?tab=meta_ads&mv=campaigns`} className="btn small">Відкрити →</Link></div>)}
 
       {showForm && (

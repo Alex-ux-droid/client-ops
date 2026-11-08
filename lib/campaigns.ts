@@ -2,9 +2,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { asText, askJson } from "./llmJson";
 import {
-  AD_FORMATS, adCode, addAd, addAdset, CARD_LIMITS, cardsOf, cardTextsOf, hasMediaOf, isMotion, PLAN_FIELDS, planOf, adsOfCampaign, clientLessons, CONVERSIONS, CTAS, GENDERS, getAd, getAdset, getCampaign, globalLessons,
+  AD_FORMATS, adCode, addAd, addAdset, addForm, adsWithForm, campaignOfAd, CARD_LIMITS, FORM_LIMITS, FORM_TYPES, listForms, parseQuestions, cardsOf, cardTextsOf, hasMediaOf, isMotion, PLAN_FIELDS, planOf, adsOfCampaign, clientLessons, CONVERSIONS, CTAS, GENDERS, getAd, getAdset, getCampaign, globalLessons,
   listAdsets, listAds, listCampaigns, OBJECTIVES, updateAd, updateAdset, updateCampaign, variantsOf,
-  type Ad, type AdSet, type Campaign, type Variants,
+  type Ad, type AdSet, type Campaign, type LeadForm, type Variants,
 } from "./repo/campaigns";
 import { getFile, readFile } from "./repo/files";
 import { creativeTools } from "./aiRadar";
@@ -78,7 +78,7 @@ export function campaignChecks(c: Campaign): Check[] {
     if (c.budget_level === "adset" && s.budget == null) out.push({ level: "bad", text: "Бюджет групи не вказано (бюджет на рівні груп)", where: w });
     if (s.age_max - s.age_min < 10) out.push({ level: "warn", text: `Вузький вік ${s.age_min}–${s.age_max}: дорожчий показ, Meta гірше вчиться`, where: w });
     if (s.conversion === "site" && !s.url.trim() && !ads.some((a) => a.url)) out.push({ level: "bad", text: "Ціль — сайт, але нема посилання", where: w });
-    if (s.conversion === "form" && !s.form.trim()) out.push({ level: "warn", text: "Не описана лід-форма (питання, привітання, дякуємо)", where: w });
+    if (s.conversion === "form") { const nf = ads.filter((x) => !x.form_id); if (nf.length) out.push({ level: "warn", text: `Без лід-форми: ${nf.map(adCode).join(", ")} — вибери з бібліотеки або «Форма від Джері»`, where: w }); }
     if (s.advantage && lines(s.interests).length) out.push({ level: "tip", text: "З Advantage+ аудиторією інтереси — лише підказка для Meta, не жорстке обмеження", where: w });
     if (!ads.length) out.push({ level: "bad", text: "Нема оголошень", where: w });
     else if (ads.length === 1) out.push({ level: "tip", text: "Одне оголошення — додай 2–4 різні концепти (різні кути, не варіації одного), так Meta швидше знайде переможця", where: w });
@@ -281,7 +281,7 @@ export async function genCampaignDraft(campaignId: number): Promise<{ adsets: nu
     [await contextFor(c.client_id), creativeKnowhow(),
       `КАМПАНІЯ: ${c.name} · ціль ${lbl(OBJECTIVES, c.objective)} · бюджет ${money2(c.budget)} ${c.budget_type === "daily" ? "на день" : "на весь час"}${c.target_cpl != null ? ` · ціль ціни ліда ${money2(c.target_cpl)}` : ""}`,
       `Ідея / що рекламуємо: ${c.idea || "визнач з контексту клієнта"}`,
-      `Поверни ТІЛЬКИ JSON: {"plan":${planShape},"adsets":[{"name":"","conversion":"form|site|messenger|call","form":"питання лід-форми по рядку (якщо form)","locations":"","age_min":25,"age_max":55,"gender":"all","interests":[""],"exclusions":[""],"advantage":true,"creatives":[${briefShape}]}]}`].join("\n\n"),
+      `${FORM_RULES}\nПоверни ТІЛЬКИ JSON: {"plan":${planShape},"adsets":[{"name":"","conversion":"form|site|messenger|call","lead_form":${formShape} (тільки якщо form),"locations":"","age_min":25,"age_max":55,"gender":"all","interests":[""],"exclusions":[""],"advantage":true,"creatives":[${briefShape}]}]}`].join("\n\n"),
     { maxTokens: 16000, effort: "medium" });
   if ((raw as Record<string, unknown>).plan) savePlan(c, (raw as Record<string, unknown>).plan);
   let ns = 0, na = 0;
@@ -294,8 +294,9 @@ export async function genCampaignDraft(campaignId: number): Promise<{ adsets: nu
       age_min: age(rs.age_min, 18), age_max: age(rs.age_max, 65), gender: g in GENDERS ? g : "all", interests: arr(rs.interests).join("\n"), exclusions: arr(rs.exclusions).join("\n"), advantage: rs.advantage === false ? 0 : 1,
     });
     ns++;
+    const lf = rs.lead_form && typeof rs.lead_form === "object" ? addForm(c.client_id, formFromRaw(rs.lead_form as Record<string, unknown>)) : null;
     const cr = (Array.isArray(rs.creatives) ? rs.creatives : Array.isArray(rs.ads) ? rs.ads : []) as Record<string, unknown>[];
-    for (const ra of cr.slice(0, 6)) { addAd(sid, applyBrief(ra)); na++; }
+    for (const ra of cr.slice(0, 6)) { addAd(sid, { ...applyBrief(ra), form_id: lf }); na++; }
   }
   if (!ns) throw new Error("Джері не повернув структуру — спробуй ще раз або додай ідею");
   return { adsets: ns, ads: na };
@@ -386,4 +387,55 @@ export function campaignChatPrompt(c: Campaign, clientName: string): string {
     ...ads.map((a) => [`### ${adCode(a)} · ${lbl(AD_FORMATS, a.format)}${a.tool ? ` · ${a.tool}` : ""}`, a.angle && `Кут: ${a.angle}`, a.overlay && `Текст на креативі:\n${a.overlay}`, `Промпт:\n${a.creative_prompt}`].filter(Boolean).join("\n") + "\n"),
     saveBlock(c, clientName, ads),
   ].join("\n");
+}
+
+// ---------- лід-форми
+export function formMd(f: LeadForm): string {
+  const qs = parseQuestions(f.questions);
+  return [
+    `Форма: ${f.name} (v${f.version})`, `Тип: ${lbl(FORM_TYPES, f.form_type)}`,
+    `Вступ — заголовок: ${f.intro_headline || "—"}`, f.intro_text && `Вступ — опис:\n${f.intro_text}`,
+    `Питання:\n${qs.map((q, i) => `${i + 1}. ${q.label}${q.kind === "prefill" ? " (стандартне поле Meta)" : q.kind === "choice" ? ` — варіанти: ${q.options.join(" / ")}` : " (коротка відповідь)"}`).join("\n") || "—"}`,
+    `Політика конфіденційності: ${f.privacy_text || "—"}${f.privacy_url ? ` — ${f.privacy_url}` : ""}`,
+    `Дякуємо — заголовок: ${f.thanks_headline || "—"}`, f.thanks_text && `Дякуємо — опис:\n${f.thanks_text}`,
+    f.thanks_button && `Кнопка: ${f.thanks_button}${f.thanks_url ? ` → ${f.thanks_url}` : ""}`,
+  ].filter(Boolean).join("\n");
+}
+// Результат версії: сума по оголошеннях, де вона стоїть (з Meta, 30 днів і за весь час)
+export function formStats(f: LeadForm): { ads: number; live: number; spend: number; leads: number; cpl: number | null } {
+  const ads = adsWithForm(f.id);
+  const metaAds = adsForClient(f.client_id);
+  let spend = 0, leads = 0, live = 0;
+  for (const a of ads) { const l = adLive(a, metaAds); if (l) { live++; spend += l.allSpend; leads += l.allLeads; } }
+  return { ads: ads.length, live, spend, leads, cpl: leads ? spend / leads : null };
+}
+
+const formShape = `{"name":"коротка назва форми","form_type":"volume|intent","intro_headline":"≤${FORM_LIMITS.intro_headline}","intro_text":"2–4 рядки: що людина отримає, без води","questions":["Імʼя","Телефон","? Питання з варіантами | варіант 1 | варіант 2 | варіант 3","? Коротке питання"],"privacy_text":"текст посилання на політику","thanks_headline":"≤${FORM_LIMITS.thanks_headline}","thanks_text":"що буде далі і коли передзвонимо","thanks_button":"≤${FORM_LIMITS.thanks_button}","thanks_url":"сайт клієнта або порожньо"}`;
+function formFromRaw(r: Record<string, unknown>): Partial<LeadForm> {
+  const qs = (Array.isArray(r.questions) ? r.questions : asText(r.questions).split("\n")).map(asText).map((x) => x.trim()).filter(Boolean);
+  const t = asText(r.form_type);
+  return {
+    name: asText(r.name) || "Форма", form_type: t in FORM_TYPES ? t : "volume", intro_headline: asText(r.intro_headline), intro_text: asText(r.intro_text),
+    questions: qs.join("\n"), privacy_text: asText(r.privacy_text) || "Політика конфіденційності", thanks_headline: asText(r.thanks_headline),
+    thanks_text: asText(r.thanks_text), thanks_button: asText(r.thanks_button), thanks_url: asText(r.thanks_url),
+  };
+}
+const FORM_RULES = `Лід-форма Meta (Instant Form): 3–5 питань максимум; спершу кваліфікаційні питання з варіантами (бюджет, терміни, що цікавить), потім імʼя і телефон (стандартні поля Meta — Facebook підставляє сам). «Більше заявок» — для дешевих лідів, «Вища якість» — коли важлива якість (додає екран перевірки). Питання — конкретні, без слова «будь ласка», варіанти — короткі. Екран «Дякуємо» — що буде далі і коли.`;
+
+// Нова форма від Джері під оголошення / групу / кампанію; повертає id
+export async function genForm(input: { clientId: number; campaignId?: number; adId?: number; wish?: string }): Promise<number> {
+  const c = input.campaignId ? getCampaign(input.campaignId) : input.adId ? campaignOfAd(input.adId) : undefined;
+  const a = input.adId ? getAd(input.adId) : undefined;
+  const s = a ? getAdset(a.adset_id) : undefined;
+  const past = listForms(input.clientId, true).slice(0, 8).map((f) => { const st = formStats(f); return `- «${f.name}» v${f.version}: ${parseQuestions(f.questions).map((q) => q.label).join("; ")}${st.leads ? ` → ${st.leads} лідів по ${money2(st.cpl)}` : ""}${f.changes ? ` (зміни: ${f.changes})` : ""}`; }).join("\n");
+  const raw = await askJson<Record<string, unknown>>(
+    `Ти — Джері, медіабаєр Meta. Складаєш лід-форму з готовими значеннями — Саша просто скопіює в конструктор. ${FORM_RULES} ${RULES}`,
+    [await contextFor(input.clientId), c && `КАМПАНІЯ: ${c.name} · ${lbl(OBJECTIVES, c.objective)}${c.idea ? ` · ${c.idea}` : ""}`, s && `ГРУПА: ${s.name}\n${adsetTargeting(s)}`,
+      a && `ОГОЛОШЕННЯ ${adCode(a)}: кут — ${a.angle}${a.overlay ? `; на креативі: ${a.overlay}` : ""}`,
+      past && `ФОРМИ, ЯКІ ВЖЕ БУЛИ (враховуй, що спрацювало):\n${past}`, input.wish && `Побажання Саші: ${input.wish}`,
+      `Поверни ТІЛЬКИ JSON: ${formShape}`].filter(Boolean).join("\n\n"),
+    { maxTokens: 3000, effort: "medium" });
+  const id = addForm(input.clientId, formFromRaw(raw));
+  if (a) updateAd(a.id, { form_id: id });
+  return id;
 }
