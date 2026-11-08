@@ -2,6 +2,7 @@ import { db } from "../db";
 import { money } from "../config";
 import { metaAlerts } from "./meta";
 import { crmAlerts } from "./crmAlerts";
+import { metricAlerts } from "./metrics";
 
 export const CLIENT_STATUSES = ["lead", "active", "paused", "archived"] as const;
 export type ClientStatus = (typeof CLIENT_STATUSES)[number];
@@ -116,7 +117,7 @@ export function clientFlags(c: ClientRow, today = new Date()): Flag[] {
   }
   if (c.next_step_at && c.next_step && c.next_step_at < now) flags.push({ level: "warn", text: "наступний крок прострочено", kind: "work", reason: `«${c.next_step}» — до ${ua(c.next_step_at)}.` });
   if (c.status === "lead" && !c.next_step) flags.push({ level: "warn", text: "нема наступного кроку", kind: "work" });
-  flags.push(...crmAlerts(c.id), ...metaAlerts(c.id));
+  flags.push(...metricAlerts(c.id), ...crmAlerts(c.id), ...metaAlerts(c.id));
   return flags.sort((a, b) => (a.level === b.level ? 0 : a.level === "bad" ? -1 : 1) || KIND_RANK[a.kind ?? "work"] - KIND_RANK[b.kind ?? "work"]);
 }
 

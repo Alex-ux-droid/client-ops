@@ -1,4 +1,5 @@
 import Link from "next/link";
+import NorthStar from "./NorthStar";
 import { saveIdea } from "@/app/actions";
 import AskAssistant from "@/components/AskAssistant";
 import TaskItem from "@/components/TaskItem";
@@ -54,6 +55,8 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
           <b>Клієнта створено.</b> Відкрий <Link href={`/clients/${id}?tab=setup`} className="h-link">Налаштування клієнта</Link> і обери послуги — кожна стане окремим розділом. Решту можна надиктувати Джері.
         </div>
       )}
+
+      <NorthStar clientId={id} />
 
       {/* Цифри одним рядком: клік — у потрібний розділ */}
       <div className="ov-kpis">
