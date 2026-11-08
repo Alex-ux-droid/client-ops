@@ -1,6 +1,7 @@
 // Джері сам поповнює базу порад, коли нових лишається мало. Пише під реакції Саші:
 // теми з «нове/детальніше» — більше і глибше, «не цікаво» — менше, «знав» — рівень вище.
 import Anthropic from "@anthropic-ai/sdk";
+import { ai } from "./ai";
 import { agentConfig, agentMemory } from "./agent/config";
 import { autoOn } from "./agent/caps";
 import { logError } from "./log";
@@ -36,7 +37,7 @@ export async function generateTips(): Promise<number> {
     `Що Джері знає про Сашу (памʼять):\n${agentMemory().slice(0, 3000) || "—"}`,
     `Уже є (не повторюй):\n${tipTitles().join("\n")}`,
   ].join("\n\n");
-  const client = new Anthropic({ apiKey: key });
+  const client = ai("поради", { apiKey: key });
   const res = await client.messages.create({
     model: agentConfig().model, max_tokens: 6000, system: PROMPT, output_config: { effort: "low" },
     messages: [{ role: "user", content: ctx }],

@@ -1,6 +1,7 @@
 // Профіль спілкування з клієнтом: Джері читає переписку групи і коротко записує, як з цим клієнтом говорити.
 // Ручну правку Саші автоматика не перезаписує (source manual). Тумблер auto.comm_profile — сам при першій чернетці / коли набралось багато нових повідомлень.
 import Anthropic from "@anthropic-ai/sdk";
+import { ai } from "./ai";
 import { agentConfig } from "./agent/config";
 import { autoOn } from "./agent/caps";
 import { logError } from "./log";
@@ -32,7 +33,7 @@ export async function buildCommProfile(clientId: number): Promise<{ ok: true; pr
 Відкриті питання: що клієнт питав і не отримав відповіді (якщо видно).
 Максимум 12 рядків. Українською.`;
   try {
-    const r = await new Anthropic({ apiKey: key, timeout: 90000, maxRetries: 1 }).messages.create({
+    const r = await ai("профіль спілкування", { apiKey: key, timeout: 90000, maxRetries: 1 }).messages.create({
       model: agentConfig().model, max_tokens: 1200, system,
       messages: [{ role: "user", content: `Клієнт: ${c.name}${c.owner_name ? ` (власник/контакт: ${c.owner_name})` : ""}\n\nПереписка (старі → нові):\n${chat}` }],
     });

@@ -3,7 +3,10 @@ import Link from "next/link";
 import SubmitButton from "@/components/SubmitButton";
 import AgentAccess from "./AgentAccess";
 import InstallApp from "@/components/InstallApp";
-import { connectMetaAction, disconnectMetaAction, linkMetaAccountAction, syncMetaAction } from "./actions";
+import { connectMetaAction, disconnectMetaAction, linkMetaAccountAction, logoutEverywhereAction, saveUsageLimitAction, syncMetaAction, tgConfirmToggleAction } from "./actions";
+import { tgConfirmOn } from "@/lib/loginConfirm";
+import { lastBackupCheck } from "@/lib/housekeeping";
+import { usageSummary } from "@/lib/ai";
 import { lastSync, metaToken, tokenAgeDays } from "@/lib/meta";
 import { ACCOUNT_STATUS, listAccounts } from "@/lib/repo/meta";
 import { fmtDate } from "@/lib/dates";
@@ -30,7 +33,7 @@ import { listTools } from "@/lib/repo/services";
 import { TOOL_CATEGORY_LABEL, type ToolCategory } from "@/lib/services";
 import { agentConfig, agentMemory, EFFORT_LABEL, EFFORTS, KNOWN_MODELS, MEMORY_MAX } from "@/lib/agent/config";
 import { currency, CURRENCIES } from "@/lib/config";
-import { getApiKey, hasAgentToken, maskKey } from "@/lib/secrets";
+import { AGENT_TOKEN_DAYS, agentTokenExpires, getApiKey, hasAgentToken, maskKey } from "@/lib/secrets";
 import { systemInfo } from "@/lib/system";
 import VoiceTextarea from "@/components/VoiceTextarea";
 import LeadsSync from "@/components/LeadsSync";
@@ -49,6 +52,7 @@ const TABS = [
   { k: "connectors", label: "Конектори" },
   { k: "catalog", label: "Довідники" },
   { k: "access", label: "Доступи" },
+  { k: "usage", label: "Витрати" },
   { k: "system", label: "Система" },
 ] as const;
 type Tab = (typeof TABS)[number]["k"];
@@ -91,6 +95,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {tab === "messages" && <Messages />}
       {tab === "catalog" && <Catalog />}
       {tab === "access" && <Access />}
+      {tab === "usage" && <Usage />}
       {tab === "system" && <System />}
     </>
   );
@@ -715,11 +720,61 @@ function Access() {
         <div className="mono" style={{ color: "var(--dim)" }}>Зберігається тільки в .env на сервері. Витрати — platform.claude.com → Витрати.</div>
       </div>
       <div className="card stack">
+        <h2>Вхід</h2>
+        <div className="mono" style={{ color: "var(--dim)" }}>Пароль + кнопка «Це я» в Telegram (Джері пише тобі при кожному вході). Якщо Telegram недоступний — пускає за паролем і пише про це в журнал. Сесія «Запамʼятати» — 7 днів.</div>
+        <form action={tgConfirmToggleAction} className="inline">
+          <input type="hidden" name="on" value={tgConfirmOn() ? "0" : "1"} />
+          <span>{tgConfirmOn() ? "✅ Підтвердження в Telegram увімкнено" : getSetting("auth.tg_confirm") === "off" ? "Вимкнено — вхід лише паролем" : "Не працює: спершу підключи Telegram і привʼяжи себе (Конектори → Telegram)"}</span>
+          {(tgConfirmOn() || getSetting("auth.tg_confirm") === "off") && <button className="ghost small">{tgConfirmOn() ? "Вимкнути" : "Увімкнути"}</button>}
+        </form>
+        <form action={logoutEverywhereAction}><button className="ghost small danger-text">Вийти на всіх пристроях</button></form>
+      </div>
+      <div className="card stack">
         <h2>Доступ для Claude (розробка)</h2>
         <div className="mono" style={{ color: "var(--dim)" }}>Окремий ключ, щоб Claude, який будує систему, міг заходити сюди і перевіряти, як усе працює. Пароль входу йому не потрібен. Вимкнути можна будь-коли.</div>
         <AgentAccess active={hasAgentToken()} />
+        {agentTokenExpires() && <div className="mono">Діє до {new Date(agentTokenExpires()!).toLocaleDateString("uk-UA", { timeZone: "Europe/Kyiv" })} ({AGENT_TOKEN_DAYS} днів від створення). Потім — згенерувати новий.</div>}
       </div>
     </div>
+  );
+}
+
+// Скільки коштує Claude API: сьогодні, місяць, по функціях / моделях / днях, ліміт з тривогою в Telegram
+function Usage() {
+  const u = usageSummary();
+  const limit = Number(getSetting("usage.limit_month")) || 0;
+  const usd = (v: number) => `${v < 1 ? v.toFixed(3) : v.toFixed(2)} $`;
+  const max = Math.max(...u.byDay.map((d) => d.cost), 0.0001);
+  return (
+    <section className="stack" style={{ gap: "1rem" }}>
+      <div className="kpis meta-kpis">
+        <div className="kpi"><div className="n">{usd(u.today)}</div><div className="l">сьогодні</div></div>
+        <div className="kpi"><div className="n" style={limit && u.month >= limit * 0.8 ? { color: "var(--bad)" } : undefined}>{usd(u.month)}</div><div className="l">цей місяць{limit ? ` з ${limit} $` : ""}</div></div>
+        <div className="kpi"><div className="n">{u.calls}</div><div className="l">викликів за місяць</div></div>
+        <div className="kpi"><div className="n">{u.calls ? usd(u.month / u.calls) : "—"}</div><div className="l">в середньому за виклик</div></div>
+      </div>
+      {u.byDay.length > 0 && (
+        <div className="card">
+          <b>По днях (30 днів)</b>
+          <div className="us-bars">{u.byDay.map((d) => <i key={d.day} title={`${d.day}: ${usd(d.cost)}`} style={{ height: `${Math.max(3, (d.cost / max) * 100)}%` }} />)}</div>
+        </div>
+      )}
+      <div className="card">
+        <b>На що пішло цього місяця</b>
+        {u.byFeature.length ? (
+          <div className="table-wrap"><table><thead><tr><th>Що</th><th className="num">$</th><th className="num">Викликів</th><th className="num">Токени вх. / вих.</th></tr></thead>
+            <tbody>{u.byFeature.map((f) => <tr key={f.feature}><td>{f.feature || "інше"}</td><td className="num">{usd(f.cost)}</td><td className="num">{f.n}</td><td className="num">{Math.round(f.tin / 1000)}k / {Math.round(f.tout / 1000)}k</td></tr>)}</tbody>
+          </table></div>
+        ) : <p className="mono">Ще нічого не записано — облік почався з цього оновлення.</p>}
+        {u.byModel.length > 0 && <p className="mono">Моделі: {u.byModel.map((m) => `${m.model} — ${usd(m.cost)} (${m.n})`).join(" · ")}</p>}
+      </div>
+      <form action={saveUsageLimitAction} className="card stack" style={{ gap: "0.5rem" }}>
+        <b>Ліміт на місяць</b>
+        <span className="mono">На 80% і 100% — повідомлення тобі в Telegram. Нічого не вимикається само.</span>
+        <div className="inline"><input name="limit" defaultValue={limit || ""} placeholder="напр. 50" inputMode="decimal" style={{ width: "8rem" }} aria-label="Ліміт, $" /><span>$</span><SubmitButton className="ghost small">Зберегти</SubmitButton></div>
+      </form>
+      <p className="mono">Оцінка за прайсом Anthropic (жовтень 2026): Opus 5.5 — 4 / 20 $, Sonnet 5.5 — 2 / 10 $, Haiku 5.5 — 0.1 / 0.5 $, Fable 5.1 — 10 / 50 $ за 1 млн токенів (вхід / вихід), пошук в інтернеті — 1 цент. Точний рахунок — у platform.claude.com.</p>
+    </section>
   );
 }
 
@@ -752,9 +807,13 @@ function System() {
         </div>
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Бекапи (щодня 03:30)</th><th className="num">Розмір</th></tr></thead>
+            <thead><tr><th>Копії на сервері (щодня 03:30 Київ, 14 шт.)</th><th className="num">Розмір</th></tr></thead>
             <tbody>{s.backups.length ? s.backups.map((b) => <tr key={b.name}><td>{b.name}</td><td className="num">{b.kb} КБ</td></tr>) : <tr><td colSpan={2} style={{ color: "var(--dim)" }}>Ще не було (перший — сьогодні вночі).</td></tr>}</tbody>
           </table>
+          <div className="mono" style={{ padding: "0.5rem 0.75rem" }}>
+            Копія поза сервером — Google Диск «_Бекапи бази», щодня 04:00 Київ, 30 шт. (тільки якщо Google підключено і тумблер «Бекап» увімкнено). Перед оновленням з новими міграціями — ще копія в predeploy/ (10 шт.).
+            {(() => { const v = lastBackupCheck(); return v ? <><br />Перевірка відновлення ({new Date(v.at).toLocaleDateString("uk-UA", { timeZone: "Europe/Kyiv" })}): {v.ok ? "✅" : "⚠️"} {v.file} — {v.note}</> : <><br />Перевірка відновлення: щомісяця 2-го числа (ще не було).</>; })()}
+          </div>
         </div>
       </div>
       <div className="card">

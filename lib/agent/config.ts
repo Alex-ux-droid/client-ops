@@ -47,8 +47,11 @@ const MEMORY_LIMIT = 8000;
 export function agentMemory(): string {
   return getSetting("agent.memory") ?? "";
 }
+// Більше не обрізаємо мовчки (раніше губились НОВІ нотатки в кінці): задовга памʼять — помилка, Джері стискає memory_rewrite.
+export class MemoryFullError extends Error {}
 export function setAgentMemory(text: string): void {
-  setSetting("agent.memory", text.slice(0, MEMORY_LIMIT));
+  if (text.length > MEMORY_LIMIT) throw new MemoryFullError(`Памʼять ${text.length} символів, ліміт ${MEMORY_LIMIT}. Стисни: memory_rewrite з коротшим текстом (обʼєднай повтори, прибери застаріле).`);
+  setSetting("agent.memory", text);
 }
 export function addAgentMemory(note: string): number {
   const line = `- ${new Date().toISOString().slice(0, 10)}: ${note.trim().replace(/\n+/g, " ")}`;

@@ -1,6 +1,7 @@
 // Черга «Підтверди»: звіряємо задачі клієнта з перепискою його Telegram-групи (Haiku → JSON).
 // Нічого не змінюємо самі — тільки пропозиції з доказом, рішення за Сашею (✓/✕ на Центрі або через Джері).
 import Anthropic from "@anthropic-ai/sdk";
+import { ai } from "./ai";
 import { autoOn } from "./agent/caps";
 import { db } from "./db";
 import { logError } from "./log";
@@ -33,7 +34,7 @@ export async function scanClient(clientId: number): Promise<number> {
 Не вигадуй. Сумнів — не додавай. Розмови, подяки, питання без прохання — ігноруй.
 Відповідь — ТІЛЬКИ JSON-масив: [{"kind":"task_done|task_new|log","task_id":число або null,"title":"коротко, з дієслова, до 80 символів","evidence":"дата час · хто: «цитата до 150 символів»"}]. Нічого — [].`;
   const user = `ЗАДАЧІ:\n${tasks.map((t) => `#${t.id} ${t.title}${t.due_date ? ` (до ${t.due_date})` : ""}`).join("\n") || "(нема)"}\n\nПОВІДОМЛЕННЯ:\n${msgs.map((m) => `${m.sent_at.slice(0, 16)} · ${m.is_owner ? "Саша" : m.from_name || "клієнт"}: ${m.text.slice(0, 500)}`).join("\n")}`.slice(0, 24000);
-  const r = await new Anthropic({ apiKey: key, timeout: 60000, maxRetries: 1 }).messages.create({ model: MODEL, max_tokens: 1500, system, messages: [{ role: "user", content: user }] });
+  const r = await ai("Підтверди", { apiKey: key, timeout: 60000, maxRetries: 1 }).messages.create({ model: MODEL, max_tokens: 1500, system, messages: [{ role: "user", content: user }] });
   const raw = r.content.map((b) => (b.type === "text" ? b.text : "")).join("").replace(/```(json)?/g, "").trim();
   let items: { kind?: string; task_id?: number | null; title?: string; evidence?: string }[] = [];
   try { const j = JSON.parse(raw.slice(raw.indexOf("["), raw.lastIndexOf("]") + 1)); if (Array.isArray(j)) items = j; } catch { return 0; }

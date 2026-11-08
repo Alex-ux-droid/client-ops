@@ -51,11 +51,12 @@ export type Client = {
   revenue_model: RevenueModel;
   share_percent: number;
   partners: string;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 };
 
-type Optional = "next_step_at" | "kind" | "revenue_model" | "share_percent" | "partners";
+type Optional = "next_step_at" | "kind" | "revenue_model" | "share_percent" | "partners" | "deleted_at";
 export type ClientInput = Omit<Client, "id" | "created_at" | "updated_at" | Optional> & Partial<Pick<Client, Optional>>;
 
 export const CLIENT_FIELDS = [
@@ -157,6 +158,18 @@ export function updateClient(id: number, input: Partial<ClientInput>): void {
 export function countClientsByStatus(): Record<string, number> {
   const rows = db().prepare("SELECT status, COUNT(*) AS n FROM clients GROUP BY status").all() as { status: string; n: number }[];
   return Object.fromEntries(rows.map((r) => [r.status, r.n]));
+}
+
+// Кошик: Джері не видаляє назавжди — клієнт іде в архів з позначкою, через 30 днів видаляється сам (purgeTrash)
+export const TRASH_DAYS = 30;
+export function trashClient(id: number): void {
+  db().prepare("UPDATE clients SET status = 'archived', deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(id);
+}
+export function restoreClient(id: number): void {
+  db().prepare("UPDATE clients SET status = 'active', deleted_at = NULL, updated_at = datetime('now') WHERE id = ?").run(id);
+}
+export function purgeTrash(): number {
+  return db().prepare(`DELETE FROM clients WHERE deleted_at IS NOT NULL AND deleted_at < datetime('now', '-${TRASH_DAYS} days')`).run().changes;
 }
 
 // Повне видалення клієнта з усім (задачі лишаються без клієнта). Повернути — тільки з бекапу.

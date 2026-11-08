@@ -3,12 +3,12 @@ import { logoSrc } from "@/lib/repo/logos";
 import Link from "next/link";
 import TabsScroll from "./TabsScroll";
 import { notFound, redirect } from "next/navigation";
-import { saveNextStep } from "@/app/actions";
+import { restoreClientAction, saveNextStep } from "@/app/actions";
 import { money } from "@/lib/config";
 import { fmtDate } from "@/lib/dates";
 import { STAGE_LABEL, STATUS_LABEL, STATUS_TAG } from "@/lib/labels";
 import { accountsForClient, kyivDay, totals } from "@/lib/repo/meta";
-import { clientFlags, getClientRow } from "@/lib/repo/clients";
+import { clientFlags, getClientRow, TRASH_DAYS } from "@/lib/repo/clients";
 import { listPayments } from "@/lib/repo/payments";
 import { listServices } from "@/lib/repo/services";
 import { SERVICES, type ServiceType } from "@/lib/services";
@@ -85,6 +85,13 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
           </div>
         </div>
 
+        {c.deleted_at && (
+          <form action={restoreClientAction} className="callout inline" style={{ borderColor: "var(--bad)", flexWrap: "wrap" }}>
+            <input type="hidden" name="id" value={id} />
+            <span>🗑 Клієнт у кошику з {c.deleted_at.slice(0, 10).split("-").reverse().join(".")} — видалиться сам через {TRASH_DAYS} днів.</span>
+            <button className="small">Повернути</button>
+          </form>
+        )}
         <form action={saveNextStep} className="next-step">
           <input type="hidden" name="id" value={id} />
           <span>Наступний крок</span>

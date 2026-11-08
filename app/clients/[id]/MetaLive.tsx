@@ -19,7 +19,7 @@ import {
 import CreativeGallery, { type GalleryItem } from "./CreativeGallery";
 import { CopyText } from "@/app/startups/[id]/CopyText";
 import { changeAction, reportLinkAction } from "@/app/creatives/actions";
-import { reportToken } from "@/lib/clientReport";
+import { reportExpires, reportToken } from "@/lib/clientReport";
 import { headers } from "next/headers";
 import { listChanges } from "@/lib/repo/creatives";
 import { adMore } from "@/lib/metaExtra";
@@ -499,7 +499,7 @@ async function ReportLink({ clientId }: { clientId: number }) {
   const url = token ? `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host") ?? ""}/r/${token}` : "";
   return (
     <details className="card rl-card">
-      <summary><b>Звіт для клієнта</b> <span className="mono">{token ? "посилання увімкнене" : "вимкнено"}</span></summary>
+      <summary><b>Звіт для клієнта</b> <span className="mono">{token ? `посилання увімкнене${reportExpires(clientId) ? ` · діє до ${new Date(reportExpires(clientId)!).toLocaleDateString("uk-UA", { timeZone: "Europe/Kyiv" })}` : ""}` : "вимкнено"}</span></summary>
       <div className="stack" style={{ gap: "0.5rem", marginTop: "0.75rem" }}>
         <div className="mono">Сторінка для клієнта без входу: заявки і ціна заявки (тиждень до тижня), графік, якість заявок, найкращі креативи, «що ми зробили» (журнал змін і історія робіт). Без наших витрат і нотаток.</div>
         {token ? (

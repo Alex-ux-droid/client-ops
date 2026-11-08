@@ -1,6 +1,7 @@
 // Повідомлення клієнту по шаблону: структура з msg_templates + загальні правила тону (settings msg.rules)
 // + що відомо з бази (задача, знімок клієнта з Meta, як спілкуються в групі) → чернетка. Надсилає тільки Саша.
 import Anthropic from "@anthropic-ai/sdk";
+import { ai } from "./ai";
 import { agentConfig } from "./agent/config";
 import { clientSnapshot, taskSnapshot } from "./agent/context";
 import { commProfileFor } from "./commProfile";
@@ -57,7 +58,7 @@ ${templateGuide(t)}
   ].filter(Boolean).join("\n\n");
   try {
     const cfg = agentConfig();
-    const client = new Anthropic({ apiKey: key, timeout: 90000, maxRetries: 1 });
+    const client = ai("повідомлення клієнту", { apiKey: key, timeout: 90000, maxRetries: 1 });
     const r = await client.messages.create({ model: cfg.model, max_tokens: 2000, system, messages: [{ role: "user", content: user }] });
     const text = r.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("").trim();
     return text ? { ok: true, text } : { ok: false, error: "Порожня відповідь" };

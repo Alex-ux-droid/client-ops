@@ -1,10 +1,10 @@
 // Інструменти помічника: читання і запис у базу через lib/repo. Видаляти нічого не вміє — навмисно.
 import type Anthropic from "@anthropic-ai/sdk";
 import { ymd } from "../dates";
-import { addAgentMemory, setAgentMemory } from "./config";
+import { addAgentMemory, MEMORY_MAX, setAgentMemory } from "./config";
 import type { ChatAction } from "../repo/chat";
 import {
-  CLIENT_FIELDS, CLIENT_STATUSES, clientFlags, createClient, deleteClient, getClientRow, LEAD_STAGES, listClients, updateClient,
+  CLIENT_FIELDS, CLIENT_STATUSES, clientFlags, createClient, trashClient, getClientRow, LEAD_STAGES, listClients, updateClient,
   type ClientInput,
 } from "../repo/clients";
 import { addIdea, deleteIdea, listIdeas, setIdeaStatus } from "../repo/ideas";
@@ -129,7 +129,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "detach_playbook", description: "Відключити плейбук від клієнта.", input_schema: obj({ client_playbook_id: int("ID плейбука клієнта") }, ["client_playbook_id"]) },
   { name: "save_playbook", description: "Створити новий плейбук або оновити існуючий (передай playbook_id). body_md: заголовки '#' і пункти '- [ ] текст'.", input_schema: obj({ playbook_id: int("ID, якщо оновлюємо"), title: str("Назва"), body_md: str("Markdown з чеклістом"), tags: str("Теги через кому") }, ["title", "body_md"]) },
   { name: "set_folder", description: "Прив'язати посилання на папку клієнта: main (головна) або creatives, data, portfolio, docs, website.", input_schema: obj({ client_id: int("ID клієнта"), kind: { type: "string", enum: ["main", ...FOLDER_KINDS.map((f) => f.kind)] }, url: str("Посилання") }, ["client_id", "kind", "url"]) },
-  { name: "delete_client", description: "ВИДАЛИТИ клієнта назавжди з усією історією, оплатами, матеріалами. Тільки коли Саша прямо сказав «видали клієнта». В інших випадках — update_client зі status archived (архів, можна повернути).", input_schema: obj({ client_id: int("ID клієнта"), confirm_name: str("Точна назва клієнта для підтвердження") }, ["client_id", "confirm_name"]) },
+  { name: "delete_client", description: "Видалити клієнта = у КОШИК на 30 днів (архів з позначкою; Саша може повернути в Клієнти → Архів, через 30 днів видаляється сам). Тільки коли Саша прямо сказав «видали клієнта». В інших випадках — update_client зі status archived.", input_schema: obj({ client_id: int("ID клієнта"), confirm_name: str("Точна назва клієнта для підтвердження") }, ["client_id", "confirm_name"]) },
   { name: "memory_add", description: "Запам'ятати надовго: факт про Сашу, його підхід, ціни, правила, вподобання, важливі рішення по роботі. Коротко, одним реченням. Не дублюй те, що вже є в пам'яті.", input_schema: obj({ note: str("Що запам'ятати") }, ["note"]) },
   { name: "memory_rewrite", description: "Переписати пам'ять повністю — коли вона розрослась (понад ~6000 символів) або застаріла: стисни, прибери дублі й неактуальне, нічого важливого не губи.", input_schema: obj({ text: str("Нова пам'ять повністю, пунктами") }, ["text"]) },
   { name: "list_playbooks", description: "Список плейбуків.", input_schema: obj({}) },
@@ -986,15 +986,15 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const cid = need(id(input.client_id), "client_id");
       const c = need(getClientRow(cid), "Клієнта нема");
       if (s(input.confirm_name).toLowerCase() !== c.name.toLowerCase()) throw new Error(`Для підтвердження потрібна точна назва: «${c.name}»`);
-      deleteClient(cid);
-      act("delete", `Клієнта видалено: ${c.name}`, "/clients");
-      return { ok: true };
+      trashClient(cid);
+      act("delete", `У кошику (30 днів): ${c.name}`, "/clients?f=archived");
+      return { ok: true, note: "Клієнт у кошику на 30 днів — повернути: Клієнти → Архів → «Повернути»." };
     }
 
     case "memory_add": {
       const len = addAgentMemory(need(s(input.note), "note"));
       act("memory", `Запам'ятав: ${s(input.note).slice(0, 70)}`, "/settings?tab=agent");
-      return { ok: true, memory_chars: len, hint: len > 6000 ? "Пам'ять велика — стисни через memory_rewrite" : undefined };
+      return { ok: true, memory_chars: len, hint: len >= MEMORY_MAX * 0.9 ? `Памʼять заповнена на ${Math.round((len / MEMORY_MAX) * 100)}% — ЗАРАЗ стисни через memory_rewrite (обʼєднай, прибери застаріле), інакше нові нотатки не влізуть.` : undefined };
     }
 
     case "memory_rewrite": {

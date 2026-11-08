@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { ymd } from "@/lib/dates";
 import {
-  CLIENT_FIELDS, CLIENT_KINDS, CLIENT_STATUSES, REVENUE_MODELS, createClient, LEAD_STAGES, setStage, setStatus, updateClient,
+  CLIENT_FIELDS, CLIENT_KINDS, CLIENT_STATUSES, REVENUE_MODELS, restoreClient, createClient, LEAD_STAGES, setStage, setStatus, updateClient,
   type ClientInput, type ClientStatus, type LeadStage,
 } from "@/lib/repo/clients";
 import { addIdea, setIdeaStatus, type IdeaStatus } from "@/lib/repo/ideas";
@@ -584,3 +584,10 @@ export async function confirmDecide(fd: FormData) {
   done();
 }
 
+
+export async function restoreClientAction(fd: FormData) {
+  await requireUser();
+  const id = num(fd, "id");
+  if (id) restoreClient(id);
+  done(`/clients/${id}`);
+}

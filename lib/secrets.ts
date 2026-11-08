@@ -31,16 +31,26 @@ export function saveApiKey(key: string): void {
   setEnvVar("ANTHROPIC_API_KEY", key);
 }
 
+export const AGENT_TOKEN_DAYS = 90;
 export function hasAgentToken(): boolean {
-  return (process.env.AGENT_TOKEN?.length ?? 0) >= 32;
+  const exp = Number(process.env.AGENT_TOKEN_EXPIRES || 0);
+  return (process.env.AGENT_TOKEN?.length ?? 0) >= 32 && (!exp || exp > Date.now());
 }
+export const agentTokenExpires = () => Number(process.env.AGENT_TOKEN_EXPIRES || 0) || null;
 
 export function createAgentToken(): string {
   const token = randomBytes(32).toString("hex");
   setEnvVar("AGENT_TOKEN", token);
+  setEnvVar("AGENT_TOKEN_EXPIRES", String(Date.now() + AGENT_TOKEN_DAYS * 86400_000));
   return token;
+}
+
+// Старий ключ без терміну — ставимо термін від сьогодні (раз, при старті)
+export function ensureAgentTokenExpiry(): void {
+  if ((process.env.AGENT_TOKEN?.length ?? 0) >= 32 && !process.env.AGENT_TOKEN_EXPIRES) setEnvVar("AGENT_TOKEN_EXPIRES", String(Date.now() + AGENT_TOKEN_DAYS * 86400_000));
 }
 
 export function revokeAgentToken(): void {
   setEnvVar("AGENT_TOKEN", null);
+  setEnvVar("AGENT_TOKEN_EXPIRES", null);
 }

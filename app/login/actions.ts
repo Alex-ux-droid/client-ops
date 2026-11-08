@@ -2,6 +2,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSession, passwordMatches, SESSION_COOKIE, SESSION_DAYS } from "@/lib/session";
+import { confirmState, finishConfirm, startConfirm } from "@/lib/loginConfirm";
 
 // Захист від перебору: після 5 помилок з однієї IP пауза 15 хв для цієї IP
 // (раніше блок був спільний — чужий міг безкінечно не пускати Сашу).
@@ -24,7 +25,16 @@ export async function login(_: string | null, fd: FormData): Promise<string | nu
   }
   f.n = 0;
   const remember = fd.get("remember") === "on";
-  // запамʼятати пристрій — 30 днів; інакше кука до закриття браузера і вихід після 30 хв без дій
+  // Другий крок — кнопка в Telegram. Telegram недоступний → вхід паролем (startConfirm поверне null)
+  const h = await headers();
+  const wait = await startConfirm({ remember, ip, ua: h.get("user-agent") ?? "" });
+  if (wait) return `WAIT:${wait}`;
+  await setCookie(remember);
+  redirect("/");
+}
+
+async function setCookie(remember: boolean) {
+  // запамʼятати пристрій — 7 днів; інакше кука до закриття браузера і вихід після 30 хв без дій
   (await cookies()).set(SESSION_COOKIE, createSession(remember)!, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -32,7 +42,15 @@ export async function login(_: string | null, fd: FormData): Promise<string | nu
     path: "/",
     ...(remember ? { maxAge: SESSION_DAYS * 86400 } : {}),
   });
-  redirect("/");
+}
+
+// Браузер питає раз на 2 с, чи Саша натиснув кнопку в Telegram
+export async function checkLogin(id: string): Promise<"wait" | "ok" | "no" | "gone"> {
+  const p = confirmState(id);
+  if (!p) return "gone";
+  if (p.status === "ok") { finishConfirm(id); await setCookie(p.remember); return "ok"; }
+  if (p.status === "no") { finishConfirm(id); return "no"; }
+  return "wait";
 }
 
 export async function logout() {
