@@ -2445,3 +2445,6 @@ button.kp-copy { padding: 0.25rem 0.625rem; font-size: 0.75rem; min-width: 2rem;
 .kp-note-i { font-size: 1.125rem; line-height: 1.2; }
 .kp-note-b { flex: 1; display: flex; flex-direction: column; font-size: 0.875rem; white-space: pre-wrap; }
 .kp-note-b small { color: var(--muted); font-size: 0.75rem; }
+.kp-up { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.625rem; border-top: 1px solid var(--line); }
+.kp-up > b { font-size: 0.875rem; }
+.kp-wait { margin: 0; padding: 0.5rem 0.75rem; border-radius: 10px; background: var(--accent-soft); }

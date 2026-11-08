@@ -11,7 +11,7 @@ import { fileBlob, TG_FILE_LIMIT } from "./telegram";
 const MAX_FILES = 20;
 const safe = (s: string) => s.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
 
-async function targetFolder(clientId: number, kind: string, sub?: string): Promise<{ id: string; url: string; title: string }> {
+export async function targetFolder(clientId: number, kind: string, sub?: string): Promise<{ id: string; url: string; title: string }> {
   const def = FOLDER_KINDS.find((f) => f.kind === kind) ?? FOLDER_KINDS[0];
   let id = folderIdFromUrl(listFolders(clientId).find((f) => f.kind === def.kind)?.url ?? "");
   if (id && !(await folderExists(id).catch(() => false))) id = null;

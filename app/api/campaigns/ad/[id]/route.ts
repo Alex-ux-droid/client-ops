@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { logError } from "@/lib/log";
-import { campaignOfAd, getAd, updateAd } from "@/lib/repo/campaigns";
+import { campaignOfAd, getAd, isMotion, updateAd } from "@/lib/repo/campaigns";
 import { saveFile } from "@/lib/repo/files";
 import { isAuthed, SESSION_COOKIE } from "@/lib/session";
 
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (f.size > MAX) return NextResponse.json({ error: "Більше 200 МБ — поклади на Диск і встав посилання" }, { status: 400 });
   try {
     const saved = saveFile({ name: f.name, mime: f.type, data: Buffer.from(await f.arrayBuffer()), client_id: c.client_id, source: "campaign" });
-    updateAd(a.id, { file_id: saved.id, media_url: "", format: f.type.startsWith("video/") ? "video" : a.format === "carousel" ? "carousel" : "image" });
+    updateAd(a.id, { file_id: saved.id, media_url: "", ...(f.type.startsWith("video/") && !isMotion(a.format) ? { format: "video" } : !f.type.startsWith("video/") && isMotion(a.format) ? { format: "story" } : {}) });
     return NextResponse.json({ ok: true, src: `/api/files/${saved.id}` });
   } catch (e) {
     logError("campaign-media", e);

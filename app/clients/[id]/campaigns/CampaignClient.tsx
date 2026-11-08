@@ -2,7 +2,7 @@
 // Клієнтські шматки конструктора кампаній: поле з кнопкою «Копіювати» і лічильником, кнопки Джері, завантаження креативу
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { creativePromptAction, genCopyAction, genDraftAction, genTargetingAction, useVariantAction } from "@/app/campaigns/actions";
+import { folderAction, genBriefAction, genCopyAction, genDraftAction, genPlanAction, genTargetingAction, useVariantAction } from "@/app/campaigns/actions";
 
 async function copy(text: string) { try { await navigator.clipboard.writeText(text); return true; } catch { return false; } }
 
@@ -46,7 +46,7 @@ export function GenCopy({ adId, has }: { adId: number; has: boolean }) {
     <div className="kp-gen">
       <input value={wish} onChange={(e) => setWish(e.target.value)} placeholder="Побажання (необовʼязково): коротше, з ціною, на «ви»…" />
       <button type="button" className="small" disabled={busy} onClick={() => run(() => genCopyAction(adId, wish), () => "Готово — варіанти нижче")}>
-        {busy ? "Джері пише… ~20 с" : has ? "✨ Ще варіанти" : "✨ Тексти від Джері"}
+        {busy ? "Джері дивиться на креатив і пише… ~20 с" : has ? "✨ Ще варіанти" : "✨ Тексти під цей креатив"}
       </button>
       {msg && <span className={`kp-msg${msg.ok ? "" : " bad"}`}>{msg.t}</span>}
     </div>
@@ -69,7 +69,7 @@ export function GenDraft({ campaignId }: { campaignId: number }) {
   const { busy, msg, run } = useRun();
   return (
     <span className="kp-gen-inline">
-      <button type="button" className="small" disabled={busy} onClick={() => run(() => genDraftAction(campaignId), (r) => `Додав груп: ${r.adsets}, оголошень: ${r.ads}`)}>{busy ? "Джері збирає… ~40 с" : "✨ Зібрати групи й оголошення"}</button>
+      <button type="button" className="small" disabled={busy} onClick={() => run(() => genDraftAction(campaignId), (r) => `Додав груп: ${r.adsets}, оголошень: ${r.ads}`)}>{busy ? "Джері збирає… ~1 хв" : "✨ Зібрати задум, групи і креативи"}</button>
       {msg && <span className={`kp-msg${msg.ok ? "" : " bad"}`}>{msg.t}</span>}
     </span>
   );
@@ -115,19 +115,27 @@ export function MediaUpload({ adId, has }: { adId: number; has: boolean }) {
   );
 }
 
-export function CreativePrompt({ adId, code }: { adId: number; code?: string }) {
-  const [p, setP] = useState<{ prompt: string; code: string } | null>(null);
+// Універсальна кнопка «Джері: …» з полем побажання (бриф креативу, задум кампанії)
+export function GenWish({ kind, id, label, again, placeholder, wait = "Джері думає… ~20 с" }: { kind: "brief" | "plan"; id: number; label: string; again?: string; placeholder: string; wait?: string }) {
+  const [wish, setWish] = useState("");
   const { busy, msg, run } = useRun();
+  const fn = kind === "brief" ? genBriefAction : genPlanAction;
   return (
-    <div className="stack" style={{ gap: "0.5rem" }}>
-      <div className="kp-gen-inline">
-        <button type="button" className="ghost small" disabled={busy} onClick={() => run(async () => { const r = await creativePromptAction(adId); if (r.ok) setP({ prompt: r.prompt, code: r.code }); return r; }, () => "")}>
-          {busy ? "Джері пише промпт… ~30 с" : code ? `Промпт ${code} для Claude` : "✨ Промпт для Claude (намалювати креатив)"}
-        </button>
-        {p && <CopyBtn text={p.prompt} label={`Скопіювати промпт ${p.code}`} small />}
-        {msg && !msg.ok && <span className="kp-msg bad">{msg.t}</span>}
-      </div>
-      {p && <p className="mono" style={{ margin: 0 }}>Встав у Claude (першим повідомленням — «Контекст клієнта» з кнопки нижче), збережи картинку і завантаж сюди.</p>}
+    <div className="kp-gen">
+      <input value={wish} onChange={(e) => setWish(e.target.value)} placeholder={placeholder} />
+      <button type="button" className="small" disabled={busy} onClick={() => run(() => fn(id, wish), () => "Готово")}>{busy ? wait : again ?? label}</button>
+      {msg && <span className={`kp-msg${msg.ok ? "" : " bad"}`}>{msg.t}</span>}
     </div>
+  );
+}
+
+export function FolderButton({ campaignId, url }: { campaignId: number; url?: string }) {
+  const { busy, msg, run } = useRun();
+  if (url) return <a href={url} target="_blank" rel="noreferrer" className="btn ghost small">📁 Папка на Диску ↗</a>;
+  return (
+    <span className="kp-gen-inline">
+      <button type="button" className="ghost small" disabled={busy} onClick={() => run(() => folderAction(campaignId), () => "Створено")}>{busy ? "Створюю…" : "📁 Створити папку на Диску"}</button>
+      {msg && !msg.ok && <span className="kp-msg bad">{msg.t}</span>}
+    </span>
   );
 }
