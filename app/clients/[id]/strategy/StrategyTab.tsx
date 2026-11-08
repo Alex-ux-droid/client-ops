@@ -165,7 +165,7 @@ function PartView({ part: p, base, hid }: { part: Part; base: string; hid: React
       </div>
       {kn.length > 0 && <div className="card stack st-box"><b>Що знаємо · {kn.length}</b><div className="st-grid">{kn.map((k) => tile(k, KNOW_CATS[k.cat as keyof typeof KNOW_CATS]))}</div></div>}
       {ideas.length > 0 && <div className="qt-grid"><ListPop title="Ідеї / масштабування" ico="sparkles" tone="accent" items={ideas.map((i) => i.title)} /></div>}
-      {log.length > 0 && <div className="card stack st-box"><b>Хроніка частини</b><Timeline items={[...log].reverse().map((l) => ({ id: l.id, at: l.created_at, title: l.title, body: l.body, tag: l.source === "extract" ? "з витяжки" : undefined }))} /></div>}
+      {log.length > 0 && <div className="card stack st-box"><b>Хроніка частини</b><Timeline items={[...log].reverse().map((l) => ({ id: l.id, at: l.created_at, title: l.title, body: l.body, tag: l.source === "extract" ? "з витяжки" : undefined, actions: delForm(l.id) }))} /></div>}
       <details className="card">
         <summary><b>✎ Змінити частину</b></summary>
         <form action={savePartAction} className="stack" style={{ gap: "0.5rem", marginTop: "0.75rem" }}>
@@ -235,8 +235,10 @@ function PlanItem({ i, parts }: { i: SItem; parts: Part[] }) {
 
 function Log({ clientId, parts }: { clientId: number; parts: Part[] }) {
   const log = listItems(clientId, { kind: "log", limit: 200 }).reverse();
-  return <Timeline items={log.map((l) => ({ id: l.id, at: l.created_at, title: l.title, body: l.body, tag: [partName(parts, l.part_id), l.source === "extract" ? "з витяжки" : ""].filter(Boolean).join(" · ") || undefined }))} empty="Хроніка порожня. Кожна вставлена витяжка лягає сюди." />;
+  return <Timeline items={log.map((l) => ({ id: l.id, at: l.created_at, title: l.title, body: l.body, tag: [partName(parts, l.part_id), l.source === "extract" ? "з витяжки" : ""].filter(Boolean).join(" · ") || undefined, actions: delForm(l.id) }))} empty="Хроніка порожня. Кожна вставлена витяжка лягає сюди." />;
 }
+
+const delForm = (id: number) => <form action={itemAction}><input type="hidden" name="item_id" value={id} /><input type="hidden" name="op" value="delete" /><button className="ghost small">Прибрати</button></form>;
 
 // Плитка: коротко на екрані, повністю — у попапі (з кнопкою «Прибрати»)
 function tile(i: SItem, tag?: string, parts?: Part[]) {

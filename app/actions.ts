@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { ymd } from "@/lib/dates";
 import {
-  CLIENT_FIELDS, CLIENT_STATUSES, createClient, LEAD_STAGES, setStage, setStatus, updateClient,
+  CLIENT_FIELDS, CLIENT_KINDS, CLIENT_STATUSES, REVENUE_MODELS, createClient, LEAD_STAGES, setStage, setStatus, updateClient,
   type ClientInput, type ClientStatus, type LeadStage,
 } from "@/lib/repo/clients";
 import { addIdea, setIdeaStatus, type IdeaStatus } from "@/lib/repo/ideas";
@@ -57,6 +57,10 @@ export async function saveClient(fd: FormData) {
   if ("pay_day" in raw) input.pay_day = Math.min(Math.max(Math.round(amount(fd, "pay_day")) || 1, 1), 31);
   if ("locations" in raw) input.locations = Math.max(Math.round(amount(fd, "locations")) || 1, 1);
   if ("work_since" in raw) input.work_since = /^\d{4}-\d{2}-\d{2}$/.test(raw.work_since) ? raw.work_since : null;
+  if ("kind" in raw) input.kind = raw.kind in CLIENT_KINDS ? raw.kind : "client";
+  if ("revenue_model" in raw) input.revenue_model = raw.revenue_model in REVENUE_MODELS ? raw.revenue_model : "retainer";
+  if ("share_percent" in raw) input.share_percent = Math.min(Math.max(amount(fd, "share_percent"), 0), 100);
+  if ("next_step_at" in raw) input.next_step_at = /^\d{4}-\d{2}-\d{2}$/.test(raw.next_step_at) ? raw.next_step_at : null;
   if (!input.name) throw new Error("Потрібна назва клієнта");
   const id = num(fd, "id");
   if (!id) throw new Error("Нового клієнта створюй через «Новий клієнт»");

@@ -4,7 +4,7 @@ import AskAssistant from "@/components/AskAssistant";
 import TaskItem from "@/components/TaskItem";
 import { money } from "@/lib/config";
 import { fmtDate } from "@/lib/dates";
-import type { ClientRow } from "@/lib/repo/clients";
+import { earnText, type ClientRow } from "@/lib/repo/clients";
 import { listIdeas } from "@/lib/repo/ideas";
 import { getStrategy } from "@/lib/repo/strategy";
 import type { ClientService } from "@/lib/repo/services";
@@ -59,8 +59,8 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
       <div className="ov-kpis">
         <Link href={`/clients/${id}?tab=money`} className="kpi-tile">
           <div className="kpi-label"><Icon name="wallet" size={15} /> Гроші</div>
-          <div className="kpi-value" style={{ color: c.debt ? "var(--bad)" : "var(--ok)" }}>{c.debt ? money(c.debt) : c.fee_monthly ? money(c.fee_monthly) : "—"}</div>
-          <div className="kpi-sub">{c.debt ? "борг" : c.fee_monthly ? "платить / міс" : "абонплату не вказано"} · всього {money(paidTotal)}</div>
+          <div className="kpi-value" style={{ color: c.debt ? "var(--bad)" : "var(--ok)" }}>{c.debt ? money(c.debt) : c.fee_monthly ? money(c.fee_monthly) : c.revenue_model !== "retainer" && c.share_percent ? `${c.share_percent}%` : "—"}</div>
+          <div className="kpi-sub">{c.debt ? "борг · " : ""}{earnText(c, money)} · всього {money(paidTotal)}</div>
         </Link>
         <Link href={`/clients/${id}?tab=meta_ads`} className="kpi-tile">
           <div className="kpi-label"><BrandDot text="Meta" size={13} /> Реклама · 7 дн.</div>

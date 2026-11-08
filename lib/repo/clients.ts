@@ -9,6 +9,18 @@ export type ClientStatus = (typeof CLIENT_STATUSES)[number];
 export const LEAD_STAGES = ["new", "contacted", "proposal", "negotiation"] as const;
 export type LeadStage = (typeof LEAD_STAGES)[number];
 
+export const CLIENT_KINDS = { client: "Клієнт", partner: "Партнерство" } as const;
+export type ClientKind = keyof typeof CLIENT_KINDS;
+export const REVENUE_MODELS = { retainer: "абонплата", profit_share: "частка прибутку", mixed: "абонплата + частка", project: "разова оплата", none: "без оплати" } as const;
+export type RevenueModel = keyof typeof REVENUE_MODELS;
+// Як заробляю на клієнті — одним рядком для екранів і Джері
+export function earnText(c: Pick<Client, "kind" | "revenue_model" | "share_percent" | "fee_monthly">, money: (n: number) => string): string {
+  const share = c.share_percent ? `частка ${c.share_percent}%` : "частка";
+  const parts = c.revenue_model === "profit_share" ? [share] : c.revenue_model === "mixed" ? [c.fee_monthly ? `${money(c.fee_monthly)}/міс` : "абонплата", share]
+    : c.revenue_model === "project" ? ["разова оплата"] : c.revenue_model === "none" ? ["без оплати"] : [c.fee_monthly ? `${money(c.fee_monthly)}/міс` : "абонплату не вказано"];
+  return [c.kind === "partner" ? "партнерство" : "", ...parts].filter(Boolean).join(" · ");
+}
+
 export type Client = {
   id: number;
   name: string;
@@ -34,16 +46,22 @@ export type Client = {
   my_vision: string;
   notes: string;
   bitwarden_ref: string;
+  kind: ClientKind;
+  revenue_model: RevenueModel;
+  share_percent: number;
+  partners: string;
   created_at: string;
   updated_at: string;
 };
 
-export type ClientInput = Omit<Client, "id" | "created_at" | "updated_at" | "next_step_at"> & { next_step_at?: string | null };
+type Optional = "next_step_at" | "kind" | "revenue_model" | "share_percent" | "partners";
+export type ClientInput = Omit<Client, "id" | "created_at" | "updated_at" | Optional> & Partial<Pick<Client, Optional>>;
 
 export const CLIENT_FIELDS = [
   "name", "niche", "status", "stage", "fee_monthly", "pay_day", "next_step", "next_step_at", "offer", "budget", "contacts",
   "owner_name", "locations", "city", "phone", "email", "work_since", "drive_url",
   "needs", "client_vision", "my_vision", "notes", "bitwarden_ref",
+  "kind", "revenue_model", "share_percent", "partners",
 ] as const;
 
 export type ClientRow = Client & {
@@ -122,7 +140,10 @@ export function findClients(q: string): Client[] {
 export function createClient(input: ClientInput): number {
   const cols = CLIENT_FIELDS.join(", ");
   const vals = CLIENT_FIELDS.map((f) => "@" + f).join(", ");
-  return Number(db().prepare(`INSERT INTO clients (${cols}) VALUES (${vals})`).run({ next_step_at: null, ...input }).lastInsertRowid);
+  return Number(db().prepare(`INSERT INTO clients (${cols}) VALUES (${vals})`).run({
+    ...input, next_step_at: input.next_step_at || null, kind: input.kind || "client", revenue_model: input.revenue_model || "retainer",
+    share_percent: Number(input.share_percent) || 0, partners: input.partners || "",
+  }).lastInsertRowid);
 }
 
 export function updateClient(id: number, input: Partial<ClientInput>): void {

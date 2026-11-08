@@ -64,6 +64,10 @@ const CLIENT_PROPS = {
   fee_monthly: num("Скільки клієнт платить Саші щомісяця"),
   pay_day: int("День місяця оплати 1-31"),
   next_step: str("Наступний крок"),
+  kind: { type: "string", enum: ["client", "partner"], description: "client — клієнт, partner — партнерство (спільний бізнес)" },
+  revenue_model: { type: "string", enum: ["retainer", "profit_share", "mixed", "project", "none"], description: "Як Саша заробляє: абонплата / частка прибутку / обидва / разова / без оплати" },
+  share_percent: num("Частка Саші, % (для profit_share / mixed)"),
+  partners: str("Партнери: хто за що, по рядку"),
   next_step_at: str("До якої дати наступний крок, YYYY-MM-DD (прострочений — бейдж у «Потребують уваги»)"),
   offer: str("Що продаємо клієнту"),
   budget: str("Рекламний бюджет / умови, текстом"),
@@ -226,7 +230,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
     case "list_clients":
       return listClients().map((c) => ({
         id: c.id, name: c.name, status: c.status, stage: c.status === "lead" ? c.stage : undefined, niche: c.niche, offer: c.offer,
-        fee_monthly: c.fee_monthly, next_step: c.next_step, open_tasks: c.open_tasks, last_work: c.last_work, debt: c.debt,
+        fee_monthly: c.fee_monthly, kind: c.kind, revenue_model: c.revenue_model, share_percent: c.share_percent || undefined, next_step: c.next_step, open_tasks: c.open_tasks, last_work: c.last_work, debt: c.debt,
         flags: clientFlags(c).map((f) => (f.reason ? `${f.text} — ${f.reason}` : f.text)),
       }));
 
@@ -255,6 +259,9 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
         else if (f === "locations") fields.locations = Math.max(Math.trunc(n(input[f])) || 1, 1);
         else if (f === "work_since") fields.work_since = date(input[f]);
         else if (f === "next_step_at") fields.next_step_at = date(input[f]);
+        else if (f === "share_percent") fields.share_percent = Math.min(Math.max(n(input[f]), 0), 100);
+        else if (f === "kind") { if (s(input[f]) === "client" || s(input[f]) === "partner") fields.kind = s(input[f]) as ClientInput["kind"]; }
+        else if (f === "revenue_model") { if (["retainer", "profit_share", "mixed", "project", "none"].includes(s(input[f]))) fields.revenue_model = s(input[f]) as ClientInput["revenue_model"]; }
         else if (f === "pay_day") fields.pay_day = Math.min(Math.max(Math.trunc(n(input[f])) || 1, 1), 31);
         else if (f === "status") { if (CLIENT_STATUSES.includes(s(input[f]) as never)) fields.status = s(input[f]) as ClientInput["status"]; }
         else if (f === "stage") { if (LEAD_STAGES.includes(s(input[f]) as never)) fields.stage = s(input[f]) as ClientInput["stage"]; }
