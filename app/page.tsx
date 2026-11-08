@@ -12,6 +12,7 @@ import { ymd } from "@/lib/dates";
 import { monthLabel } from "@/lib/labels";
 import { clientFlags, listClients, type Flag } from "@/lib/repo/clients";
 import { pl } from "@/lib/plural";
+import { mainMetricBrief } from "@/lib/repo/metrics";
 import { moneySummary, receivedByMonth } from "@/lib/repo/payments";
 import { listTasks, taskCounts, weekPlan } from "@/lib/repo/tasks";
 
@@ -190,7 +191,10 @@ export default function Home() {
                     <div key={c.id} className="row att-row">
                       <Link href={`/clients/${c.id}`} className="row-main">
                         <div className="row-title">{c.name}</div>
-                        <div className="meta">{flags.map((f) => <span key={f.text} className={`tag ${f.level}`} title={f.reason}>{f.text}</span>)}</div>
+                        <div className="meta">
+                          {(() => { const ns = mainMetricBrief(c.id); return ns ? <span className={`tag ${ns.tone}`} title={ns.title}>★ {ns.text}</span> : null; })()}
+                          {flags.map((f) => <span key={f.text} className={`tag ${f.level}`} title={f.reason}>{f.text}</span>)}
+                        </div>
                       </Link>
                       <form action={taskFromFlag}>
                         <input type="hidden" name="client_id" value={c.id} />

@@ -13,21 +13,27 @@ export const METRIC_SOURCES = {
   manual: { label: "своя (вписую вручну)", dir: "up", unit: "", kind: "sales" },
 } as const;
 export type MetricSource = keyof typeof METRIC_SOURCES;
-export type Metric = { id: number; client_id: number; source: MetricSource; name: string; target: number | null; direction: "up" | "down"; is_main: number; created_at: string };
+export type Metric = { id: number; client_id: number; source: MetricSource; name: string; target: number | null; baseline: number | null; direction: "up" | "down"; is_main: number; created_at: string };
 
 export const metricName = (m: Metric) => m.name || METRIC_SOURCES[m.source]?.label || m.source;
 export const listMetrics = (clientId: number) => db().prepare("SELECT * FROM client_metrics WHERE client_id = ? ORDER BY is_main DESC, id").all(clientId) as Metric[];
 export const getMetric = (id: number) => db().prepare("SELECT * FROM client_metrics WHERE id = ?").get(id) as Metric | undefined;
 
-export function addMetric(clientId: number, p: { source: MetricSource; name?: string; target?: number | null; direction?: "up" | "down"; is_main?: boolean }): number {
+export function addMetric(clientId: number, p: { source: MetricSource; name?: string; target?: number | null; baseline?: number | null; direction?: "up" | "down"; is_main?: boolean }): number {
   const first = !listMetrics(clientId).length;
-  const id = Number(db().prepare("INSERT INTO client_metrics (client_id, source, name, target, direction, is_main) VALUES (?, ?, ?, ?, ?, ?)")
-    .run(clientId, p.source, p.name ?? "", p.target ?? null, p.direction ?? METRIC_SOURCES[p.source].dir, 0).lastInsertRowid);
+  const id = Number(db().prepare("INSERT INTO client_metrics (client_id, source, name, target, baseline, direction, is_main) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .run(clientId, p.source, p.name ?? "", p.target ?? null, p.baseline ?? null, p.direction ?? METRIC_SOURCES[p.source].dir, 0).lastInsertRowid);
   if (p.is_main || first) setMainMetric(id);
   return id;
 }
-export function updateMetric(id: number, p: Partial<Pick<Metric, "name" | "target" | "direction">>): void {
-  const keys = (["name", "target", "direction"] as const).filter((k) => p[k] !== undefined);
+// CRM підключили → «лід → контакт %» (головна) і «лід → продаж %», якщо метрик ще нема
+export function ensureCrmMetrics(clientId: number): void {
+  const ms = listMetrics(clientId);
+  if (!ms.some((m) => m.source === "crm_contact_pct")) addMetric(clientId, { source: "crm_contact_pct", is_main: !ms.length });
+  if (!ms.some((m) => m.source === "crm_sale_pct")) addMetric(clientId, { source: "crm_sale_pct" });
+}
+export function updateMetric(id: number, p: Partial<Pick<Metric, "name" | "target" | "baseline" | "direction">>): void {
+  const keys = (["name", "target", "baseline", "direction"] as const).filter((k) => p[k] !== undefined);
   if (keys.length) db().prepare(`UPDATE client_metrics SET ${keys.map((k) => `${k} = @${k}`).join(", ")} WHERE id = @id`).run({ ...p, id });
 }
 export function setMainMetric(id: number): void {
@@ -86,9 +92,27 @@ export function metricAlerts(clientId: number): MFlag[] {
     const far = up ? v < m.target * 0.7 : v > m.target * 1.3;
     out.push({ level: far ? "bad" : "warn", kind, text: `${name}: ${fmtMetric(m, v)} при цілі ${fmtMetric(m, m.target)}`, reason: `Головна метрика клієнта гірша за ціль. Зараз ${fmtMetric(m, v)}, ціль ${fmtMetric(m, m.target)}.` });
   }
+  if (!out.length && m.baseline != null && (up ? v < m.baseline : v > m.baseline)) {
+    out.push({ level: "warn", kind, text: `${name}: ${fmtMetric(m, v)} — гірше за базу ${fmtMetric(m, m.baseline)}`, reason: `Головна метрика гірша, ніж було до нас (база ${fmtMetric(m, m.baseline)}).` });
+  }
+  if (m.source === "manual") {
+    const last = (db().prepare("SELECT MAX(day) d FROM client_metric_values WHERE metric_id = ?").get(m.id) as { d: string | null }).d;
+    if (last && last < kyivDay(7)) out.push({ level: "warn", kind, text: `${name}: не оновлювалась з ${last.split("-").reverse().join(".")}`, reason: "Ручна головна метрика не оновлювалась понад 7 днів — Огляд → Головна метрика → «Записати»." });
+  }
   const old = (db().prepare("SELECT value FROM client_metric_values WHERE metric_id = ? AND day <= ? ORDER BY day DESC LIMIT 1").get(m.id, kyivDay(14)) as { value: number } | undefined)?.value;
   if (!out.length && old != null && old > 0 && (up ? v < old * 0.67 : v > old * 1.5)) {
     out.push({ level: "warn", kind, text: `${name} ${up ? "впала" : "зросла"} за 2 тижні`, reason: `Головна метрика: було ${fmtMetric(m, old)} (14 днів тому), зараз ${fmtMetric(m, v)}.` });
   }
   return out;
+}
+
+// Коротко головна метрика для шапки, списку і Центру: «лід → контакт 3%» + тон (ok / bad / "")
+export function mainMetricBrief(clientId: number): { text: string; tone: "ok" | "bad" | ""; title: string } | null {
+  const m = listMetrics(clientId).find((x) => x.is_main);
+  if (!m) return null;
+  const v = metricValue(m);
+  const ref = m.target ?? m.baseline;
+  const tone = v == null || ref == null ? "" : (m.direction === "up" ? v >= ref : v <= ref) ? "ok" : "bad";
+  const short = metricName(m).replace(/\s*\((30|7) дн\.\)/, "").replace(/, %$/, "");
+  return { text: `${short}: ${fmtMetric(m, v)}`, tone, title: `Головна метрика${m.baseline != null ? ` · база ${fmtMetric(m, m.baseline)}` : ""}${m.target != null ? ` · ціль ${fmtMetric(m, m.target)}` : ""}` };
 }

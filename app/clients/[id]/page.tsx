@@ -9,6 +9,7 @@ import { fmtDate } from "@/lib/dates";
 import { STAGE_LABEL, STATUS_LABEL, STATUS_TAG } from "@/lib/labels";
 import { accountsForClient, kyivDay, totals } from "@/lib/repo/meta";
 import { clientFlags, getClientRow, TRASH_DAYS } from "@/lib/repo/clients";
+import { mainMetricBrief } from "@/lib/repo/metrics";
 import { listPayments } from "@/lib/repo/payments";
 import { listServices } from "@/lib/repo/services";
 import { SERVICES, type ServiceType } from "@/lib/services";
@@ -42,6 +43,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const tab = tabs.find((t) => t.k === sp.tab)?.k ?? "overview";
   const service = services.find((s) => s.type === tab);
   const flags = clientFlags(c);
+  const ns = mainMetricBrief(id);
   const payments = listPayments({ clientId: id });
   const paidTotal = payments.filter((p) => p.paid_at).reduce((s, p) => s + p.amount, 0);
   // ціна ліда за 7 днів — з Meta (ручні періоди більше не ведемо)
@@ -74,6 +76,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             <div className="meta">
               <span className={`tag ${STATUS_TAG[c.status]}`}>{STATUS_LABEL[c.status]}{c.status === "lead" ? ` · ${STAGE_LABEL[c.stage]}` : ""}</span>
               {services.filter((s) => s.status === "active").map((s) => <Link key={s.type} href={`/clients/${id}?tab=${s.type}`} className="tag accent">{SERVICES[s.type as ServiceType].short}</Link>)}
+              {ns && <span className={`tag ${ns.tone === "bad" ? "bad" : ns.tone === "ok" ? "ok" : ""} ns-tag`} title={ns.title}>★ {ns.text}</span>}
               {flags.map((f) => <span key={f.text} className={`tag ${f.level}`} title={f.reason}>{f.text}</span>)}
             </div>
             </div>

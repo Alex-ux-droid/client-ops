@@ -51,8 +51,10 @@ export async function reflect(exchange: { user: string; reply: string; actions: 
     if (res.stop_reason === "refusal") return;
     const text = res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("").trim();
     if (!text || text.startsWith("NO_CHANGE") || !text.includes("##")) return;
-    if (text.length > MEMORY_MAX) { logError("reflect", new Error(`Памʼять після переписування ${text.length} > ${MEMORY_MAX} — не зберіг, стара лишилась`)); return; }
+    const { compressMemory, memoryNearlyFull } = await import("./memoryCompress");
+    if (text.length > MEMORY_MAX) { await compressMemory(text); return; }
     setAgentMemory(text);
+    if (memoryNearlyFull(text.length)) void compressMemory();
   } catch (e) {
     logError("reflect", e);
   } finally {

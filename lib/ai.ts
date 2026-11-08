@@ -23,10 +23,10 @@ export function costOf(model: string, u: U): number {
     + (u.server_tool_use?.web_search_requests ?? 0) * WEB_SEARCH;
 }
 
-function record(feature: string, model: string, u: U) {
+function record(feature: string, clientId: number | null, model: string, u: U) {
   try {
-    db().prepare(`INSERT INTO api_usage (feature, model, input_tokens, output_tokens, cache_write, cache_read, web_searches, cost_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(feature, model, u.input_tokens ?? 0, u.output_tokens ?? 0, u.cache_creation_input_tokens ?? 0, u.cache_read_input_tokens ?? 0, u.server_tool_use?.web_search_requests ?? 0, costOf(model, u));
+    db().prepare(`INSERT INTO api_usage (feature, client_id, model, input_tokens, output_tokens, cache_write, cache_read, web_searches, cost_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(feature, clientId, model, u.input_tokens ?? 0, u.output_tokens ?? 0, u.cache_creation_input_tokens ?? 0, u.cache_read_input_tokens ?? 0, u.server_tool_use?.web_search_requests ?? 0, costOf(model, u));
   } catch { /* облік не має ламати роботу */ }
 }
 
@@ -44,21 +44,21 @@ function fromSse(text: string): { model: string; u: U } | null {
   return model ? { model, u } : null;
 }
 
-const loggingFetch = (feature: string): typeof fetch => async (input, init) => {
+const loggingFetch = (feature: string, clientId: number | null): typeof fetch => async (input, init) => {
   const res = await fetch(input, init);
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
   if (res.ok && /\/v1\/messages(\?|$)/.test(url)) {
     const copy = res.clone();
     void copy.text().then((t) => {
-      if ((res.headers.get("content-type") ?? "").includes("event-stream")) { const r = fromSse(t); if (r) record(feature, r.model, r.u); }
-      else { const j = JSON.parse(t) as { model?: string; usage?: U }; if (j.usage) record(feature, j.model ?? "", j.usage); }
+      if ((res.headers.get("content-type") ?? "").includes("event-stream")) { const r = fromSse(t); if (r) record(feature, clientId, r.model, r.u); }
+      else { const j = JSON.parse(t) as { model?: string; usage?: U }; if (j.usage) record(feature, clientId, j.model ?? "", j.usage); }
     }).catch(() => {});
   }
   return res;
 };
 
-// Замість new Anthropic(...): ai("радар", { apiKey, timeout })
-export const ai = (feature: string, opts: ClientOptions = {}) => new Anthropic({ ...opts, fetch: loggingFetch(feature) });
+// Замість new Anthropic(...): ai("радар", { apiKey, timeout }) або ai("Джері", opts, clientId) — щоб бачити витрати по клієнтах
+export const ai = (feature: string, opts: ClientOptions = {}, clientId: number | null = null) => new Anthropic({ ...opts, fetch: loggingFetch(feature, clientId) });
 
 // ---- Для екрана «Витрати» і тривоги ліміту
 const monthStart = () => new Date().toLocaleString("sv-SE", { timeZone: "Europe/Kyiv" }).slice(0, 7) + "-01";
@@ -72,6 +72,7 @@ export function usageSummary() {
     calls: one("SELECT COUNT(*) v FROM api_usage WHERE date(at, '+2 hours') >= ?", ms),
     byFeature: q<{ feature: string; n: number; cost: number; tin: number; tout: number }>("SELECT feature, COUNT(*) n, SUM(cost_usd) cost, SUM(input_tokens + cache_read + cache_write) tin, SUM(output_tokens) tout FROM api_usage WHERE date(at, '+2 hours') >= ? GROUP BY feature ORDER BY cost DESC", ms),
     byModel: q<{ model: string; n: number; cost: number }>("SELECT model, COUNT(*) n, SUM(cost_usd) cost FROM api_usage WHERE date(at, '+2 hours') >= ? GROUP BY model ORDER BY cost DESC", ms),
+    byClient: q<{ name: string; n: number; cost: number }>("SELECT COALESCE(c.name, '— без клієнта') name, COUNT(*) n, SUM(u.cost_usd) cost FROM api_usage u LEFT JOIN clients c ON c.id = u.client_id WHERE date(u.at, '+2 hours') >= ? GROUP BY u.client_id ORDER BY cost DESC LIMIT 15", ms),
     byDay: q<{ day: string; cost: number }>("SELECT date(at, '+2 hours') day, SUM(cost_usd) cost FROM api_usage WHERE at >= datetime('now', '-30 days') GROUP BY day ORDER BY day"),
   };
 }

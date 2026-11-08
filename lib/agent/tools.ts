@@ -1,7 +1,7 @@
 // Інструменти помічника: читання і запис у базу через lib/repo. Видаляти нічого не вміє — навмисно.
 import type Anthropic from "@anthropic-ai/sdk";
 import { ymd } from "../dates";
-import { addAgentMemory, MEMORY_MAX, setAgentMemory } from "./config";
+import { addAgentMemory, agentMemory, MEMORY_MAX, setAgentMemory } from "./config";
 import type { ChatAction } from "../repo/chat";
 import {
   CLIENT_FIELDS, CLIENT_STATUSES, clientFlags, createClient, trashClient, getClientRow, LEAD_STAGES, listClients, updateClient,
@@ -64,7 +64,7 @@ const CLIENT_PROPS = {
   fee_monthly: num("Скільки клієнт платить Саші щомісяця"),
   pay_day: int("День місяця оплати 1-31"),
   next_step: str("Наступний крок"),
-  kind: { type: "string", enum: ["client", "partner"], description: "client — клієнт, partner — партнерство (спільний бізнес)" },
+  kind: { type: "string", enum: ["client", "partner", "own_product"], description: "client — клієнт, partner — партнерство (спільний бізнес), own_product — свій продукт" },
   revenue_model: { type: "string", enum: ["retainer", "profit_share", "mixed", "project", "none"], description: "Як Саша заробляє: абонплата / частка прибутку / обидва / разова / без оплати" },
   share_percent: num("Частка Саші, % (для profit_share / mixed)"),
   partners: str("Партнери: хто за що, по рядку"),
@@ -104,7 +104,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "task_to_calendar", description: "Поставити задачу в Google Календар Саші: подія на день дедлайну з нагадуванням напередодні (якщо вже є — оновити). Потрібен дедлайн.", input_schema: obj({ task_id: int("ID задачі") }, ["task_id"]) },
   { name: "task_subtasks", description: "Відмітити / зняти відмітку / перейменувати / видалити підзадачі (id з get_task).", input_schema: obj({ task_id: int("ID задачі"), check: { type: "array", items: { type: "integer" } }, uncheck: { type: "array", items: { type: "integer" } }, remove: { type: "array", items: { type: "integer" } }, rename: { type: "array", items: obj({ id: int("ID підзадачі"), text: str("Новий текст") }, ["id", "text"]) } }, ["task_id"]) },
   { name: "complete_task", description: "Закрити задачу і записати в історію клієнта, що зробили, навіщо і результат.", input_schema: obj({ task_id: int("ID задачі"), what: str("Що зробили"), why: str("Навіщо"), result: str("Результат") }, ["task_id"]) },
-  { name: "client_metrics", description: "Головна метрика клієнта (що означає успіх) і інші метрики. action list | add (source: crm_contact_pct | crm_sale_pct | crm_sales | crm_revenue | meta_leads | meta_cpl | manual; target; main) | update (metric_id, target/name) | main (metric_id) | value (metric_id + value — для manual) | delete. Ціль і головну обирає Саша — пропонуй, не став сам без його слів.", input_schema: obj({ action: { type: "string", enum: ["list", "add", "update", "main", "value", "delete"] }, client_id: int("ID клієнта"), metric_id: int("ID метрики"), source: { type: "string", enum: ["crm_contact_pct", "crm_sale_pct", "crm_sales", "crm_revenue", "meta_leads", "meta_cpl", "manual"] }, name: str("Своя назва"), target: num("Ціль"), direction: { type: "string", enum: ["up", "down"] }, main: { type: "boolean" }, value: num("Значення (manual)") }, ["action"]) },
+  { name: "client_metrics", description: "Головна метрика клієнта (що означає успіх) і інші метрики. action list | add (source: crm_contact_pct | crm_sale_pct | crm_sales | crm_revenue | meta_leads | meta_cpl | manual; target; main) | update (metric_id, target/name) | main (metric_id) | value (metric_id + value — для manual) | delete. Ціль і головну обирає Саша — пропонуй, не став сам без його слів.", input_schema: obj({ action: { type: "string", enum: ["list", "add", "update", "main", "value", "delete"] }, client_id: int("ID клієнта"), metric_id: int("ID метрики"), source: { type: "string", enum: ["crm_contact_pct", "crm_sale_pct", "crm_sales", "crm_revenue", "meta_leads", "meta_cpl", "manual"] }, name: str("Своя назва"), target: num("Ціль"), baseline: num("База — як було до нас"), direction: { type: "string", enum: ["up", "down"] }, main: { type: "boolean" }, value: num("Значення (manual)") }, ["action"]) },
   { name: "confirm_queue", description: "Черга «Підтверди» (Центр): пропозиції системи з переписки груп — task_done (задача схоже зроблена), task_new (клієнт просив), log (в історію), з доказом. action list | decide (item_id + op ok|skip — ТІЛЬКИ коли Саша сказав) | scan (перевірити клієнта зараз, client_id).", input_schema: obj({ action: { type: "string", enum: ["list", "decide", "scan"] }, client_id: int("Клієнт (для list — фільтр, для scan — обовʼязково)"), item_id: int("Для decide"), op: { type: "string", enum: ["ok", "skip"] } }, ["action"]) },
   { name: "log_work", description: "Записати в історію клієнта виконану роботу (без задачі).", input_schema: obj({ client_id: int("ID клієнта"), what: str("Що зробили"), why: str("Навіщо"), result: str("Результат"), done_at: str("Дата YYYY-MM-DD, за замовчуванням сьогодні") }, ["client_id", "what"]) },
   { name: "add_idea", description: "Записати ідею (загальну або для клієнта).", input_schema: obj({ text: str("Ідея"), client_id: int("ID клієнта, необов'язково") }, ["text"]) },
@@ -261,7 +261,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
         else if (f === "work_since") fields.work_since = date(input[f]);
         else if (f === "next_step_at") fields.next_step_at = date(input[f]);
         else if (f === "share_percent") fields.share_percent = Math.min(Math.max(n(input[f]), 0), 100);
-        else if (f === "kind") { if (s(input[f]) === "client" || s(input[f]) === "partner") fields.kind = s(input[f]) as ClientInput["kind"]; }
+        else if (f === "kind") { if (["client", "partner", "own_product"].includes(s(input[f]))) fields.kind = s(input[f]) as ClientInput["kind"]; }
         else if (f === "revenue_model") { if (["retainer", "profit_share", "mixed", "project", "none"].includes(s(input[f]))) fields.revenue_model = s(input[f]) as ClientInput["revenue_model"]; }
         else if (f === "pay_day") fields.pay_day = Math.min(Math.max(Math.trunc(n(input[f])) || 1, 1), 31);
         else if (f === "status") { if (CLIENT_STATUSES.includes(s(input[f]) as never)) fields.status = s(input[f]) as ClientInput["status"]; }
@@ -362,7 +362,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
         if (input.action === "add") {
           const src = s(input.source) as import("../repo/metrics").MetricSource;
           need(src in r.METRIC_SOURCES ? src : null, "source невідомий");
-          r.addMetric(cid, { source: src, name: s(input.name), target: input.target == null ? null : n(input.target), direction: input.direction === "down" ? "down" : input.direction === "up" ? "up" : undefined, is_main: input.main === true });
+          r.addMetric(cid, { source: src, name: s(input.name), target: input.target == null ? null : n(input.target), baseline: input.baseline == null ? null : n(input.baseline), direction: input.direction === "down" ? "down" : input.direction === "up" ? "up" : undefined, is_main: input.main === true });
           act("client", "Метрика клієнта", `/clients/${cid}`);
         }
         return { metrics: r.listMetrics(cid).map((m) => ({ id: m.id, name: r.metricName(m), source: m.source, main: !!m.is_main, value: r.metricValue(m), target: m.target, direction: m.direction, last_60d: r.metricHistory(m.id).slice(-10) })) };
@@ -371,7 +371,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       if (input.action === "main") r.setMainMetric(m.id);
       else if (input.action === "delete") r.deleteMetric(m.id);
       else if (input.action === "value") r.setMetricValue(m.id, kyivDay(0), n(input.value));
-      else r.updateMetric(m.id, { ...(input.target !== undefined ? { target: input.target == null ? null : n(input.target) } : {}), ...(input.name !== undefined ? { name: s(input.name) } : {}), ...(input.direction ? { direction: input.direction === "down" ? "down" as const : "up" as const } : {}) });
+      else r.updateMetric(m.id, { ...(input.baseline !== undefined ? { baseline: input.baseline == null ? null : n(input.baseline) } : {}), ...(input.target !== undefined ? { target: input.target == null ? null : n(input.target) } : {}), ...(input.name !== undefined ? { name: s(input.name) } : {}), ...(input.direction ? { direction: input.direction === "down" ? "down" as const : "up" as const } : {}) });
       act("client", `Метрика: ${r.metricName(m)}`, `/clients/${m.client_id}`);
       return { ok: true };
     }
@@ -992,9 +992,14 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
     }
 
     case "memory_add": {
-      const len = addAgentMemory(need(s(input.note), "note"));
+      const { compressMemory, memoryNearlyFull } = await import("./memoryCompress");
+      const note = need(s(input.note), "note");
+      // Не влазить — спершу стискаємо (стара версія в архів), потім додаємо
+      if (agentMemory().length + note.length + 20 > MEMORY_MAX) await compressMemory();
+      const len = addAgentMemory(note);
+      if (memoryNearlyFull(len)) void compressMemory();
       act("memory", `Запам'ятав: ${s(input.note).slice(0, 70)}`, "/settings?tab=agent");
-      return { ok: true, memory_chars: len, hint: len >= MEMORY_MAX * 0.9 ? `Памʼять заповнена на ${Math.round((len / MEMORY_MAX) * 100)}% — ЗАРАЗ стисни через memory_rewrite (обʼєднай, прибери застаріле), інакше нові нотатки не влізуть.` : undefined };
+      return { ok: true, memory_chars: len, hint: memoryNearlyFull(len) ? "Памʼять на 90%+ — система стискає її у фоні (стара версія в архіві)." : undefined };
     }
 
     case "memory_rewrite": {

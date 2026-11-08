@@ -766,6 +766,7 @@ function Usage() {
             <tbody>{u.byFeature.map((f) => <tr key={f.feature}><td>{f.feature || "інше"}</td><td className="num">{usd(f.cost)}</td><td className="num">{f.n}</td><td className="num">{Math.round(f.tin / 1000)}k / {Math.round(f.tout / 1000)}k</td></tr>)}</tbody>
           </table></div>
         ) : <p className="mono">Ще нічого не записано — облік почався з цього оновлення.</p>}
+        {u.byClient.length > 0 && <p className="mono">По клієнтах (чат Джері в картці, черга Підтверди): {u.byClient.map((c) => `${c.name} — ${usd(c.cost)}`).join(" · ")}</p>}
         {u.byModel.length > 0 && <p className="mono">Моделі: {u.byModel.map((m) => `${m.model} — ${usd(m.cost)} (${m.n})`).join(" · ")}</p>}
       </div>
       <form action={saveUsageLimitAction} className="card stack" style={{ gap: "0.5rem" }}>
