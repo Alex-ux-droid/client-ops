@@ -3,25 +3,25 @@
 import Link from "next/link";
 import {
   adOpAction, addAdsetAction, adsetOpAction, createCampaignAction, deleteCampaignAction, deleteNoteAction, duplicateCampaignAction,
-  mediaFromMetaAction, noteAction, saveAdAction, saveAdsetAction, saveCampaignAction,
+  mediaFromMetaAction, noteAction, saveAdAction, saveAdsetAction, saveCampaignAction, savePlanAction,
 } from "@/app/campaigns/actions";
+import EditBlock from "@/components/EditBlock";
 import Icon from "@/components/Icon";
 import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
-import { adLive, adUrl, adsetTargeting, campaignChecks, campaignLive, campaignMd, LIMITS, money2, syncCampaign, type LiveNums } from "@/lib/campaigns";
+import { adLive, adPromptFull, adUrl, adsetTargeting, campaignChatPrompt, campaignChecks, campaignLive, campaignMd, LIMITS, money2, syncCampaign, type LiveNums } from "@/lib/campaigns";
 import { creativeBrief } from "@/lib/creativeStudio";
 import { fmtDate } from "@/lib/dates";
 import {
-  AD_FORMATS, AD_STATUS, adCode, CM_STATUS, CONVERSIONS, CTAS, GENDERS, getCampaign, listAds, listAdsets, listCampaigns, listNotes,
+  AD_FORMATS, AD_STATUS, adCode, CM_STATUS, CREATIVE_TOOLS, isMotion, PLAN_FIELDS, planOf, CONVERSIONS, CTAS, GENDERS, getCampaign, listAds, listAdsets, listCampaigns, listNotes,
   NOTE_KINDS, OBJECTIVES, variantsOf, type Ad, type AdSet, type Campaign,
 } from "@/lib/repo/campaigns";
 import { getClientRow } from "@/lib/repo/clients";
-import { getPrompt } from "@/lib/repo/creatives";
 import { getFile } from "@/lib/repo/files";
 import { logoSrc } from "@/lib/repo/logos";
 import { adsForClient, adTotalsForClient, campaignsWithStats, kyivDay } from "@/lib/repo/meta";
-import { CopyBtn, CopyField, CreativePrompt, GenCopy, GenDraft, GenTargeting, MediaUpload, UseVariant } from "./CampaignClient";
+import { CopyBtn, CopyField, FolderButton, GenCopy, GenDraft, GenTargeting, GenWish, MediaUpload, UseVariant } from "./CampaignClient";
 
 const lbl = (m: Record<string, string>, k: string) => m[k] ?? k;
 const opts = (m: Record<string, string>) => Object.entries(m).map(([k, v]) => <option key={k} value={k}>{v}</option>);
@@ -29,7 +29,7 @@ const tone = (s: string) => (s === "live" ? "ok" : s === "ready" ? "accent" : s 
 
 export default function CampaignsView({ clientId, cmp, sel, err }: { clientId: number; cmp?: string; sel?: string; err?: string }) {
   const c = cmp ? getCampaign(Number(cmp)) : undefined;
-  if (c && c.client_id === clientId) return <Editor c={c} sel={sel ?? "c"} err={err} />;
+  if (c && c.client_id === clientId) return <Editor c={c} sel={sel ?? "p"} err={err} />;
   return <List clientId={clientId} />;
 }
 
@@ -49,7 +49,7 @@ export function NewCampaign({ clientId, label = "+ Нова кампанія", c
         </div>
         <label className="cg-f"><span>Що рекламуємо / ідея <i>з цього Джері збере групи й тексти</i></span>
           <VoiceTextarea name="idea" placeholder="напр. Акція на імплантацію до кінця місяця, жінки 35+, Позняки — Осокорки, акцент на безболісність і розстрочку" style={{ minHeight: "5rem" }} /></label>
-        <label className="lp-check"><input type="checkbox" name="auto" value="1" defaultChecked /> Джері одразу збере групи, таргетинг і 2–4 оголошення з текстами (~40 с)</label>
+        <label className="lp-check"><input type="checkbox" name="auto" value="1" defaultChecked /> Джері одразу збере задум, групи з таргетингом і по 4 креативи з промптами (тексти — потім, під готові креативи; ~1 хв)</label>
         <div><SubmitButton pendingText="Створюю…">Створити кампанію</SubmitButton></div>
       </form>
     </Pop>
@@ -84,7 +84,7 @@ function List({ clientId }: { clientId: number }) {
         <div className="card kp-empty">
           <Icon name="megaphone" size={28} />
           <b>Ще нема кампаній</b>
-          <span className="mono">Опиши ідею — Джері збере групи, таргетинг і тексти з урахуванням історії клієнта, брендбуку і того, що вже працювало в рекламі.</span>
+          <span className="mono">Опиши ідею — Джері збере задум, групи з таргетингом і креативи з промптами, з урахуванням історії клієнта, брендбуку і того, що вже працювало. Тексти — під готові креативи.</span>
           <NewCampaign clientId={clientId} label="+ Перша кампанія" />
         </div>
       )}
@@ -113,7 +113,9 @@ function Editor({ c, sel, err }: { c: Campaign; sel: string; err?: string }) {
   const base = `/clients/${c.client_id}?tab=meta_ads&mv=campaigns&cmp=${c.id}`;
   const selS = sel.startsWith("s") ? sets.find((s) => s.id === Number(sel.slice(1))) : undefined;
   const selA = sel.startsWith("a") ? [...ads.values()].flat().find((a) => a.id === Number(sel.slice(1))) : undefined;
-  const view = selA ? "a" : selS ? "s" : sel === "j" ? "j" : "c";
+  const view = selA ? "a" : selS ? "s" : sel === "j" ? "j" : sel === "p" ? "p" : "c";
+  const clientName = getClientRow(c.client_id)?.name ?? "";
+  const chat = campaignChatPrompt(c, clientName);
   const bad = checks.filter((x) => x.level === "bad").length, warn = checks.filter((x) => x.level === "warn").length;
   const hid = <input type="hidden" name="campaign_id" value={c.id} />;
   const notes = listNotes(c.id);
@@ -127,6 +129,9 @@ function Editor({ c, sel, err }: { c: Campaign; sel: string; err?: string }) {
           <span className={`tag ${tone(c.status)}`}>{lbl(CM_STATUS, c.status)}</span>
         </div>
         <div className="kp-ed-act">
+          <FolderButton campaignId={c.id} url={c.drive_folder_id ? `https://drive.google.com/drive/folders/${c.drive_folder_id}` : undefined} />
+          <CopyBtn text={creativeBrief(c.client_id)} label="⧉ 1. Контекст клієнта" small />
+          {chat.includes("### AD-") && <CopyBtn text={chat} label="⧉ 2. Усі креативи для Claude-чату" small />}
           <CopyBtn text={campaignMd(c)} label="⧉ Уся кампанія текстом" small />
           {![...ads.values()].flat().length && <GenDraft campaignId={c.id} />}
           <Pop className="pop-trigger pop-inline" title="Кампанія" trigger={<span className="btn ghost small">⋯</span>}>
@@ -142,7 +147,8 @@ function Editor({ c, sel, err }: { c: Campaign; sel: string; err?: string }) {
 
       <div className="kp-ed">
         <aside className="kp-tree" aria-label="Структура кампанії">
-          <Link href={base} scroll={false} className={`kp-node lv0${view === "c" ? " on" : ""}`}><Icon name="flag" size={15} /><span>Кампанія</span>{(bad || warn) ? <i className={`kp-dot ${bad ? "bad" : "warn"}`}>{bad + warn}</i> : null}</Link>
+          <Link href={`${base}&sel=p`} scroll={false} className={`kp-node lv0${view === "p" ? " on" : ""}`}><Icon name="sparkles" size={15} /><span>Задум · думка Джері</span></Link>
+          <Link href={`${base}&sel=c`} scroll={false} className={`kp-node lv0${view === "c" ? " on" : ""}`}><Icon name="flag" size={15} /><span>Кампанія</span>{(bad || warn) ? <i className={`kp-dot ${bad ? "bad" : "warn"}`}>{bad + warn}</i> : null}</Link>
           {sets.map((s) => (
             <div key={s.id} className="kp-branch">
               <Link href={`${base}&sel=s${s.id}`} scroll={false} className={`kp-node lv1${selS?.id === s.id ? " on" : ""}`}><Icon name="users" size={15} /><span>{s.name}</span><i className="kp-n">{ads.get(s.id)!.length}</i></Link>
@@ -158,6 +164,7 @@ function Editor({ c, sel, err }: { c: Campaign; sel: string; err?: string }) {
           <Link href={`${base}&sel=j`} scroll={false} className={`kp-node lv0 kp-j${view === "j" ? " on" : ""}`}><Icon name="clock" size={15} /><span>Журнал і висновки</span><i className="kp-n">{notes.length}</i></Link>
         </aside>
         <section className="kp-panel">
+          {view === "p" && <PlanPanel c={c} hid={hid} />}
           {view === "c" && <CampaignPanel c={c} checks={checks} hid={hid} />}
           {view === "s" && selS && <AdsetPanel c={c} s={selS} ads={ads.get(selS.id)!} />}
           {view === "a" && selA && <AdPanel c={c} s={sets.find((s) => s.id === selA.adset_id)!} a={selA} />}
@@ -170,7 +177,7 @@ function Editor({ c, sel, err }: { c: Campaign; sel: string; err?: string }) {
 
 function Thumb({ a }: { a: Ad }) {
   const src = a.file_id ? `/api/files/${a.file_id}` : a.media_url;
-  const isVideo = a.format === "video" || (a.file_id ? getFile(a.file_id)?.mime.startsWith("video/") : false);
+  const isVideo = a.file_id ? !!getFile(a.file_id)?.mime.startsWith("video/") : false;
   if (!src) return <i className="kp-thumb kp-none"><Icon name="sparkles" size={13} /></i>;
   if (isVideo && a.file_id) return <i className="kp-thumb vid">▶</i>;
   // eslint-disable-next-line @next/next/no-img-element
@@ -179,6 +186,24 @@ function Thumb({ a }: { a: Ad }) {
 
 function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return <div className="card kp-sec"><div className="kp-sec-h"><b>{title}</b>{action}</div>{children}</div>;
+}
+
+function PlanPanel({ c, hid }: { c: Campaign; hid: React.ReactNode }) {
+  const plan = planOf(c);
+  const filled = Object.values(plan).some(Boolean);
+  return (
+    <div className="stack" style={{ gap: "0.875rem" }}>
+      <Section title="Задум кампанії — загальна картина" action={<span className="mono">думка Джері · клікни блок, щоб поправити</span>}>
+        {c.idea && <div className="kp-idea"><b>Ідея</b><p>{c.idea}</p></div>}
+        <div className="eb-grid">
+          {(Object.keys(PLAN_FIELDS) as (keyof typeof PLAN_FIELDS)[]).map((k) => (
+            <EditBlock key={k} title={PLAN_FIELDS[k].label} name={k} value={plan[k] ?? ""} action={savePlanAction} hidden={hid} hint={PLAN_FIELDS[k].hint} rows={6} />
+          ))}
+        </div>
+        <GenWish kind="plan" id={c.id} label="✨ Джері: задум кампанії" again={filled ? "✨ Переосмислити" : undefined} placeholder="Що врахувати: напр. «ціль — 30 заявок за місяць», «конкурент знизив ціни»" wait="Джері думає… ~30 с" />
+      </Section>
+    </div>
+  );
 }
 
 function CampaignPanel({ c, checks, hid }: { c: Campaign; checks: ReturnType<typeof campaignChecks>; hid: React.ReactNode }) {
@@ -309,14 +334,14 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
   const logo = logoSrc("client", c.client_id);
   const f = a.file_id ? getFile(a.file_id) : undefined;
   const src = a.file_id ? `/api/files/${a.file_id}` : a.media_url;
-  const isVideo = f ? f.mime.startsWith("video/") : false;
+  const isVideo = f ? f.mime.startsWith("video/") : isMotion(a.format) && !!a.media_url && /\.(mp4|mov|webm)(\?|$)/i.test(a.media_url);
   const url = adUrl(a, s);
   const metaAds = adsForClient(c.client_id);
   const totals = adTotalsForClient(c.client_id);
   const winners = metaAds.filter((m) => m.image_url || m.thumbnail_url).map((m) => { const t = totals.find((x) => x.ad_id === m.ad_id); return { m, cpl: t?.leads ? t.spend / t.leads : null, leads: t?.leads ?? 0 }; })
     .sort((x, y) => (x.cpl ?? 1e9) - (y.cpl ?? 1e9)).slice(0, 12);
   const live = adLive(a, metaAds);
-  const cr = a.creative_id ? getPrompt(a.creative_id) : undefined;
+  const promptFull = adPromptFull(c, a, client?.name ?? "");
   return (
     <div className="stack" style={{ gap: "0.875rem" }}>
       <Live l={live} target={c.target_cpl} />
@@ -329,9 +354,9 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
             <span><b>{client?.name.replace(/^Тест:\s*/, "")}</b><small>Реклама</small></span>
           </div>
           <div className="kp-prev-t">{a.primary_text ? <>{a.primary_text.slice(0, LIMITS.primary)}{a.primary_text.length > LIMITS.primary && <span className="kp-more">… Ще</span>}</> : <span className="mono">Основний текст</span>}</div>
-          <div className={`kp-prev-m${src ? "" : " kp-none"}`}>
+          <div className={`kp-prev-m${src ? "" : " kp-none"}`} style={{ aspectRatio: ({ square: "1", carousel: "1", story: "9 / 16", motion: "9 / 16", video: "9 / 16", wide: "16 / 9" } as Record<string, string>)[a.format] ?? "4 / 5" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {!src ? <span>Креатив ще не додано</span> : isVideo ? <video src={src} controls preload="metadata" /> : <img src={src} alt="" />}
+            {!src ? <span>{lbl(AD_FORMATS, a.format)}<br />креатив ще не додано</span> : isVideo ? <video src={src} controls preload="metadata" /> : <img src={src} alt="" />}
           </div>
           <div className="kp-prev-f">
             <span><small>{url ? (() => { try { return new URL(url).hostname.toUpperCase(); } catch { return ""; } })() : lbl(CONVERSIONS, s.conversion).split(" (")[0].toUpperCase()}</small><b>{a.headline || "Заголовок"}</b>{a.description && <small>{a.description}</small>}</span>
@@ -340,7 +365,57 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
         </div>
 
         <div className="stack" style={{ gap: "0.875rem", minWidth: 0 }}>
-          <Section title="3 · Оголошення — тексти" action={
+          <Section title="3 · Креатив" action={
+            <span className="inline">
+              <span className="tag accent">{lbl(AD_FORMATS, a.format)}</span>{a.tool && <span className="tag">{a.tool}</span>}
+              <Pop wide closeOnSubmit className="pop-trigger pop-inline" title={`Креатив ${adCode(a)}`} trigger={<span className="btn ghost small">Змінити</span>}>
+                <form action={saveAdAction} className="stack" style={{ gap: "0.625rem" }}>
+                  {hid}
+                  <div className="kp-row2">
+                    <label className="cg-f"><span>Формат і розмір</span><select name="format" defaultValue={a.format}>{opts(AD_FORMATS)}</select></label>
+                    <label className="cg-f"><span>Чим робимо</span><input name="tool" defaultValue={a.tool} list="kp-tools" placeholder="Midjourney" /></label>
+                  </div>
+                  <datalist id="kp-tools">{CREATIVE_TOOLS.map((t) => <option key={t} value={t} />)}</datalist>
+                  <label className="cg-f"><span>Кут / ідея</span><input name="angle" defaultValue={a.angle} /></label>
+                  <label className="cg-f"><span>Текст на креативі</span><textarea name="overlay" defaultValue={a.overlay} style={{ minHeight: "3.5rem" }} /></label>
+                  <label className="cg-f"><span>Промпт</span><VoiceTextarea name="creative_prompt" defaultValue={a.creative_prompt} style={{ minHeight: "9rem" }} /></label>
+                  <label className="cg-f"><span>Посилання на готовий креатив <i>якщо не завантажуєш файл</i></span><input name="media_url" defaultValue={a.file_id ? "" : a.media_url} placeholder="https://…" /></label>
+                  <div><SubmitButton className="small">Зберегти</SubmitButton></div>
+                </form>
+              </Pop>
+            </span>
+          }>
+            {a.angle && <div className="kp-idea"><b>Кут</b><p>{a.angle}</p></div>}
+            {a.overlay && <CopyField label="Текст на креативі" value={a.overlay} hint="накладається окремо" multiline />}
+            {a.creative_prompt ? <CopyField label="Промпт для генерації" value={promptFull} hint="+ куди зберегти файл" multiline />
+              : <p className="mono" style={{ margin: 0 }}>Промпту ще нема — Джері напише бриф: формат, розмір, текст на креативі і готовий промпт.</p>}
+            <GenWish kind="brief" id={a.id} label="✨ Бриф і промпт від Джері" again={a.creative_prompt ? "✨ Інший варіант" : undefined} placeholder="Побажання: напр. «моушен замість фото», «жінка 40 років, світла клініка»" />
+            <div className="kp-up">
+              <b>Готовий креатив</b>
+              <MediaUpload adId={a.id} has={!!src} />
+              <span className="inline" style={{ flexWrap: "wrap" }}>
+                {src && <form action={adOpAction} className="inline">{hid}<input type="hidden" name="op" value="clear_media" /><button className="ghost small">Прибрати</button></form>}
+                {winners.length > 0 && (
+                  <Pop wide className="pop-trigger pop-inline" title="Креатив з робочих оголошень" sub="Найдешевші за ціною ліда зверху — переможця не треба малювати заново" trigger={<span className="btn ghost small">Взяти з Meta ({winners.length})</span>}>
+                    <div className="kp-pick">
+                      {winners.map(({ m, cpl, leads }) => (
+                        <form key={m.ad_id} action={mediaFromMetaAction} className="kp-pick-i">
+                          {hid}<input type="hidden" name="meta_ad_id" value={m.ad_id} />
+                          <button>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={m.image_url || m.thumbnail_url} alt="" />
+                            <span><b>{m.name}</b><small>{cpl != null ? `${money2(cpl)} за лід · ${leads} лідів` : "лідів ще нема"}</small></span>
+                          </button>
+                        </form>
+                      ))}
+                    </div>
+                  </Pop>
+                )}
+              </span>
+            </div>
+          </Section>
+
+          <Section title="4 · Тексти оголошення" action={
             <span className="inline">
               <Pop wide closeOnSubmit className="pop-trigger pop-inline" title={adCode(a)} sub="Код AD-N залиш у назві оголошення в Meta — по ньому підтягнуться цифри" trigger={<span className="btn ghost small">Змінити</span>}>
                 <form action={saveAdAction} className="stack" style={{ gap: "0.625rem" }}>
@@ -349,20 +424,15 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
                     <label className="cg-f"><span>Назва</span><input name="name" defaultValue={a.name.replace(/^AD-\d+\s*·\s*/, "")} /></label>
                     <label className="cg-f"><span>Стан</span><select name="status" defaultValue={a.status}>{opts(AD_STATUS)}</select></label>
                   </div>
-                  <label className="cg-f"><span>Кут / ідея</span><input name="angle" defaultValue={a.angle} /></label>
                   <label className="cg-f"><span>Основний текст <i>головне — в перших {LIMITS.primary} симв.</i></span><VoiceTextarea name="primary_text" defaultValue={a.primary_text} style={{ minHeight: "8rem" }} /></label>
                   <div className="kp-row2">
                     <label className="cg-f"><span>Заголовок <i>до {LIMITS.headline}</i></span><input name="headline" defaultValue={a.headline} maxLength={120} /></label>
                     <label className="cg-f"><span>Опис <i>до {LIMITS.description}</i></span><input name="description" defaultValue={a.description} maxLength={120} /></label>
                   </div>
-                  <div className="kp-row2">
-                    <label className="cg-f"><span>Кнопка</span><select name="cta" defaultValue={a.cta}>{opts(CTAS)}</select></label>
-                    <label className="cg-f"><span>Формат</span><select name="format" defaultValue={a.format}>{opts(AD_FORMATS)}</select></label>
-                  </div>
+                  <label className="cg-f"><span>Кнопка</span><select name="cta" defaultValue={a.cta}>{opts(CTAS)}</select></label>
                   <label className="cg-f"><span>Посилання</span><input name="url" defaultValue={a.url} placeholder={s.url || "https://"} /></label>
                   <label className="cg-f"><span>UTM</span><input name="utm" defaultValue={a.utm} placeholder="utm_source=facebook&utm_medium=paid…" /></label>
                   <label className="lp-check"><input type="checkbox" name="utm_auto" value="1" /> Поставити UTM автоматично (кампанія + код AD-N)</label>
-                  <label className="cg-f"><span>Посилання на креатив <i>якщо не завантажуєш файл</i></span><input name="media_url" defaultValue={a.file_id ? "" : a.media_url} placeholder="https://…" /></label>
                   <label className="cg-f"><span>Нотатка</span><textarea name="notes" defaultValue={a.notes} style={{ minHeight: "3rem" }} /></label>
                   <div><SubmitButton className="small">Зберегти</SubmitButton></div>
                 </form>
@@ -375,21 +445,11 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
               </Pop>
             </span>
           }>
-            <CopyField label="Назва оголошення" value={a.name} hint="з кодом — не прибирай" />
-            <CopyField label="Основний текст" value={a.primary_text} limit={LIMITS.primary} soft hint="далі — під «Ще»" multiline />
-            <CopyField label="Заголовок" value={a.headline} limit={LIMITS.headline} />
-            <CopyField label="Опис" value={a.description} limit={LIMITS.description} />
-            <CopyField label="Кнопка (CTA)" value={lbl(CTAS, a.cta)} />
-            {(url || s.conversion === "site") && <CopyField label="Посилання з UTM" value={url} />}
-            {a.angle && <div className="kp-idea"><b>Кут</b><p>{a.angle}</p></div>}
-            {a.notes && <div className="kp-idea"><b>Нотатка</b><p>{a.notes}</p></div>}
-          </Section>
-
-          <Section title="Тексти від Джері" action={<span className="mono">бачить креатив, історію клієнта і що працювало</span>}>
+            {!src && !a.primary_text && <p className="mono kp-wait">Тексти пишемо під готовий креатив: завантаж фото/відео вище — Джері подивиться на нього і напише. {a.creative_prompt && "Можна і зараз — по брифу."}</p>}
             <GenCopy adId={a.id} has={!!v.primary?.length} />
             {(v.primary?.length ?? 0) > 0 && (
               <div className="kp-vars">
-                <b className="kp-vars-h">Основний текст <i>Meta дозволяє до 5 варіантів — можна вставити всі</i></b>
+                <b className="kp-vars-h">Варіанти основного тексту <i>Meta дозволяє до 5 — можна вставити всі</i></b>
                 {v.primary!.map((x, i) => <UseVariant key={`p${i}`} adId={a.id} field="primary_text" value={x} current={x === a.primary_text} />)}
                 {(v.headline?.length ?? 0) > 0 && <b className="kp-vars-h">Заголовки</b>}
                 {v.headline?.map((x, i) => <UseVariant key={`h${i}`} adId={a.id} field="headline" value={x} current={x === a.headline} />)}
@@ -398,29 +458,17 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
                 {(v.tips?.length ?? 0) > 0 && <ul className="kp-tips">{v.tips!.map((t, i) => <li key={i}>{t}</li>)}</ul>}
               </div>
             )}
-          </Section>
-
-          <Section title="Креатив">
-            <MediaUpload adId={a.id} has={!!src} />
-            {src && <form action={adOpAction} className="inline">{hid}<input type="hidden" name="op" value="clear_media" /><button className="ghost small">Прибрати креатив</button></form>}
-            <CreativePrompt adId={a.id} code={cr ? `CR-${cr.id}` : undefined} />
-            <div><CopyBtn text={creativeBrief(c.client_id)} label="⧉ Контекст клієнта для Claude" small /></div>
-            {winners.length > 0 && (
-              <Pop wide className="pop-trigger pop-inline" title="Креатив з робочих оголошень" sub="Найдешевші за ціною ліда зверху — переможця не треба малювати заново" trigger={<span className="btn ghost small">Взяти креатив з Meta ({winners.length})</span>}>
-                <div className="kp-pick">
-                  {winners.map(({ m, cpl, leads }) => (
-                    <form key={m.ad_id} action={mediaFromMetaAction} className="kp-pick-i">
-                      {hid}<input type="hidden" name="meta_ad_id" value={m.ad_id} />
-                      <button>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={m.image_url || m.thumbnail_url} alt="" />
-                        <span><b>{m.name}</b><small>{cpl != null ? `${money2(cpl)} за лід · ${leads} лідів` : "лідів ще нема"}</small></span>
-                      </button>
-                    </form>
-                  ))}
-                </div>
-              </Pop>
+            {(a.primary_text || a.headline) && (
+              <>
+                <CopyField label="Назва оголошення" value={a.name} hint="з кодом — не прибирай" />
+                <CopyField label="Основний текст" value={a.primary_text} limit={LIMITS.primary} soft hint="далі — під «Ще»" multiline />
+                <CopyField label="Заголовок" value={a.headline} limit={LIMITS.headline} />
+                <CopyField label="Опис" value={a.description} limit={LIMITS.description} />
+                <CopyField label="Кнопка (CTA)" value={lbl(CTAS, a.cta)} />
+                {(url || s.conversion === "site") && <CopyField label="Посилання з UTM" value={url} />}
+              </>
             )}
+            {a.notes && <div className="kp-idea"><b>Нотатка</b><p>{a.notes}</p></div>}
           </Section>
 
           <Section title="Що вийшло">

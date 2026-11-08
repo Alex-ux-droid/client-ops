@@ -4,15 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { capOn } from "@/lib/agent/caps";
-import { adLive, campaignLive, defaultUtm, genAdCopy, genCampaignDraft, genTargeting, money2 } from "@/lib/campaigns";
-import { generateCreativePrompt, type CreativeFormat } from "@/lib/creativeLab";
+import { adLive, campaignLive, defaultUtm, ensureCampaignFolder, genAdCopy, genCampaignDraft, genCampaignPlan, genCreativeBrief, genTargeting, money2 } from "@/lib/campaigns";
 import { llmErrorText } from "@/lib/llmJson";
 import {
   adCode, addAd, addAdset, addCampaign, addNote, campaignOfAd, deleteAd, deleteAdset, deleteCampaign, deleteNote, getAd, getAdset, getCampaign,
-  listAds, NOTE_KINDS, updateAd, updateAdset, updateCampaign, type Ad, type AdSet, type Campaign, type NoteKind,
+  isMotion, listAds, NOTE_KINDS, PLAN_FIELDS, planOf, updateAd, updateAdset, updateCampaign, type Ad, type AdSet, type Campaign, type NoteKind,
 } from "@/lib/repo/campaigns";
 import { adsForClient } from "@/lib/repo/meta";
-import { getPrompt } from "@/lib/repo/creatives";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const numOrNull = (fd: FormData, k: string) => { const s = str(fd, k).replace(",", "."); if (!s) return null; const n = Number(s); return Number.isFinite(n) ? n : null; };
@@ -35,6 +33,7 @@ export async function createCampaignAction(fd: FormData) {
   const cid = Number(fd.get("client_id"));
   const id = addCampaign(cid, pick(fd, ["name", "objective", "budget_type", "budget_level", "idea", "start_date"] as const, ["budget", "target_cpl"] as const) as Partial<Campaign>);
   let err = "";
+  await ensureCampaignFolder(getCampaign(id)!).catch(() => null);
   if (fd.get("auto") && !off()) { try { await genCampaignDraft(id); } catch (e) { err = llmErrorText(e); } }
   else addAdset(id);
   back(cid);
@@ -101,7 +100,7 @@ export async function adsetOpAction(fd: FormData) {
 export async function saveAdAction(fd: FormData) {
   await requireUser();
   const a = getAd(Number(fd.get("ad_id"))); if (!a) return;
-  const p = pick(fd, ["name", "angle", "format", "media_url", "primary_text", "headline", "description", "cta", "url", "utm", "status", "notes", "meta_ad_id"] as const) as Partial<Ad>;
+  const p = pick(fd, ["name", "angle", "format", "tool", "overlay", "creative_prompt", "media_url", "primary_text", "headline", "description", "cta", "url", "utm", "status", "notes", "meta_ad_id"] as const) as Partial<Ad>;
   if (fd.get("utm_auto")) { const c = campaignOfAd(a.id); if (c) p.utm = defaultUtm(c, a); }
   updateAd(a.id, p);
   back(campaignOfAd(a.id)!.client_id);
@@ -123,7 +122,7 @@ export async function mediaFromMetaAction(fd: FormData) {
   const m = adsForClient(c.client_id).find((x) => x.ad_id === str(fd, "meta_ad_id"));
   if (!m) return;
   const url = m.image_url || m.thumbnail_url;
-  updateAd(a.id, { media_url: url, file_id: null, format: m.kind === "video" ? "video" : "image", ...(a.primary_text ? {} : { primary_text: m.body }) });
+  updateAd(a.id, { media_url: url, file_id: null, ...(m.kind === "video" ? { format: "video" } : isMotion(a.format) ? { format: "feed" } : {}) });
   back(c.client_id);
 }
 // Взяти один з варіантів Джері як основний
@@ -155,20 +154,13 @@ export async function genDraftAction(campaignId: number) {
   try { const r = await genCampaignDraft(campaignId); back(c.client_id); return { ok: true as const, ...r }; }
   catch (e) { return { ok: false as const, error: llmErrorText(e) }; }
 }
-// Промпт для Claude, щоб намалювати креатив під це оголошення (код CR-N, витяжка — як у студії креативів)
-const FMT: Record<string, CreativeFormat> = { image: "feed", video: "video", carousel: "carousel" };
-export async function creativePromptAction(adId: number) {
+// Бриф і промпт креативу (формат, інструмент, текст на креативі) — новий або з побажанням
+export async function genBriefAction(adId: number, wish: string) {
   await requireUser();
-  if (!capOn("creatives")) return { ok: false as const, error: "Вимкнено: Можливості → «Креативи»" };
+  if (off()) return { ok: false as const, error: off() };
   const a = getAd(adId); if (!a) return { ok: false as const, error: "Нема оголошення" };
-  const c = campaignOfAd(a.id)!;
-  const existing = a.creative_id ? getPrompt(a.creative_id) : undefined;
-  if (existing) return { ok: true as const, prompt: existing.prompt, code: `CR-${existing.id}` };
-  const r = await generateCreativePrompt(c.client_id, { format: FMT[a.format] ?? "feed", angle: a.angle, note: [a.notes, a.primary_text && `Текст оголошення: ${a.primary_text.slice(0, 300)}`].filter(Boolean).join("\n") });
-  if (!r.ok) return r;
-  updateAd(a.id, { creative_id: r.id });
-  back(c.client_id);
-  return { ok: true as const, prompt: r.prompt, code: `CR-${r.id}` };
+  try { await genCreativeBrief(adId, wish); back(campaignOfAd(adId)!.client_id); return { ok: true as const }; }
+  catch (e) { return { ok: false as const, error: llmErrorText(e) }; }
 }
 
 // Журнал навчання: нотатка / зміна / бюджет / зайшло / не зайшло / урок. До оцінки сам дописує цифри з Meta на цей момент.
@@ -192,4 +184,28 @@ export async function deleteNoteAction(fd: FormData) {
   await requireUser();
   const c = getCampaign(Number(fd.get("campaign_id"))); if (!c) return;
   deleteNote(Number(fd.get("note_id"))); back(c.client_id);
+}
+
+export async function genPlanAction(campaignId: number, wish: string) {
+  await requireUser();
+  if (off()) return { ok: false as const, error: off() };
+  const c = getCampaign(campaignId); if (!c) return { ok: false as const, error: "Нема кампанії" };
+  try { await genCampaignPlan(campaignId, wish); back(c.client_id); return { ok: true as const }; }
+  catch (e) { return { ok: false as const, error: llmErrorText(e) }; }
+}
+// Правка одного блоку задуму (EditBlock шле поле з назвою ключа)
+export async function savePlanAction(fd: FormData) {
+  await requireUser();
+  const c = getCampaign(Number(fd.get("campaign_id"))); if (!c) return;
+  const plan = planOf(c) as Record<string, string>;
+  for (const k of Object.keys(PLAN_FIELDS)) if (fd.has(k)) plan[k] = str(fd, k);
+  updateCampaign(c.id, { plan_json: JSON.stringify(plan) });
+  back(c.client_id);
+}
+export async function folderAction(campaignId: number) {
+  await requireUser();
+  const c = getCampaign(campaignId); if (!c) return { ok: false as const, error: "Нема кампанії" };
+  const r = await ensureCampaignFolder(c);
+  back(c.client_id);
+  return r.ok ? { ok: true as const, url: r.url } : { ok: false as const, error: r.error ?? "Не вдалось" };
 }

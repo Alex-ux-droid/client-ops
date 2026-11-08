@@ -8,7 +8,13 @@ export const OBJECTIVES = {
 export const CM_STATUS = { draft: "Чернетка", ready: "Готово до запуску", live: "Запущено", paused: "Пауза", done: "Завершено" } as const;
 export const CONVERSIONS = { form: "Миттєва форма (лід-форма)", site: "Сайт", messenger: "Месенджери (Messenger / WhatsApp / Instagram)", call: "Дзвінки" } as const;
 export const GENDERS = { all: "Усі", male: "Чоловіки", female: "Жінки" } as const;
-export const AD_FORMATS = { image: "Фото", video: "Відео", carousel: "Карусель" } as const;
+// Формат креативу = розмір і тип (від нього залежить промпт і інструмент)
+export const AD_FORMATS = {
+  feed: "Фото 4:5 · 1080×1350", square: "Фото 1:1 · 1080×1080", story: "Фото 9:16 · 1080×1920", motion: "Моушен 9:16 · 6–10 с",
+  video: "Відео 9:16 · 15–30 с", carousel: "Карусель 1:1 · 3–5 карток", wide: "16:9 · 1920×1080",
+} as const;
+export const isMotion = (f: string) => f === "motion" || f === "video";
+export const CREATIVE_TOOLS = ["Midjourney", "Higgsfield", "Claude (HTML)", "CapCut", "Canva", "Фото/зйомка"] as const;
 export const AD_STATUS = { draft: "Чернетка", ready: "Готове", live: "У рекламі", off: "Вимкнено" } as const;
 // Кнопки Meta: англійська назва як у кабінеті + наш переклад-підказка
 export const CTAS = {
@@ -26,6 +32,7 @@ export type NoteKind = keyof typeof NOTE_KINDS;
 export type Campaign = {
   id: number; client_id: number; name: string; objective: string; status: string; budget_level: string; budget_type: string; budget: number | null;
   start_date: string; end_date: string; idea: string; target_cpl: number | null; special_category: string; notes: string; meta_campaign_id: string;
+  drive_folder_id: string; drive_folder_name: string; plan_json: string;
   created_at: string; updated_at: string;
 };
 export type AdSet = {
@@ -35,6 +42,7 @@ export type AdSet = {
 };
 export type Ad = {
   id: number; adset_id: number; name: string; angle: string; format: string; file_id: number | null; media_url: string; creative_id: number | null;
+  creative_prompt: string; overlay: string; tool: string;
   primary_text: string; headline: string; description: string; variants_json: string; cta: string; url: string; utm: string;
   status: string; notes: string; sort: number; meta_ad_id: string; created_at: string;
 };
@@ -44,9 +52,9 @@ export type Variants = { primary?: string[]; headline?: string[]; description?: 
 export const adCode = (a: { id: number }) => `AD-${a.id}`;
 export const variantsOf = (a: Ad): Variants => { try { return JSON.parse(a.variants_json || "{}") as Variants; } catch { return {}; } };
 
-const C_FIELDS = ["name", "objective", "status", "budget_level", "budget_type", "budget", "start_date", "end_date", "idea", "target_cpl", "special_category", "notes", "meta_campaign_id"] as const;
+const C_FIELDS = ["name", "objective", "status", "budget_level", "budget_type", "budget", "start_date", "end_date", "idea", "target_cpl", "special_category", "notes", "meta_campaign_id", "drive_folder_id", "drive_folder_name", "plan_json"] as const;
 const S_FIELDS = ["name", "conversion", "form", "url", "budget", "locations", "age_min", "age_max", "gender", "languages", "interests", "exclusions", "audiences", "advantage", "placements", "notes", "sort", "meta_adset_id"] as const;
-const A_FIELDS = ["name", "angle", "format", "file_id", "media_url", "creative_id", "primary_text", "headline", "description", "variants_json", "cta", "url", "utm", "status", "notes", "sort", "meta_ad_id"] as const;
+const A_FIELDS = ["name", "angle", "format", "creative_prompt", "overlay", "tool", "file_id", "media_url", "creative_id", "primary_text", "headline", "description", "variants_json", "cta", "url", "utm", "status", "notes", "sort", "meta_ad_id"] as const;
 
 function patchSql<T extends string>(table: string, fields: readonly T[], id: number, patch: Partial<Record<T, unknown>>, touch = false) {
   const keys = fields.filter((k) => k in patch);
@@ -118,3 +126,15 @@ export const clientLessons = (clientId: number, limit = 30) =>
   db().prepare(`SELECT n.*, c.name AS campaign FROM cm_notes n JOIN cm_campaigns c ON c.id = n.campaign_id WHERE c.client_id = ? AND n.kind IN ('win','lose','lesson','result') ORDER BY n.created_at DESC LIMIT ?`).all(clientId, limit) as (CmNote & { campaign: string })[];
 export const globalLessons = (exceptClient: number, limit = 12) =>
   db().prepare(`SELECT n.*, c.name AS campaign FROM cm_notes n JOIN cm_campaigns c ON c.id = n.campaign_id WHERE c.client_id != ? AND n.kind = 'lesson' ORDER BY n.created_at DESC LIMIT ?`).all(exceptClient, limit) as (CmNote & { campaign: string })[];
+
+// Задум кампанії — думка Джері: загальна картина
+export const PLAN_FIELDS = {
+  goal: { label: "Ціль — що хочемо досягти", hint: "конкретно: скільки заявок/продажів, за яку ціну, за який час" },
+  why_people: { label: "Чому це цікаво людям", hint: "біль, бажання, тригер — чому зупиняться на рекламі" },
+  why_us: { label: "Навіщо ми її розвиваємо", hint: "місце в стратегії клієнта, що дає бізнесу" },
+  potential: { label: "Потенціал", hint: "скільки можна вичавити при масштабуванні, куди рости" },
+  risks: { label: "Ризики і що перевіряємо", hint: "гіпотези кампанії, що може не спрацювати" },
+  kpi: { label: "Як міряємо успіх", hint: "цифри-пороги: коли масштабуємо, коли вимикаємо" },
+} as const;
+export type PlanKey = keyof typeof PLAN_FIELDS;
+export const planOf = (c: Campaign): Partial<Record<PlanKey, string>> => { try { return JSON.parse(c.plan_json || "{}"); } catch { return {}; } };

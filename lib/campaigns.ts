@@ -2,11 +2,13 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { asText, askJson } from "./llmJson";
 import {
-  adCode, addAd, addAdset, adsOfCampaign, clientLessons, CONVERSIONS, CTAS, GENDERS, getAd, getAdset, getCampaign, globalLessons,
+  AD_FORMATS, adCode, addAd, addAdset, isMotion, PLAN_FIELDS, planOf, adsOfCampaign, clientLessons, CONVERSIONS, CTAS, GENDERS, getAd, getAdset, getCampaign, globalLessons,
   listAdsets, listAds, listCampaigns, OBJECTIVES, updateAd, updateAdset, updateCampaign, variantsOf,
   type Ad, type AdSet, type Campaign, type Variants,
 } from "./repo/campaigns";
 import { getFile, readFile } from "./repo/files";
+import { creativeTools } from "./aiRadar";
+import { stylesFor } from "./repo/creativeCenter";
 import { adsForClient, adTotalsForClient, campaignsWithStats, kyivDay, type MetaAd } from "./repo/meta";
 
 // Рекомендовані довжини Meta (далі текст ховається за «Ще» або обрізається на частині плейсментів)
@@ -81,12 +83,13 @@ export function campaignChecks(c: Campaign): Check[] {
     if (!ads.length) out.push({ level: "bad", text: "Нема оголошень", where: w });
     else if (ads.length === 1) out.push({ level: "tip", text: "Одне оголошення — додай 2–4 різні концепти (різні кути, не варіації одного), так Meta швидше знайде переможця", where: w });
     else if (ads.length > 6) out.push({ level: "warn", text: `${ads.length} оголошень в одній групі — бюджет розмажеться, залиш 3–6`, where: w });
-    if (ads.length > 1 && new Set(ads.map((a) => a.format)).size === 1) out.push({ level: "tip", text: "Усі оголошення одного формату — додай вертикальне 9:16 відео/фото для Reels і Stories", where: w });
+    if (ads.length > 1 && !ads.some((a) => ["story", "motion", "video"].includes(a.format))) out.push({ level: "tip", text: "Нема вертикального 9:16 — додай фото/моушен для Reels і Stories", where: w });
     for (const a of ads) {
       const an = adCode(a);
-      if (!a.file_id && !a.media_url) out.push({ level: "bad", text: "Нема креативу (фото/відео)", where: an });
-      if (!a.primary_text.trim()) out.push({ level: "bad", text: "Нема основного тексту", where: an });
-      if (!a.headline.trim()) out.push({ level: "warn", text: "Нема заголовка", where: an });
+      const hasMedia = !!(a.file_id || a.media_url);
+      if (!hasMedia) out.push({ level: "bad", text: a.creative_prompt ? "Креатив ще не завантажено — промпт готовий" : "Нема креативу і промпту для нього", where: an });
+      else if (!a.primary_text.trim()) out.push({ level: "bad", text: "Креатив є — напиши тексти («Тексти під цей креатив»)", where: an });
+      if (hasMedia && !a.headline.trim()) out.push({ level: "warn", text: "Нема заголовка", where: an });
       if (a.primary_text.length > LIMITS.primary * 3) out.push({ level: "tip", text: `Основний текст ${a.primary_text.length} симв. — довгий; головне має бути в перших ${LIMITS.primary}`, where: an });
       if (a.headline.length > LIMITS.headline) out.push({ level: "warn", text: `Заголовок ${a.headline.length} > ${LIMITS.headline} симв. — обріжеться`, where: an });
       if (a.description.length > LIMITS.description) out.push({ level: "warn", text: `Опис ${a.description.length} > ${LIMITS.description} симв. — обріжеться`, where: an });
@@ -121,12 +124,13 @@ export function campaignMd(c: Campaign): string {
     `Ціль: ${lbl(OBJECTIVES, c.objective)} · Бюджет: ${c.budget == null ? "—" : `${money2(c.budget)} ${c.budget_type === "daily" ? "на день" : "на весь час"}`} (${c.budget_level === "campaign" ? "на кампанію, Advantage+" : "на групи"})`,
     c.start_date && `Старт: ${c.start_date}${c.end_date ? ` → ${c.end_date}` : ""}`, c.target_cpl != null && `Ціль ціни ліда: ${money2(c.target_cpl)}`,
     c.special_category && `Спецкатегорія: ${c.special_category}`, c.idea && `Ідея: ${c.idea}`,
+    ...Object.entries(planOf(c)).filter(([, v]) => v).map(([k, v]) => `${PLAN_FIELDS[k as keyof typeof PLAN_FIELDS]?.label ?? k}: ${v}`),
   ].filter(Boolean) as string[];
   for (const s of sets) {
     out.push("", `## Група: ${s.name}`, `Куди: ${lbl(CONVERSIONS, s.conversion)}${s.url ? ` — ${s.url}` : ""}${s.budget != null ? ` · бюджет ${money2(s.budget)}` : ""}`, adsetTargeting(s));
     if (s.form) out.push(`Лід-форма:\n${s.form}`);
     for (const a of listAds(s.id)) {
-      out.push("", `### ${a.name}`, a.angle ? `Кут: ${a.angle}` : "", `Основний текст:\n${a.primary_text || "—"}`, `Заголовок: ${a.headline || "—"}`, a.description ? `Опис: ${a.description}` : "",
+      out.push("", `### ${a.name}`, a.angle ? `Кут: ${a.angle}` : "", `Креатив: ${lbl(AD_FORMATS, a.format)}${a.tool ? ` · ${a.tool}` : ""}`, a.overlay ? `Текст на креативі:\n${a.overlay}` : "", a.creative_prompt ? `Промпт креативу:\n${a.creative_prompt}` : "", `Основний текст:\n${a.primary_text || "—"}`, `Заголовок: ${a.headline || "—"}`, a.description ? `Опис: ${a.description}` : "",
         `Кнопка: ${lbl(CTAS, a.cta)}`, adUrl(a, s) ? `Посилання: ${adUrl(a, s)}` : "");
       const v = variantsOf(a);
       if ((v.primary?.length ?? 0) > 1) out.push(`Варіанти тексту:\n${v.primary!.map((x, i) => `${i + 1}. ${x}`).join("\n")}`);
@@ -143,7 +147,7 @@ export function campaignsSnapshot(clientId: number): string {
   const ls = clientLessons(clientId, 10);
   return [
     "КАМПАНІЇ (конструктор):",
-    ...cs.map((c) => { const l = campaignLive(c); return `- #${c.id} ${c.name} · ${c.status} · ${lbl(OBJECTIVES, c.objective)} · груп ${c.adsets}, оголошень ${c.ads}${c.budget != null ? ` · бюджет ${money2(c.budget)}/${c.budget_type === "daily" ? "день" : "весь час"}` : ""}${l ? ` · 30 дн.: ${money2(l.spend)} витрачено, ${l.leads} лідів, ціна ${money2(l.cpl)}` : ""}`; }),
+    ...cs.map((c) => { const l = campaignLive(c); const g = planOf(c).goal; return `- #${c.id} ${c.name}${g ? ` (ціль: ${g.slice(0, 120)})` : ""} · ${c.status} · ${lbl(OBJECTIVES, c.objective)} · груп ${c.adsets}, оголошень ${c.ads}${c.budget != null ? ` · бюджет ${money2(c.budget)}/${c.budget_type === "daily" ? "день" : "весь час"}` : ""}${l ? ` · 30 дн.: ${money2(l.spend)} витрачено, ${l.leads} лідів, ціна ${money2(l.cpl)}` : ""}`; }),
     ...(ls.length ? ["Уроки й оцінки:", ...ls.map((n) => `- [${n.kind}] ${n.text} (${n.campaign}, ${n.created_at.slice(0, 10)})`)] : []),
   ].join("\n");
 }
@@ -187,8 +191,8 @@ export async function genAdCopy(adId: number, wish = ""): Promise<Variants> {
     await contextFor(c.client_id),
     `КАМПАНІЯ: ${c.name} · ціль ${lbl(OBJECTIVES, c.objective)}${c.idea ? ` · ідея: ${c.idea}` : ""}`,
     `ГРУПА: ${s.name} · куди: ${lbl(CONVERSIONS, s.conversion)}\n${adsetTargeting(s)}`,
-    `ОГОЛОШЕННЯ ${adCode(a)}: кут — ${a.angle || "обери сам"}; формат — ${a.format}${a.primary_text ? `\nПоточний текст: ${a.primary_text}` : ""}`,
-    img ? "Креатив — на картинці нижче: тексти мають доповнювати її, а не повторювати." : a.format === "video" ? "Креатив — відео (його не видно), спирайся на кут." : "",
+    `ОГОЛОШЕННЯ ${adCode(a)}: кут — ${a.angle || "обери сам"}; формат — ${lbl(AD_FORMATS, a.format)}${a.overlay ? `\nТекст на креативі: ${a.overlay}` : ""}${a.primary_text ? `\nПоточний текст: ${a.primary_text}` : ""}`,
+    img ? "Креатив — на картинці нижче. Спершу подивись, що на ній (сцена, текст, емоція), і пиши тексти, що доповнюють її, а не повторюють текст з картинки." : isMotion(a.format) ? `Креатив — відео/моушен (його не видно), спирайся на бриф: ${a.creative_prompt.slice(0, 800)}` : a.creative_prompt ? `Креатив ще не завантажено, спирайся на бриф: ${a.creative_prompt.slice(0, 800)}` : "",
     wish && `Побажання Саші: ${wish}`,
     `Поверни ТІЛЬКИ JSON: {"primary":[3 різні основні тексти],"headline":[5 заголовків ≤${LIMITS.headline}],"description":[3 описи ≤${LIMITS.description}],"cta":"одна з ${Object.keys(CTAS).join("|")}","tips":[1-3 коротких поради до цього оголошення]}`,
   ].filter(Boolean).join("\n\n");
@@ -224,15 +228,36 @@ export async function genTargeting(adsetId: number, wish = ""): Promise<string> 
   return asText(raw.why);
 }
 
-// Зібрати чернетку всієї кампанії з ідеї: групи з таргетингом + 2–4 оголошення з кутами й текстами
+// Що Джері знає про створення креативів: інструменти Саші + його шаблони стилю для формату
+const STYLE_KIND: Record<string, string> = { feed: "feed", square: "square", story: "story", motion: "motion", video: "video", carousel: "carousel", wide: "square" };
+function creativeKnowhow(format?: string): string {
+  const st = stylesFor(format ? STYLE_KIND[format] : undefined).slice(0, 6);
+  return [
+    `Чим Саша робить креативи: ${creativeTools() || "Claude, Midjourney, Higgsfield, CapCut"}.`,
+    "Як вибирати інструмент: фото/реалістична сцена — Midjourney (в кінці промпту --ar під формат, напр. --ar 4:5, --ar 9:16, --ar 1:1, --ar 16:9; --style raw для реалізму); оживити фото в моушен/відео — Higgsfield (image→video: опиши рух камери і що рухається, 5–10 с); графічний креатив з текстом, цінами, інфографікою — Claude (одна HTML/CSS-сторінка рівно під розмір, щоб зберегти PNG); монтаж відео, субтитри — CapCut.",
+    "Текст НА креативі (overlay) — коротко: заголовок до 6–7 слів + 1 рядок підзаголовка/ціни/заклику. Для 9:16 — без тексту у верхніх 250 і нижніх 340 px (безпечні зони). Генератори картинок погано пишуть кирилицю: для Midjourney/Higgsfield текст НЕ вставляй у промпт — його накладаємо окремо (Claude/CapCut/Canva).",
+    st.length ? `Шаблони стилю Саші (дотримуйся):\n${st.map((x) => `- ${x.title}: ${x.body.replace(/\s+/g, " ").slice(0, 600)}`).join("\n")}` : "",
+  ].filter(Boolean).join("\n");
+}
+const FORMAT_KEYS = Object.keys(AD_FORMATS);
+const briefShape = `{"angle":"кут одним реченням","format":"${FORMAT_KEYS.join("|")}","tool":"Midjourney|Higgsfield|Claude (HTML)|CapCut","overlay":"текст на креативі: заголовок\\nпідзаголовок/ціна (порожньо, якщо креатив без тексту)","prompt":"готовий промпт англійською для Midjourney/Higgsfield або українською ТЗ для Claude — з розміром/--ar, сценою, світлом, стилем, кольорами бренду"}`;
+function applyBrief(r: Record<string, unknown>) {
+  const f = asText(r.format);
+  return { angle: asText(r.angle), format: f in AD_FORMATS ? f : "feed", tool: asText(r.tool), overlay: asText(r.overlay), creative_prompt: asText(r.prompt) };
+}
+
+// Зібрати чернетку всієї кампанії з ідеї: групи з таргетингом + по 4 креативи-брифи (формат, інструмент, текст на креативі, промпт).
+// Тексти оголошення НЕ пишемо — вони пишуться потім, під готовий креатив.
 export async function genCampaignDraft(campaignId: number): Promise<{ adsets: number; ads: number }> {
   const c = getCampaign(campaignId); if (!c) throw new Error("Нема кампанії");
   const raw = await askJson<{ adsets?: unknown[] }>(
-    `Ти — Джері, медіабаєр Meta. Збираєш структуру кампанії для запуску вручну в Ads Manager. Мало груп (1–2, рідко 3), у кожній 2–4 РІЗНІ концепти (різні кути, не варіації). ${RULES}`,
-    [await contextFor(c.client_id), `КАМПАНІЯ: ${c.name} · ціль ${lbl(OBJECTIVES, c.objective)} · бюджет ${money2(c.budget)} ${c.budget_type === "daily" ? "на день" : "на весь час"}${c.target_cpl != null ? ` · ціль ціни ліда ${money2(c.target_cpl)}` : ""}`,
+    `Ти — Джері, медіабаєр і креативний директор Meta-реклами. Збираєш структуру кампанії для ручного запуску в Ads Manager: мало груп (1–2, рідко 3), у кожній РІВНО 4 креативи з РІЗНИМИ кутами (не варіації одного) і різними форматами (обовʼязково хоча б один 9:16 — фото або моушен; плюс 4:5). На цьому етапі тексти оголошення НЕ пишеш — тільки бриф і промпт креативу. ${RULES}`,
+    [await contextFor(c.client_id), creativeKnowhow(),
+      `КАМПАНІЯ: ${c.name} · ціль ${lbl(OBJECTIVES, c.objective)} · бюджет ${money2(c.budget)} ${c.budget_type === "daily" ? "на день" : "на весь час"}${c.target_cpl != null ? ` · ціль ціни ліда ${money2(c.target_cpl)}` : ""}`,
       `Ідея / що рекламуємо: ${c.idea || "визнач з контексту клієнта"}`,
-      `Поверни ТІЛЬКИ JSON: {"adsets":[{"name":"","conversion":"form|site|messenger|call","form":"питання лід-форми по рядку (якщо form)","locations":"","age_min":25,"age_max":55,"gender":"all","interests":[""],"exclusions":[""],"advantage":true,"ads":[{"angle":"кут одним реченням","format":"image|video|carousel","primary":"основний текст","headline":"≤${LIMITS.headline}","description":"≤${LIMITS.description}","cta":"${Object.keys(CTAS).join("|")}","creative":"що має бути на фото/відео — 1-2 речення"}]}]}`].join("\n\n"),
-    { maxTokens: 12000, effort: "medium" });
+      `Поверни ТІЛЬКИ JSON: {"plan":${planShape},"adsets":[{"name":"","conversion":"form|site|messenger|call","form":"питання лід-форми по рядку (якщо form)","locations":"","age_min":25,"age_max":55,"gender":"all","interests":[""],"exclusions":[""],"advantage":true,"creatives":[${briefShape}]}]}`].join("\n\n"),
+    { maxTokens: 16000, effort: "medium" });
+  if ((raw as Record<string, unknown>).plan) savePlan(c, (raw as Record<string, unknown>).plan);
   let ns = 0, na = 0;
   for (const rs of (Array.isArray(raw.adsets) ? raw.adsets : []).slice(0, 3) as Record<string, unknown>[]) {
     const arr = (v: unknown) => (Array.isArray(v) ? v : v ? [v] : []).map(asText).filter(Boolean);
@@ -243,15 +268,96 @@ export async function genCampaignDraft(campaignId: number): Promise<{ adsets: nu
       age_min: age(rs.age_min, 18), age_max: age(rs.age_max, 65), gender: g in GENDERS ? g : "all", interests: arr(rs.interests).join("\n"), exclusions: arr(rs.exclusions).join("\n"), advantage: rs.advantage === false ? 0 : 1,
     });
     ns++;
-    for (const ra of (Array.isArray(rs.ads) ? rs.ads : []).slice(0, 5) as Record<string, unknown>[]) {
-      const f = asText(ra.format), cta = asText(ra.cta).toUpperCase();
-      addAd(sid, {
-        angle: asText(ra.angle), format: ["image", "video", "carousel"].includes(f) ? f : "image", primary_text: asText(ra.primary), headline: asText(ra.headline),
-        description: asText(ra.description), cta: cta in CTAS ? cta : "LEARN_MORE", notes: asText(ra.creative) ? `Креатив: ${asText(ra.creative)}` : "",
-      });
-      na++;
-    }
+    const cr = (Array.isArray(rs.creatives) ? rs.creatives : Array.isArray(rs.ads) ? rs.ads : []) as Record<string, unknown>[];
+    for (const ra of cr.slice(0, 6)) { addAd(sid, applyBrief(ra)); na++; }
   }
   if (!ns) throw new Error("Джері не повернув структуру — спробуй ще раз або додай ідею");
   return { adsets: ns, ads: na };
+}
+
+// ---------- задум кампанії (думка Джері)
+const planShape = `{${Object.entries(PLAN_FIELDS).map(([k, v]) => `"${k}":"${v.label} — ${v.hint}; 2–4 речення, конкретно, з цифрами з контексту"`).join(",")}}`;
+function savePlan(c: Campaign, raw: unknown) {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const cur = planOf(c);
+  const next: Record<string, string> = { ...cur } as Record<string, string>;
+  for (const k of Object.keys(PLAN_FIELDS)) { const v = asText(r[k]).trim(); if (v) next[k] = v; }
+  updateCampaign(c.id, { plan_json: JSON.stringify(next) });
+}
+export async function genCampaignPlan(campaignId: number, wish = ""): Promise<void> {
+  const c = getCampaign(campaignId); if (!c) throw new Error("Нема кампанії");
+  const sets = listAdsets(c.id);
+  const raw = await askJson<Record<string, unknown>>(
+    `Ти — Джері, стратег реклами для малого бізнесу. Даєш чесну загальну картину кампанії: ціль, чому людям цікаво, навіщо нам, потенціал, ризики, як міряти. Без води і без підлизування — якщо ідея слабка, скажи. ${RULES}`,
+    [await contextFor(c.client_id), campaignMd(c).slice(0, 6000), sets.length ? "" : "Груп ще нема.", wish && `Побажання Саші: ${wish}`, `Поверни ТІЛЬКИ JSON: ${planShape}`].filter(Boolean).join("\n\n"),
+    { maxTokens: 5000, effort: "medium" });
+  savePlan(c, raw);
+}
+
+// Бриф і промпт для одного креативу (новий або перегенерувати з побажанням)
+export async function genCreativeBrief(adId: number, wish = ""): Promise<void> {
+  const a = getAd(adId); if (!a) throw new Error("Нема оголошення");
+  const s = getAdset(a.adset_id)!, c = getCampaign(s.campaign_id)!;
+  const others = listAds(s.id).filter((x) => x.id !== a.id).map((x) => `- ${lbl(AD_FORMATS, x.format)}: ${x.angle}`).join("\n");
+  const raw = await askJson<Record<string, unknown>>(
+    `Ти — Джері, креативний директор Meta-реклами. Пишеш бриф і готовий промпт для ОДНОГО креативу. Тексти оголошення не пишеш. ${RULES}`,
+    [await contextFor(c.client_id), creativeKnowhow(a.format),
+      `КАМПАНІЯ: ${c.name} · ${lbl(OBJECTIVES, c.objective)}${c.idea ? ` · ${c.idea}` : ""}`, `ГРУПА: ${s.name}\n${adsetTargeting(s)}`,
+      others && `Інші креативи в групі (не повторюй кут):\n${others}`,
+      `ЦЕЙ КРЕАТИВ ЗАРАЗ: формат ${lbl(AD_FORMATS, a.format)}${a.angle ? `, кут: ${a.angle}` : ""}${a.creative_prompt ? `\nПопередній промпт: ${a.creative_prompt.slice(0, 1500)}` : ""}`,
+      wish ? `Побажання Саші: ${wish}` : "Збережи формат, якщо Саша не просить інший.",
+      `Поверни ТІЛЬКИ JSON: ${briefShape}`].filter(Boolean).join("\n\n"),
+    { maxTokens: 4000, effort: "medium" });
+  updateAd(a.id, applyBrief(raw));
+}
+
+// ---------- папка кампанії на Google Диску: Клієнт → Креативи → «дата · назва кампанії»
+const FMT_TAG: Record<string, string> = { feed: "4x5", square: "1x1", story: "9x16", motion: "9x16-motion", video: "9x16-video", carousel: "1x1-carousel", wide: "16x9" };
+export const campaignFolderName = (c: Campaign) => c.drive_folder_name || `${c.created_at.slice(0, 10)} · ${c.name.replace(/[\\/:*?"<>|]+/g, " ").trim()}`.slice(0, 120);
+export const fileNameFor = (a: Ad) => `${adCode(a)}_${FMT_TAG[a.format] ?? a.format}_v1.${isMotion(a.format) ? "mp4" : "png"}`;
+
+export async function ensureCampaignFolder(c: Campaign): Promise<{ ok: boolean; url?: string; error?: string }> {
+  const { googleConnected, folderUrl } = await import("./google");
+  if (c.drive_folder_id) return { ok: true, url: folderUrl(c.drive_folder_id) };
+  if (!googleConnected()) return { ok: false, error: "Google не підключено (Налаштування → Конектори → Google)" };
+  try {
+    const { targetFolder } = await import("./driveSave");
+    const name = campaignFolderName(c);
+    const f = await targetFolder(c.client_id, "creatives", name);
+    updateCampaign(c.id, { drive_folder_id: f.id, drive_folder_name: name });
+    return { ok: true, url: f.url };
+  } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+}
+
+// Блок «куди зберегти» — дописується до кожного промпту креативу і до промпту для Claude-чату
+export function saveBlock(c: Campaign, clientName: string, ads?: Ad[]): string {
+  const url = c.drive_folder_id ? `https://drive.google.com/drive/folders/${c.drive_folder_id}` : "";
+  const path = `Google Диск → Client Ops — клієнти → ${clientName.replace(/^Тест:\s*/, "")} → Креативи → ${campaignFolderName(c)}`;
+  return [
+    "ЗБЕРЕЖЕННЯ ФАЙЛІВ (порядок важливий):",
+    `- Папка: ${path}${url ? `\n  Посилання: ${url}` : " (якщо її ще нема — створи саме з такою назвою)"}`,
+    `- Назви файлів: код оголошення + формат + версія${ads?.length ? `, напр.: ${ads.slice(0, 4).map(fileNameFor).join(", ")}` : ", напр. AD-12_4x5_v1.png"}. Нова версія — v2, v3, старі не видаляй.`,
+    "- Наприкінці, коли креативи готові, САМ спитай мене: «Завантажити всі фінальні файли в папку … ?» — після мого «так» збережи їх туди (створи папку, якщо нема). В інші місця нічого не клади.",
+  ].join("\n");
+}
+export function adPromptFull(c: Campaign, a: Ad, clientName: string): string {
+  if (!a.creative_prompt.trim()) return "";
+  return [
+    `КРЕАТИВ ${adCode(a)} · ${lbl(AD_FORMATS, a.format)}${a.tool ? ` · ${a.tool}` : ""}`,
+    a.angle && `Кут: ${a.angle}`,
+    a.overlay && `Текст на креативі (накласти окремо, не генерувати в картинці):\n${a.overlay}`,
+    `Промпт:\n${a.creative_prompt}`,
+    "", saveBlock(c, clientName, [a]),
+  ].filter(Boolean).join("\n");
+}
+// Усі креативи кампанії одним повідомленням у новий чат Claude (після «Контексту клієнта»)
+export function campaignChatPrompt(c: Campaign, clientName: string): string {
+  const ads = adsOfCampaign(c.id).filter((a) => a.creative_prompt.trim());
+  return [
+    `Робимо креативи для кампанії «${c.name}» (${lbl(OBJECTIVES, c.objective)}).${c.idea ? ` Ідея: ${c.idea}` : ""}`,
+    "Йдемо по черзі: для кожного креативу — уточни, якщо треба, і дай мені готовий файл або готовий промпт для інструменту. Дотримуйся формату і безпечних зон.",
+    "",
+    ...ads.map((a) => [`### ${adCode(a)} · ${lbl(AD_FORMATS, a.format)}${a.tool ? ` · ${a.tool}` : ""}`, a.angle && `Кут: ${a.angle}`, a.overlay && `Текст на креативі:\n${a.overlay}`, `Промпт:\n${a.creative_prompt}`].filter(Boolean).join("\n") + "\n"),
+    saveBlock(c, clientName, ads),
+  ].join("\n");
 }

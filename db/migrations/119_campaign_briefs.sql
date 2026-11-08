@@ -1,0 +1,9 @@
+-- Оголошення конструктора: спершу бриф креативу (формат/розмір, інструмент, текст на креативі, промпт), тексти — після креативу
+ALTER TABLE cm_ads ADD COLUMN creative_prompt TEXT NOT NULL DEFAULT '';
+ALTER TABLE cm_ads ADD COLUMN overlay TEXT NOT NULL DEFAULT '';
+ALTER TABLE cm_ads ADD COLUMN tool TEXT NOT NULL DEFAULT '';
+ALTER TABLE cm_campaigns ADD COLUMN drive_folder_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE cm_campaigns ADD COLUMN drive_folder_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE cm_campaigns ADD COLUMN plan_json TEXT NOT NULL DEFAULT '{}';
+UPDATE cm_ads SET format = 'feed' WHERE format = 'image';
+INSERT INTO changelog (title, body, created_at) VALUES ('Кампанії: спершу креативи, потім тексти', 'Конструктор кампаній тепер працює як ти робиш: Джері збирає групи з таргетингом і на кожну 4 креативи — для кожного формат і розмір (фото 4:5, 1:1, 9:16, моушен, відео, карусель, 16:9), чим робити (Midjourney / Higgsfield / Claude / CapCut), текст на самому креативі і готовий промпт — копіюєш у програму. Тексти оголошення (основний, заголовок, опис) НЕ пишуться наперед: завантажуєш готовий креатив → «Тексти під цей креатив» — Джері дивиться на картинку і пише під неї. Промпт креативу можна перегенерувати з побажанням. Папки: кожна кампанія має свою папку на Google Диску клієнта (Креативи → «дата · назва кампанії», створюється сама, якщо Google підключено, або кнопкою). Шлях і посилання є в кожному промпті + правило назв файлів (AD-12_4x5_v1.png); Claude-чат наприкінці сам питає «завантажити в цю папку?». Вкладка «Задум» — думка Джері про кампанію: ціль і що хочемо досягти, чому це цікаво людям, навіщо нам її розвивати, потенціал, ризики, як міряємо успіх (пишеться разом із чернеткою, можна перегенерувати або поправити блок). «Промпт для Claude-чату» на кампанії — усі креативи кампанії одним повідомленням.', datetime('now'));
