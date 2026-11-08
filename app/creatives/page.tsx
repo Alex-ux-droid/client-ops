@@ -1,5 +1,6 @@
 // Центр креативів: огляд по всіх клієнтах, мій стиль (шаблони, що йдуть у кожен промпт) і AI-радар.
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import DataTable from "@/components/DataTable";
 import { creativeToolsAction, styleSaveAction } from "@/app/creatives/actions";
 import AskAssistant from "@/components/AskAssistant";
@@ -18,7 +19,6 @@ import { listClients } from "@/lib/repo/clients";
 import { listRadar, listStyles, radarNewCount, type CStyle } from "@/lib/repo/creativeCenter";
 import { codeOf, listPrompts } from "@/lib/repo/creatives";
 
-import RadarView from "./RadarView";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +27,7 @@ const kindShort = (k: string) => (k === "general" ? "Загальне" : (FORMAT
 
 export default async function CreativesCenter({ searchParams }: { searchParams: Promise<{ v?: string }> }) {
   const { v = "overview" } = await searchParams;
+  if (v === "radar") redirect("/kb?v=radar&a=creatives"); // один радар — у Розвитку
   const fresh = radarNewCount("creatives");
   return (
     <>
@@ -42,9 +43,9 @@ export default async function CreativesCenter({ searchParams }: { searchParams: 
       <nav className="mx-tabs" style={{ marginBottom: "1rem" }}>
         <Link href="/creatives" className={v === "overview" ? "on" : ""}>Огляд</Link>
         <Link href="/creatives?v=style" className={v === "style" ? "on" : ""}>Мій стиль</Link>
-        <Link href="/creatives?v=radar" className={v === "radar" ? "on" : ""}>AI-радар{fresh ? <b className="cc-badge">{fresh}</b> : null}</Link>
+        <Link href="/kb?v=radar&a=creatives" title="AI-радар один — у Розвитку (напрямок «Креативи»)">AI-радар →{fresh ? <b className="cc-badge">{fresh}</b> : null}</Link>
       </nav>
-      {v === "style" ? <Styles /> : v === "radar" ? <RadarView area="creatives" base="/creatives?v=radar" /> : <Overview />}
+      {v === "style" ? <Styles /> : <Overview />}
     </>
   );
 }
@@ -77,7 +78,7 @@ function Overview() {
         <div className="kpi-tile"><div className="kpi-label"><Icon name="sparkles" size={15} /> В роботі</div><div className="kpi-value">{count("idea") + count("ready")}</div><div className="kpi-sub">ідеї {count("idea")} · зроблено {count("ready")}</div></div>
         <div className="kpi-tile"><div className="kpi-label"><Icon name="megaphone" size={15} /> У рекламі</div><div className="kpi-value">{count("live")}</div><div className="kpi-sub">з кодом CR-N у назві</div></div>
         <div className="kpi-tile"><div className="kpi-label"><Icon name="flag" size={15} /> Переможці</div><div className="kpi-value" style={{ color: wins.length ? "var(--ok)" : undefined }}>{wins.length}</div><div className="kpi-sub">ціна ліда ≤ 80% середньої · за весь час</div></div>
-        <Link href="/creatives?v=radar" className="kpi-tile"><div className="kpi-label"><Icon name="zap" size={15} /> AI-радар</div><div className="kpi-value">{radarNewCount("creatives")}</div><div className="kpi-sub">нових карток</div></Link>
+        <Link href="/kb?v=radar&a=creatives" className="kpi-tile"><div className="kpi-label"><Icon name="zap" size={15} /> AI-радар</div><div className="kpi-value">{radarNewCount("creatives")}</div><div className="kpi-sub">нових карток</div></Link>
       </div>
 
       <div className="cc-clients">

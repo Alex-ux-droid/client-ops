@@ -142,7 +142,12 @@ async function Agent() {
         <div className="field">
           <label htmlFor="model">Модель</label>
           <select id="model" name="model" defaultValue={cfg.model}>
-            {models.map((m) => <option key={m.id} value={m.id}>{m.name}{m.note ? ` — ${m.note}` : ""}</option>)}
+            {KNOWN_MODELS.map((m) => <option key={m.id} value={m.id}>{m.name} — {m.note}</option>)}
+            {models.some((m) => !KNOWN_MODELS.some((k) => k.id === m.id)) && (
+              <optgroup label="Старі моделі (не радимо)">
+                {models.filter((m) => !KNOWN_MODELS.some((k) => k.id === m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </optgroup>
+            )}
           </select>
         </div>
         <div className="field">
