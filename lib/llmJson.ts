@@ -1,6 +1,7 @@
 // Попросити модель повернути JSON (розбір витяжок). Потоково — щоб великі відповіді не обривались по таймауту;
 // ліміт 32k токенів (кирилиця ≈ 2 символи на токен, тож 8k обрізали великі витяжки посередині).
 import Anthropic from "@anthropic-ai/sdk";
+import { ai } from "./ai";
 import { agentConfig } from "./agent/config";
 import { getApiKey } from "./secrets";
 
@@ -20,7 +21,7 @@ function parseLoose<T>(out: string): T {
 export async function askJson<T>(system: string, user: string | Anthropic.ContentBlockParam[], opts: { maxTokens?: number; effort?: "low" | "medium" | "high" } = {}): Promise<T> {
   const key = getApiKey();
   if (!key) throw new LlmJsonError("Нема ключа Anthropic (Налаштування → Доступи)");
-  const client = new Anthropic({ apiKey: key, timeout: 600_000, maxRetries: 1 });
+  const client = ai("генерація JSON (витяжки, кампанії, бренд…)", { apiKey: key, timeout: 600_000, maxRetries: 1 });
   const msg = await client.messages.stream({
     model: agentConfig().model, max_tokens: opts.maxTokens ?? 32000, system, output_config: { effort: opts.effort ?? "low" },
     messages: [{ role: "user", content: user }],

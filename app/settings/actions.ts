@@ -2,8 +2,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { agentConfig, saveAgentConfig, setAgentMemory } from "@/lib/agent/config";
+import { agentConfig, MEMORY_MAX, saveAgentConfig, setAgentMemory } from "@/lib/agent/config";
 import { requireUser } from "@/lib/auth";
 import { disconnectGoogle, saveGoogleClient } from "@/lib/google";
 import { CURRENCIES } from "@/lib/config";
@@ -14,7 +15,7 @@ import { sendDigest } from "@/lib/digest";
 import { backupToDrive } from "@/lib/backup";
 import { linkChat } from "@/lib/repo/telegram";
 import { connectMeta, disconnectMeta, linkAndSync, syncAll } from "@/lib/meta";
-import { createAgentToken, getApiKey, revokeAgentToken, saveApiKey } from "@/lib/secrets";
+import { createAgentToken, getApiKey, revokeAgentToken, saveApiKey, setEnvVar } from "@/lib/secrets";
 
 const back = (msg: string, ok = false, tab = "") => redirect(`/settings?${tab ? `tab=${tab}&` : ""}msg=${encodeURIComponent(msg)}${ok ? "&ok=1" : ""}`);
 
@@ -93,7 +94,9 @@ export async function disconnectGoogleAction() {
 
 export async function saveMemoryAction(fd: FormData) {
   await requireUser();
-  setAgentMemory(String(fd.get("memory") ?? ""));
+  const text = String(fd.get("memory") ?? "");
+  if (text.length > MEMORY_MAX) back(`Задовго: ${text.length} символів, максимум ${MEMORY_MAX}. Скороти і збережи ще раз.`, false, "agent");
+  setAgentMemory(text);
   back("Пам'ять помічника збережено.", true, "agent");
 }
 
@@ -267,4 +270,28 @@ export async function driveFullAction(fd: FormData) {
   const on = String(fd.get("on")) === "on";
   setSetting("google.drive_full", on ? "on" : "off");
   back(on ? "Увімкнено. Натисни «Перепідключити» — Google попросить дозвіл на повний доступ до Диску." : "Вимкнено. Щоб прибрати дозвіл у Google зовсім — перепідключи.", true, "connectors&c=google");
+}
+
+export async function saveUsageLimitAction(fd: FormData) {
+  await requireUser();
+  const v = Number(String(fd.get("limit") ?? "").replace(",", ".").replace(/[^\d.]/g, ""));
+  setSetting("usage.limit_month", Number.isFinite(v) && v > 0 ? String(v) : "");
+  revalidatePath("/settings");
+}
+
+// «Вийти всюди»: нова епоха підпису сесій — усі пристрої (і цей) виходять; цей одразу входить заново паролем
+export async function logoutEverywhereAction() {
+  await requireUser();
+  const { randomBytes } = await import("node:crypto");
+  setEnvVar("SESSION_EPOCH", randomBytes(12).toString("hex"));
+  const { cookies } = await import("next/headers");
+  const { SESSION_COOKIE } = await import("@/lib/session");
+  (await cookies()).delete(SESSION_COOKIE);
+  redirect("/login");
+}
+
+export async function tgConfirmToggleAction(fd: FormData) {
+  await requireUser();
+  setSetting("auth.tg_confirm", fd.get("on") === "1" ? "" : "off");
+  back(fd.get("on") === "1" ? "Вхід тепер з підтвердженням у Telegram." : "Підтвердження в Telegram вимкнено — вхід лише паролем.", true, "access");
 }

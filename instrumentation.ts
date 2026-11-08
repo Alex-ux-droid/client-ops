@@ -5,6 +5,7 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { syncAll } = await import("./lib/meta");
   const { logError } = await import("./lib/log");
+  try { (await import("./lib/secrets")).ensureAgentTokenExpiry(); } catch (e) { logError("agent-token", e); }
   const run = () => syncAll().catch((e) => logError("meta-sync", e));
   setTimeout(run, 60_000);
   setInterval(run, 2 * 60 * 60_000);
@@ -22,6 +23,8 @@ export async function register() {
   const { invoiceTick } = await import("./lib/invoices");
   const { confirmTick } = await import("./lib/confirmQueue");
   const { metricsTick } = await import("./lib/metricsTick");
+  const { usageTick } = await import("./lib/usageAlert");
+  const { housekeepingTick } = await import("./lib/housekeeping");
   const tick = async () => {
     await digestTick().catch((e) => logError("digest", e));
     await backupTick().catch((e) => logError("backup", e));
@@ -37,6 +40,8 @@ export async function register() {
     await invoiceTick().catch((e) => logError("invoices", e));
     await confirmTick().catch((e) => logError("confirm-queue", e));
     await metricsTick().catch((e) => logError("metrics", e));
+    await usageTick().catch((e) => logError("usage", e));
+    await housekeepingTick().catch((e) => logError("housekeeping", e));
   };
   setTimeout(tick, 90_000);
   setInterval(tick, 60_000);

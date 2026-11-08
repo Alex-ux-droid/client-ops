@@ -51,6 +51,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                 <div className="row-sub">{[c.niche, c.offer].filter(Boolean).join(" · ")}</div>
                 <div className="meta">
                   {c.kind === "partner" && <span className="tag accent">партнерство</span>}
+                  {c.deleted_at && <span className="tag bad">у кошику</span>}
                   <span className={`tag ${STATUS_TAG[c.status]}`}>{STATUS_LABEL[c.status]}{c.status === "lead" ? ` · ${STAGE_LABEL[c.stage]}` : ""}</span>
                   {flags.map((fl) => <span key={fl.text} className={`tag ${fl.level}`} title={fl.reason}>{fl.text}</span>)}
                   {c.next_step && <span className="mono" style={{ color: "var(--link)" }}>→ {c.next_step}</span>}

@@ -1,6 +1,7 @@
 // Самонавчання: після кожної розмови помічник перечитує, що було, і оновлює свою пам'ять.
 // Працює у фоні (відповідь Саші не чекає), окремим коротким запитом.
 import Anthropic from "@anthropic-ai/sdk";
+import { ai } from "../ai";
 import { logError } from "../log";
 import { autoOn } from "./caps";
 import { getApiKey } from "../secrets";
@@ -37,7 +38,7 @@ export async function reflect(exchange: { user: string; reply: string; actions: 
   g.__reflecting = true;
   try {
     const cfg = agentConfig();
-    const res = await new Anthropic({ apiKey: key }).messages.create({
+    const res = await ai("памʼять", { apiKey: key }).messages.create({
       model: cfg.model,
       max_tokens: 4000,
       system: PROMPT,
@@ -50,6 +51,7 @@ export async function reflect(exchange: { user: string; reply: string; actions: 
     if (res.stop_reason === "refusal") return;
     const text = res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("").trim();
     if (!text || text.startsWith("NO_CHANGE") || !text.includes("##")) return;
+    if (text.length > MEMORY_MAX) { logError("reflect", new Error(`Памʼять після переписування ${text.length} > ${MEMORY_MAX} — не зберіг, стара лишилась`)); return; }
     setAgentMemory(text);
   } catch (e) {
     logError("reflect", e);
@@ -88,7 +90,7 @@ export async function reflectClient(clientId: number, exchange: { user: string; 
     const { getClientRow } = await import("../repo/clients");
     const c = getClientRow(clientId);
     if (!c) return;
-    const res = await new Anthropic({ apiKey: key }).messages.create({
+    const res = await ai("памʼять", { apiKey: key }).messages.create({
       model: agentConfig().model,
       max_tokens: 3000,
       system: CLIENT_PROMPT,

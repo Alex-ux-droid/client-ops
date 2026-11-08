@@ -34,7 +34,7 @@ export const CAPS = [
 export const AUTO = [
   { key: "digest", label: "Ранкове зведення в Telegram", desc: "що горить, сьогодні, гроші, проблеми реклами (без ШІ, безкоштовно)", setting: "tg.digest" },
   { key: "meta_analysis", label: "Тижневий розбір реклами від Джері", desc: "раз на тиждень на клієнта, дивиться креативи — коштує кредитів API", setting: "auto.meta_analysis" },
-  { key: "backup", label: "Бекап бази на Google Диск", desc: "щоночі о 04:00, 30 копій", setting: "auto.backup" },
+  { key: "backup", label: "Бекап бази на Google Диск", desc: "копія поза сервером: щоночі о 04:00 Київ, 30 копій (окремо від копій на самому сервері о 03:30)", setting: "auto.backup" },
   { key: "tg_files", label: "Фото і файли з Telegram на Диск", desc: "копія в папку клієнта → «Telegram»", setting: "auto.tg_files" },
   { key: "context", label: "Джері сам бачить контекст", desc: "з кожним повідомленням отримує відкриту задачу (з галочками) і знімок клієнта: рекламу Meta — кампанії, групи, креативи, цифри, тривоги — і задачі в роботі; трохи дорожчі повідомлення", setting: "auto.context" },
   { key: "dict_fix", label: "Причісувати надиктований текст", desc: "після «стоп» ШІ ставить розділові знаки і пише назви правильно (ProVector, імена клієнтів) — ≈0.1 цента за раз; словник — нижче", setting: "auto.dict_fix" },

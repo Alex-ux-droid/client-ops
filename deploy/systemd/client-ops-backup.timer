@@ -1,8 +1,8 @@
 [Unit]
-Description=client-ops: щоденний бекап бази
+Description=client-ops: щоденна копія бази на сервері (03:30 Київ, 14 копій)
 
 [Timer]
-OnCalendar=*-*-* 03:30
+OnCalendar=*-*-* 03:30 Europe/Kyiv
 Persistent=true
 
 [Install]

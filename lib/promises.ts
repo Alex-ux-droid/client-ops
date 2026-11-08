@@ -1,6 +1,7 @@
 // Обіцянки клієнтам → задачі-нагадування. Джерела: повідомлення Саші в групі клієнта (сам, тумблер auto.promises)
 // і чернетка з вікна «Повідомлення клієнту» (Саша підтверджує галочками).
 import Anthropic from "@anthropic-ai/sdk";
+import { ai } from "./ai";
 import { autoOn } from "./agent/caps";
 import { addDays, ymd } from "./dates";
 import { logError } from "./log";
@@ -27,7 +28,7 @@ export async function extractPromises(text: string): Promise<Found[]> {
 Сьогодні ${today} (${wd}). Перетвори строк на дату YYYY-MM-DD: «завтра», «у четвер» (найближчий), «через 3–4 дні» (бери більше число), «на наступному тижні» (понеділок). Якщо строк не названий, але обіцянка явна — через 2 дні.
 Відповідь — ТІЛЬКИ JSON-масив: [{"what":"коротко, що зробити (до 80 символів, з дієслова)","due":"YYYY-MM-DD"}]. Нема обіцянок — [].`;
   try {
-    const r = await new Anthropic({ apiKey: key, timeout: 20000, maxRetries: 0 }).messages.create({ model: MODEL, max_tokens: 500, system, messages: [{ role: "user", content: t.slice(0, 4000) }] });
+    const r = await ai("обіцянки", { apiKey: key, timeout: 20000, maxRetries: 0 }).messages.create({ model: MODEL, max_tokens: 500, system, messages: [{ role: "user", content: t.slice(0, 4000) }] });
     const out = r.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("");
     // Модель інколи відповідає словами без списку — це означає «обіцянок нема», а не помилка
     const a = out.indexOf("["), z = out.lastIndexOf("]");

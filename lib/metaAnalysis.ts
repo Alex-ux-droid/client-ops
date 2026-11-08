@@ -1,6 +1,7 @@
 // Розбір реклами від Джері: цифри + самі картинки креативів → підсумок, плюси, мінуси, поради, думка по кожному креативу.
 // Запускається кнопкою (коштує кредитів API), результат зберігається в meta_analysis.
 import Anthropic from "@anthropic-ai/sdk";
+import { ai } from "./ai";
 import { agentConfig } from "./agent/config";
 import { getApiKey } from "./secrets";
 import { adMore, adsetMore } from "./metaExtra";
@@ -63,7 +64,7 @@ export async function analyzeMeta(clientId: number): Promise<void> {
   ]);
   const text: Anthropic.ContentBlockParam = { type: "text", text: `ДАНІ КАБІНЕТУ:\n${JSON.stringify(data)}` };
 
-  const client = new Anthropic({ apiKey: key });
+  const client = ai("розбір реклами", { apiKey: key });
   const ask = (content: Anthropic.ContentBlockParam[]) => client.messages.create({
     model: agentConfig().model, max_tokens: 8000, system: PROMPT, output_config: { effort: "medium" },
     messages: [{ role: "user", content }],

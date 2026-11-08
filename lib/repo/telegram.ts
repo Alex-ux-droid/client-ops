@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { maskSecrets } from "./access";
 
 export type TgChat = { chat_id: number; title: string; type: string; client_id: number | null; client_name: string | null; active: number; created_at: string; last_message_at: string | null; messages: number };
 export type TgMessage = { id: number; chat_id: number; message_id: number; from_id: number | null; from_name: string; is_owner: number; kind: string; text: string; file_name: string; sent_at: string;
@@ -58,7 +59,7 @@ export function importMessages(chatId: number, msgs: Omit<TgMessage, "id" | "cha
     VALUES (@chat_id, @message_id, @from_id, @from_name, @is_owner, @kind, @text, @file_name, @sent_at)`);
   let added = 0;
   db().transaction(() => {
-    for (const m of msgs) added += ins.run({ ...m, chat_id: chatId }).changes;
+    for (const m of msgs) added += ins.run({ ...m, text: maskSecrets(m.text).text, chat_id: chatId }).changes;
     db().prepare("UPDATE tg_chats SET last_message_at = (SELECT MAX(sent_at) FROM tg_messages WHERE chat_id = ?) WHERE chat_id = ?").run(chatId, chatId);
   })();
   return added;
@@ -97,3 +98,5 @@ export function setDriveId(id: number, driveId: string): void {
 export function chatClient(chatId: number): { client_id: number | null; title: string } | undefined {
   return db().prepare("SELECT client_id, title FROM tg_chats WHERE chat_id = ?").get(chatId) as { client_id: number | null; title: string } | undefined;
 }
+
+export const chatClientId = (chatId: number) => (db().prepare("SELECT client_id FROM tg_chats WHERE chat_id = ?").get(chatId) as { client_id: number | null } | undefined)?.client_id ?? null;

@@ -2545,3 +2545,7 @@ button.kp-car-btn:hover { background: #fff; color: #1c1e21; }
 .ns-target { color: var(--muted); font-size: 0.8125rem; }
 .ns-spark { flex: 0 0 auto; }
 .ns-bar .qt-more { margin-left: auto; }
+
+/* Налаштування → Витрати: стовпчики по днях */
+.us-bars { display: flex; align-items: flex-end; gap: 3px; height: 80px; margin-top: 0.5rem; }
+.us-bars i { flex: 1; background: var(--accent); border-radius: 3px 3px 0 0; min-width: 4px; opacity: 0.85; }

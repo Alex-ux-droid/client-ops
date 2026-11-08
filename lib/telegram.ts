@@ -11,6 +11,7 @@ import { listFolders, saveFolder } from "./repo/services";
 import { addMessage, chatClient, editMessage, getTgFile, knownChat, pendingTgFiles, setDriveId, setMessageText, upsertChat } from "./repo/telegram";
 import { setEnvVar } from "./secrets";
 import { transcribe, voiceKey } from "./voice";
+import { maskSecrets } from "./repo/access";
 import { promisesFromGroup } from "./promises";
 
 const API = () => process.env.TELEGRAM_API_BASE || "https://api.telegram.org";
@@ -193,7 +194,20 @@ export async function ensureWebhookUpdates(): Promise<void> {
   setSetting("tg.updates_v", "2");
 }
 
+// У групі хтось написав пароль — у базі замасковано; Саші — нагадування перенести в Bitwarden і Доступи
+async function secretNotice(chatId: number, title: string): Promise<void> {
+  const owner = tgOwner();
+  if (!owner) return;
+  const cid = (await import("./repo/telegram")).chatClientId(chatId);
+  const link = cid ? `\nДоступи клієнта: ${await appOrigin()}/clients/${cid}?tab=access` : "";
+  await tg("sendMessage", { chat_id: owner, text: `🔑 У групі «${title}» написали схоже на пароль. У базі я його замаскував (••••••).\nЗбережи в Bitwarden і додай запис у Доступи (тільки назву запису).${link}` }).catch(() => {});
+}
+
 export async function handleUpdate(u: TgUpdate): Promise<void> {
+  if (u.callback_query?.data?.startsWith("lg:")) {
+    const { loginCallback } = await import("./loginConfirm");
+    return loginCallback(u.callback_query);
+  }
   if (u.callback_query) {
     const { leadCallback } = await import("./metaLeads");
     return leadCallback(u.callback_query);
@@ -213,7 +227,7 @@ export async function handleUpdate(u: TgUpdate): Promise<void> {
   }
   if (u.edited_message) {
     const p = parse(u.edited_message);
-    if (p.text) editMessage(u.edited_message.chat.id, u.edited_message.message_id, p.text);
+    if (p.text) editMessage(u.edited_message.chat.id, u.edited_message.message_id, maskSecrets(p.text).text);
     return;
   }
   const m = u.message;
@@ -229,6 +243,9 @@ export async function handleUpdate(u: TgUpdate): Promise<void> {
   const p = parse(m);
   // Службові повідомлення (додали/вийшов учасник, змінили назву) — без тексту, не записуємо
   if (p.kind === "other" && !p.text) return;
+  // Паролі в базу не пишемо: маскуємо і кажемо Саші перенести в Bitwarden
+  const masked = maskSecrets(p.text);
+  if (masked.n) { p.text = masked.text; void secretNotice(m.chat.id, chatTitle(m.chat)); }
   const rowId = addMessage({
     chat_id: m.chat.id, message_id: m.message_id, from_id: m.from?.id ?? null, from_name: userName(m.from),
     is_owner: fromOwner ? 1 : 0, kind: p.kind, text: p.text, file_name: p.fileName, sent_at: iso(m.date),
@@ -240,7 +257,9 @@ export async function handleUpdate(u: TgUpdate): Promise<void> {
     try {
       const t = await voiceToText(p.voiceId);
       said = t;
-      setMessageText(rowId, t || `[голосове${p.duration ? `, ${p.duration} с` : ""} — ${voiceKey() ? "ElevenLabs не розпізнав мову (порожній текст)" : "розшифровка вимкнена: нема ключа ElevenLabs"}]`);
+      const mt = maskSecrets(t);
+      if (mt.n) { said = mt.text; void secretNotice(m.chat.id, chatTitle(m.chat)); }
+      setMessageText(rowId, mt.text || `[голосове${p.duration ? `, ${p.duration} с` : ""} — ${voiceKey() ? "ElevenLabs не розпізнав мову (порожній текст)" : "розшифровка вимкнена: нема ключа ElevenLabs"}]`);
     } catch (e) {
       logError("telegram-voice", e);
       setMessageText(rowId, `[голосове${p.duration ? `, ${p.duration} с` : ""} — не вдалось розшифрувати]`);

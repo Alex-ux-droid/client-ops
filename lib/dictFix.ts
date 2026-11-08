@@ -1,6 +1,7 @@
 // Причесати надиктований текст: ТІЛЬКИ розділові знаки, великі літери і власні назви зі словника
 // («10 про вектор» → ProVector). Слова не міняємо — якщо модель змінила більше ~15% слів, лишаємо сирий текст.
 import Anthropic from "@anthropic-ai/sdk";
+import { ai } from "./ai";
 import { autoOn } from "./agent/caps";
 import { logError } from "./log";
 import { vocabulary } from "./repo/vocab";
@@ -20,7 +21,7 @@ export async function fixDictation(raw: string): Promise<string> {
 Поверни ТІЛЬКИ текст, без лапок і пояснень.
 Словник назв: ${vocab.length ? vocab.join("; ") : "—"}`;
   try {
-    const client = new Anthropic({ apiKey: key, timeout: 12000, maxRetries: 0 });
+    const client = ai("диктування", { apiKey: key, timeout: 12000, maxRetries: 0 });
     const r = await client.messages.create({ model: MODEL, max_tokens: Math.min(4000, text.length * 2 + 200), system, messages: [{ role: "user", content: text }] });
     const out = r.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("").trim();
     // запобіжник: якщо модель «відповіла» замість виправити — повертаємо як було

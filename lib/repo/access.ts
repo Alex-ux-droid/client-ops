@@ -11,6 +11,14 @@ export function looksLikeSecret(...vals: string[]): boolean {
   return vals.some((v) => /(парол\S*|пасв\S*|password|passwd|pwd|pass|pin|пін)\s*[:=—–-]\s*\S{3,}/i.test(v));
 }
 
+// Маскування паролів у тексті (Telegram-групи, імпорт): «пароль: qwe123» → «пароль: ••••••». Повертає скільки замасковано.
+const SECRET_RE = /((?:парол\S*|пасв\S*|password|passwd|pwd|pass|pin|пін)\s*[:=—–-]\s*)(\S{3,})/gi;
+export function maskSecrets(text: string): { text: string; n: number } {
+  let n = 0;
+  const out = text.replace(SECRET_RE, (_m, head: string) => { n++; return `${head}••••••`; });
+  return { text: out, n };
+}
+
 export function listAccess(clientId: number): (Access & { stale: boolean })[] {
   const rows = db().prepare(`SELECT *, (COALESCE(checked_at, created_at) < datetime('now', '-${STALE_DAYS} days')) stale FROM client_access WHERE client_id = ? ORDER BY ulower(service)`).all(clientId) as (Access & { stale: number })[];
   return rows.map((r) => ({ ...r, stale: !!r.stale }));

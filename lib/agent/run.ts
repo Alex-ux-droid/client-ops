@@ -2,6 +2,7 @@
 // Історія між ходами — тільки текст (без thinking-блоків), тож її можна вільно обрізати.
 import { orgBlock, radarBlock } from "../products";
 import Anthropic from "@anthropic-ai/sdk";
+import { ai } from "../ai";
 import { ymd } from "../dates";
 import { addChat, listChat, type ChatAction } from "../repo/chat";
 import { getClientRow } from "../repo/clients";
@@ -160,7 +161,7 @@ function attachmentBlocks(files: Attachment[]): { blocks: Anthropic.Beta.BetaCon
 export async function runAgent(clientId: number | null, userText: string, page = "", screen = "", taskId: number | null = null, files: Attachment[] = []): Promise<{ reply: string; actions: ChatAction[] }> {
   const key = getApiKey();
   if (!key) throw new NoKeyError("Нема ключа Anthropic API");
-  const client = new Anthropic({ apiKey: key });
+  const client = ai("Джері", { apiKey: key });
 
   const history: Anthropic.Beta.BetaMessageParam[] = listChat(clientId, HISTORY).map((m) => ({ role: m.role, content: m.content }));
   // Історія має починатися з user

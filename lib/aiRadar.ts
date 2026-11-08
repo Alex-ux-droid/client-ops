@@ -2,6 +2,7 @@
 // Джерела: GitHub (репо, що найшвидше ростуть, + коміти ключових), Hacker News (топ, без ШІ), web_search по блогах/розсилках.
 // Картка: що це → що дає нам і клієнтам → оцінка 1–5 → «в ідеї / в план / в стиль креативів». Раз на місяць — «Карта ринку».
 import Anthropic from "@anthropic-ai/sdk";
+import { ai } from "./ai";
 import { agentConfig } from "./agent/config";
 import { autoOn } from "./agent/caps";
 import { githubToken, listCommits, trendingRepos } from "./github";
@@ -37,7 +38,7 @@ export async function askWithWeb(system: string, user: string, maxTokens = 7000)
   if (!key) throw new Error("Нема ключа Anthropic (Налаштування → Доступи)");
   const model = agentConfig().model;
   const { webToolsFor, webBetaFor } = await import("./agent/run");
-  const client = new Anthropic({ apiKey: key, timeout: 240_000, maxRetries: 0 });
+  const client = ai("радар", { apiKey: key, timeout: 240_000, maxRetries: 0 });
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: user }];
   let out = "";
   for (let i = 0; i < 3; i++) {
@@ -162,7 +163,7 @@ export async function buildMarketMap(): Promise<{ ok: true } | { ok: false; erro
   try {
     const key = getApiKey();
     if (!key) return { ok: false, error: "Нема ключа Anthropic" };
-    const r = await new Anthropic({ apiKey: key, timeout: 300_000, maxRetries: 1 }).messages.create({ model: agentConfig().model, max_tokens: 5000, system, messages: [{ role: "user", content: JSON.stringify(cards.map((c) => ({ area: RADAR_AREAS[c.area as RadarArea]?.label ?? c.area, title: c.title, what: c.what, how: c.how, score: c.score, status: c.status }))) }] });
+    const r = await ai("радар", { apiKey: key, timeout: 300_000, maxRetries: 1 }).messages.create({ model: agentConfig().model, max_tokens: 5000, system, messages: [{ role: "user", content: JSON.stringify(cards.map((c) => ({ area: RADAR_AREAS[c.area as RadarArea]?.label ?? c.area, title: c.title, what: c.what, how: c.how, score: c.score, status: c.status }))) }] });
     const md = r.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("").trim();
     if (!md) return { ok: false, error: "Порожня відповідь" };
     setSetting("radar.map", md);

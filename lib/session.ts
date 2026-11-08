@@ -2,7 +2,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const SESSION_COOKIE = "co_session";
-export const SESSION_DAYS = 30;
+export const SESSION_DAYS = 7;
 
 // Логін вимкнено тільки локально, коли пароль не задано.
 export function authDisabled(): boolean {
@@ -14,13 +14,16 @@ function secret(): string | null {
   return s && s.length >= 32 ? s : null;
 }
 
+// «Вийти всюди» = нова епоха (SESSION_EPOCH у .env): усі старі підписи перестають збігатися.
+// Порожня епоха — підпис як раніше (щоб оновлення не викинуло всіх).
 function sign(payload: string, key: string): string {
-  return createHmac("sha256", key).update(payload).digest("base64url");
+  const epoch = process.env.SESSION_EPOCH || "";
+  return createHmac("sha256", key).update(epoch ? `${payload}.${epoch}` : payload).digest("base64url");
 }
 
 export const IDLE_MIN = 30;
 
-// Кука: "термін.режим.підпис". Режим r — «запамʼятати пристрій» (30 днів), i — чужий компʼютер:
+// Кука: "термін.режим.підпис". Режим r — «запамʼятати пристрій» (7 днів), i — чужий компʼютер:
 // живе 30 хв і продовжується на кожен запит (proxy), без дій — вихід. Старі куки "термін.підпис" = r.
 export function createSession(remember = false): string | null {
   const key = secret();
@@ -37,6 +40,8 @@ export function parseSession(token: string | undefined): { ok: boolean; mode: "r
   const parts = token.split(".");
   const [expires, mode, sig] = parts.length === 3 ? parts : [parts[0], "", parts[1]];
   if (!expires || !sig || Number(expires) < Date.now()) return bad;
+  // старі куки на 30 днів — не довше 7 днів від зараз (після переходу на 7 днів)
+  if (Number(expires) > Date.now() + (SESSION_DAYS * 86400_000 + 3600_000)) return bad;
   const payload = mode ? `${expires}.${mode}` : expires;
   const a = Buffer.from(sig);
   const b = Buffer.from(sign(payload, key));
@@ -50,8 +55,11 @@ export function verifySession(token: string | undefined): boolean {
 }
 
 // Окремий ключ доступу для Claude (заголовок Authorization: Bearer ...). Пароль входу йому не потрібен.
+// Має термін: AGENT_TOKEN_EXPIRES (мс) у .env; минув — ключ не діє, Саша генерує новий у Налаштуваннях.
 export function agentTokenMatches(header: string | null | undefined): boolean {
   const real = process.env.AGENT_TOKEN;
+  const exp = Number(process.env.AGENT_TOKEN_EXPIRES || 0);
+  if (exp && exp < Date.now()) return false;
   const m = header?.match(/^Bearer\s+(.+)$/);
   if (!real || real.length < 32 || !m) return false;
   const a = createHmac("sha256", "cmp").update(m[1].trim()).digest();

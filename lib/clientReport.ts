@@ -12,22 +12,34 @@ import { getSetting, setSetting } from "./repo/settings";
 
 // Посилання вмикається для клієнта окремо; «нове посилання» = версія +1 (старе перестає працювати)
 const ver = (id: number) => Number(getSetting(`report.public.${id}`) || 0);
-const sig = (id: number, v: number) => createHmac("sha256", process.env.SESSION_SECRET || "client-ops").update(`client-report:${id}:${v}`).digest("base64url").slice(0, 22);
+// Без SESSION_SECRET посилань нема зовсім (раніше був запасний ключ — його можна було вгадати)
+const sig = (id: number, v: number) => { const k = process.env.SESSION_SECRET; return k && k.length >= 32 ? createHmac("sha256", k).update(`client-report:${id}:${v}`).digest("base64url").slice(0, 22) : null; };
+// Термін дії: REPORT_DAYS від увімкнення / нового посилання (settings report.public_exp.<id>, мс). Старі без терміну — 90 днів від першого відкриття.
+export const REPORT_DAYS = 90;
+export const reportExpires = (id: number) => Number(getSetting(`report.public_exp.${id}`) || 0) || null;
 export function reportToken(id: number): string | null {
-  const v = ver(id);
-  return v > 0 ? `${id}-${sig(id, v)}` : null;
+  const v = ver(id), sg = sig(id, v);
+  return v > 0 && sg ? `${id}-${sg}` : null;
 }
 export function clientFromToken(token: string): number | null {
   const m = token.match(/^(\d+)-([\w-]{22})$/);
   if (!m) return null;
   const id = Number(m[1]), v = ver(id);
   if (v <= 0) return null;
-  const a = Buffer.from(m[2]), b = Buffer.from(sig(id, v));
-  return a.length === b.length && timingSafeEqual(a, b) ? id : null;
+  const sg = sig(id, v);
+  if (!sg) return null;
+  const a = Buffer.from(m[2]), b = Buffer.from(sg);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  const exp = reportExpires(id);
+  if (!exp) setSetting(`report.public_exp.${id}`, String(Date.now() + REPORT_DAYS * 86400_000));
+  else if (exp < Date.now()) return null;
+  return id;
 }
 export function setReportLink(id: number, on: boolean, renew = false): void {
   const v = ver(id);
-  setSetting(`report.public.${id}`, String(!on ? -Math.abs(v || 1) : renew || v <= 0 ? Math.abs(v) + 1 : v));
+  const next = !on ? -Math.abs(v || 1) : renew || v <= 0 ? Math.abs(v) + 1 : v;
+  setSetting(`report.public.${id}`, String(next));
+  if (on && (renew || v <= 0 || !reportExpires(id) || reportExpires(id)! < Date.now())) setSetting(`report.public_exp.${id}`, String(Date.now() + REPORT_DAYS * 86400_000));
 }
 
 // Понеділок, 10:00 за Києвом: чернетка тижневого звіту по рекламі для кожного клієнта з витратами — Саші в Telegram
