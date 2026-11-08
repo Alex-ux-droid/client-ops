@@ -42,7 +42,7 @@ export type AdSet = {
 };
 export type Ad = {
   id: number; adset_id: number; name: string; angle: string; format: string; file_id: number | null; media_url: string; creative_id: number | null;
-  creative_prompt: string; overlay: string; tool: string;
+  creative_prompt: string; overlay: string; tool: string; files_json: string;
   primary_text: string; headline: string; description: string; variants_json: string; cta: string; url: string; utm: string;
   status: string; notes: string; sort: number; meta_ad_id: string; created_at: string;
 };
@@ -54,7 +54,7 @@ export const variantsOf = (a: Ad): Variants => { try { return JSON.parse(a.varia
 
 const C_FIELDS = ["name", "objective", "status", "budget_level", "budget_type", "budget", "start_date", "end_date", "idea", "target_cpl", "special_category", "notes", "meta_campaign_id", "drive_folder_id", "drive_folder_name", "plan_json"] as const;
 const S_FIELDS = ["name", "conversion", "form", "url", "budget", "locations", "age_min", "age_max", "gender", "languages", "interests", "exclusions", "audiences", "advantage", "placements", "notes", "sort", "meta_adset_id"] as const;
-const A_FIELDS = ["name", "angle", "format", "creative_prompt", "overlay", "tool", "file_id", "media_url", "creative_id", "primary_text", "headline", "description", "variants_json", "cta", "url", "utm", "status", "notes", "sort", "meta_ad_id"] as const;
+const A_FIELDS = ["name", "angle", "format", "creative_prompt", "overlay", "tool", "files_json", "file_id", "media_url", "creative_id", "primary_text", "headline", "description", "variants_json", "cta", "url", "utm", "status", "notes", "sort", "meta_ad_id"] as const;
 
 function patchSql<T extends string>(table: string, fields: readonly T[], id: number, patch: Partial<Record<T, unknown>>, touch = false) {
   const keys = fields.filter((k) => k in patch);
@@ -138,3 +138,10 @@ export const PLAN_FIELDS = {
 } as const;
 export type PlanKey = keyof typeof PLAN_FIELDS;
 export const planOf = (c: Campaign): Partial<Record<PlanKey, string>> => { try { return JSON.parse(c.plan_json || "{}"); } catch { return {}; } };
+
+// Картки каруселі (id файлів у порядку); для одиночного креативу — [file_id]
+export const cardsOf = (a: Ad): number[] => {
+  try { const v = JSON.parse(a.files_json || "[]"); if (Array.isArray(v) && v.length) return v.map(Number).filter(Boolean); } catch { /* ok */ }
+  return a.file_id ? [a.file_id] : [];
+};
+export const hasMediaOf = (a: Ad) => cardsOf(a).length > 0 || !!a.media_url;

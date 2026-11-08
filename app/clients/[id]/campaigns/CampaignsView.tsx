@@ -14,14 +14,14 @@ import { adLive, adPromptFull, adUrl, adsetTargeting, campaignChatPrompt, campai
 import { creativeBrief } from "@/lib/creativeStudio";
 import { fmtDate } from "@/lib/dates";
 import {
-  AD_FORMATS, AD_STATUS, adCode, CM_STATUS, CREATIVE_TOOLS, isMotion, PLAN_FIELDS, planOf, CONVERSIONS, CTAS, GENDERS, getCampaign, listAds, listAdsets, listCampaigns, listNotes,
+  AD_FORMATS, AD_STATUS, adCode, CM_STATUS, CREATIVE_TOOLS, cardsOf, isMotion, PLAN_FIELDS, planOf, CONVERSIONS, CTAS, GENDERS, getCampaign, listAds, listAdsets, listCampaigns, listNotes,
   NOTE_KINDS, OBJECTIVES, variantsOf, type Ad, type AdSet, type Campaign,
 } from "@/lib/repo/campaigns";
 import { getClientRow } from "@/lib/repo/clients";
 import { getFile } from "@/lib/repo/files";
 import { logoSrc } from "@/lib/repo/logos";
 import { adsForClient, adTotalsForClient, campaignsWithStats, kyivDay } from "@/lib/repo/meta";
-import { CopyBtn, CopyField, FolderButton, GenCopy, GenDraft, GenTargeting, GenWish, MediaUpload, UseVariant } from "./CampaignClient";
+import { CardStrip, CopyBtn, CopyField, FolderButton, GenCopy, GenDraft, GenTargeting, GenWish, MediaUpload, UseVariant } from "./CampaignClient";
 
 const lbl = (m: Record<string, string>, k: string) => m[k] ?? k;
 const opts = (m: Record<string, string>) => Object.entries(m).map(([k, v]) => <option key={k} value={k}>{v}</option>);
@@ -342,6 +342,7 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
     .sort((x, y) => (x.cpl ?? 1e9) - (y.cpl ?? 1e9)).slice(0, 12);
   const live = adLive(a, metaAds);
   const promptFull = adPromptFull(c, a, client?.name ?? "");
+  const cards = cardsOf(a);
   return (
     <div className="stack" style={{ gap: "0.875rem" }}>
       <Live l={live} target={c.target_cpl} />
@@ -356,7 +357,8 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
           <div className="kp-prev-t">{a.primary_text ? <>{a.primary_text.slice(0, LIMITS.primary)}{a.primary_text.length > LIMITS.primary && <span className="kp-more">… Ще</span>}</> : <span className="mono">Основний текст</span>}</div>
           <div className={`kp-prev-m${src ? "" : " kp-none"}`} style={{ aspectRatio: ({ square: "1", carousel: "1", story: "9 / 16", motion: "9 / 16", video: "9 / 16", wide: "16 / 9" } as Record<string, string>)[a.format] ?? "4 / 5" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {!src ? <span>{lbl(AD_FORMATS, a.format)}<br />креатив ще не додано</span> : isVideo ? <video src={src} controls preload="metadata" /> : <img src={src} alt="" />}
+            {cards.length > 1 ? <div className="kp-prev-car">{cards.map((id) => <img key={id} src={`/api/files/${id}`} alt="" />)}</div>
+              : !src ? <span>{lbl(AD_FORMATS, a.format)}<br />креатив ще не додано</span> : isVideo ? <video src={src} controls preload="metadata" /> : <img src={src} alt="" />}
           </div>
           <div className="kp-prev-f">
             <span><small>{url ? (() => { try { return new URL(url).hostname.toUpperCase(); } catch { return ""; } })() : lbl(CONVERSIONS, s.conversion).split(" (")[0].toUpperCase()}</small><b>{a.headline || "Заголовок"}</b>{a.description && <small>{a.description}</small>}</span>
@@ -392,7 +394,8 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
             <GenWish kind="brief" id={a.id} label="✨ Бриф і промпт від Джері" again={a.creative_prompt ? "✨ Інший варіант" : undefined} placeholder="Побажання: напр. «моушен замість статики», «на фоні рендеру будинку»" />
             <div className="kp-up">
               <b>Готовий креатив</b>
-              <MediaUpload adId={a.id} has={!!src} />
+              <MediaUpload adId={a.id} has={!!src} carousel={a.format === "carousel"} />
+              {cards.length > 1 && <CardStrip adId={a.id} cards={cards} />}
               <span className="inline" style={{ flexWrap: "wrap" }}>
                 {src && <form action={adOpAction} className="inline">{hid}<input type="hidden" name="op" value="clear_media" /><button className="ghost small">Прибрати</button></form>}
                 {winners.length > 0 && (
