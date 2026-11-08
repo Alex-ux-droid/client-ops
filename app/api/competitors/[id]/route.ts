@@ -1,3 +1,4 @@
+import { autoLog } from "@/lib/taskLog";
 import { NextResponse, type NextRequest } from "next/server";
 import { importCompetitors } from "@/lib/competitors";
 import { logError } from "@/lib/log";
@@ -16,6 +17,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     const r = importCompetitors(clientId, Buffer.from(await f.arrayBuffer()));
     if (!r.added && !r.updated) return NextResponse.json({ error: "Не знайшов таблиці з колонкою «Компанія» — перевір заголовки" }, { status: 400 });
+    autoLog(clientId, `Імпорт конкурентів: додано ${r.added}, оновлено ${r.updated}`, "з таблиці");
     return NextResponse.json({ ok: true, ...r });
   } catch (e) {
     logError("competitors-import", e);

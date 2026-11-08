@@ -2,6 +2,7 @@
 // Конкуренти: збереження, нагляд, архів, нотатки, перевірка Джері
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
+import { autoLog } from "@/lib/taskLog";
 import { addNote, COMP_FIELDS, deleteCompetitor, deleteNote, getCompetitor, saveCompetitor, setArchived, setWatch, type CompField } from "@/lib/repo/competitors";
 import { setSetting } from "@/lib/repo/settings";
 
@@ -14,6 +15,7 @@ export async function competitorSaveAction(fd: FormData) {
   const data: Partial<Record<CompField, string>> = {};
   for (const k of Object.keys(COMP_FIELDS) as CompField[]) if (fd.has(k)) data[k] = String(fd.get(k) ?? "");
   saveCompetitor(cid, data, id);
+  if (!id && data.name) autoLog(cid, `Додано конкурента «${String(data.name).trim()}»`, "розділ «Конкуренти»");
   back(cid);
 }
 export async function competitorFlagAction(fd: FormData) {

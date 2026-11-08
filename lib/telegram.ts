@@ -252,6 +252,11 @@ export async function handleUpdate(u: TgUpdate): Promise<void> {
     tg_file_id: p.file?.id ?? "", file_size: p.file?.size ?? 0, mime: p.file?.mime ?? "",
   });
   if (p.file && rowId) await saveTgFileToDrive(rowId).catch((e) => logError("telegram-drive", e));
+  // Автоісторія: Саша скинув у групу файл з підписом «зробив / готово…»
+  if (fromOwner && p.file && rowId && /^\s*(зробив|зробила|зроблено|готово|готові|здав|запустив)/i.test(p.text)) {
+    const cid = (await import("./repo/telegram")).chatClientId(m.chat.id);
+    if (cid) (await import("./taskLog")).autoLog(cid, p.text.trim().split("\n")[0].slice(0, 200), "файл у групі Telegram");
+  }
   let said = p.text;
   if (p.voiceId && rowId) {
     try {

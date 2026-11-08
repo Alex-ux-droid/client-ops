@@ -2,6 +2,7 @@
 // Брендбук клієнта: поля, кольори, шрифти, файли, витяжка
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
+import { autoLog } from "@/lib/taskLog";
 import { addAsset, addColor, addFont, BRAND_FIELDS, deleteAsset, deleteColor, deleteFont, getAsset, saveBrand, type BrandField } from "@/lib/repo/brand";
 
 const back = (cid: number) => revalidatePath(`/clients/${cid}`);
@@ -13,6 +14,7 @@ export async function brandFieldsAction(fd: FormData) {
   const patch: Partial<Record<BrandField, string>> = {};
   for (const k of Object.keys(BRAND_FIELDS) as BrandField[]) if (fd.has(k)) patch[k] = String(fd.get(k) ?? "");
   saveBrand(cid, patch);
+  autoLog(cid, "Оновлено брендбук", "розділ «Бренд»");
   back(cid);
 }
 export async function brandColorAction(fd: FormData) {
@@ -40,6 +42,7 @@ export async function brandImportAction(clientId: number, text: string) {
   await requireUser();
   const { importBrand } = await import("@/lib/brand");
   const r = await importBrand(clientId, text);
+  autoLog(clientId, "Оновлено брендбук", "з витяжки");
   back(clientId);
   return r;
 }

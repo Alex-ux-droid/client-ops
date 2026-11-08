@@ -380,8 +380,9 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const r = await import("../repo/confirm");
       if (input.action === "scan") {
         const cid = need(id(input.client_id), "client_id обовʼязковий");
-        const { scanClient } = await import("../confirmQueue");
-        return { ok: true, added: await scanClient(cid), items: r.pendingConfirms(cid) };
+        const { ruleScan, scanClient } = await import("../confirmQueue");
+        const rules = ruleScan(cid);
+        return { ok: true, added: rules + await scanClient(cid), items: r.pendingConfirms(cid) };
       }
       if (input.action === "decide") {
         const q = need(r.getConfirm(need(id(input.item_id), "item_id обовʼязковий")), "Запису нема");

@@ -1,8 +1,8 @@
 import { db } from "../db";
 
-export type ConfirmKind = "task_done" | "task_new" | "log";
+export type ConfirmKind = "task_done" | "task_new" | "log" | "next_step" | "strategy";
 export type ConfirmItem = { id: number; client_id: number; kind: ConfirmKind; task_id: number | null; title: string; evidence: string; status: string; created_at: string; client_name?: string };
-export const CONFIRM_UA: Record<ConfirmKind, string> = { task_done: "схоже зроблено", task_new: "нове прохання", log: "в історію" };
+export const CONFIRM_UA: Record<ConfirmKind, string> = { task_done: "схоже зроблено", task_new: "нове прохання", log: "в історію", next_step: "наступний крок", strategy: "оновити стратегію" };
 
 export const pendingConfirms = (clientId?: number) => db().prepare(`SELECT q.*, c.name client_name FROM confirm_queue q JOIN clients c ON c.id = q.client_id
   WHERE q.status = 'new' ${clientId ? "AND q.client_id = ?" : ""} ORDER BY q.created_at DESC LIMIT 50`).all(...(clientId ? [clientId] : [])) as ConfirmItem[];

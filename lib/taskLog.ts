@@ -2,6 +2,8 @@
 import { ymd } from "./dates";
 import { createTask, getTask, setTaskStatus, taskItems } from "./repo/tasks";
 import { addWork } from "./repo/worklog";
+import { getClient, updateClient } from "./repo/clients";
+import { addItem as addStrategyItem } from "./repo/strategy";
 
 // Закрили задачу простою галочкою → запис в історію з позначкою «авто» (дублі addWork пропускає).
 // reason — коли закрили не всі пункти («закрито з N/M: …»). Викликати ДО setTaskStatus(done).
@@ -17,4 +19,15 @@ export function applyConfirm(q: { client_id: number; kind: string; task_id: numb
   if (q.kind === "task_done" && q.task_id) { autoLogDone(q.task_id, q.evidence ? `доказ: ${q.evidence}` : ""); setTaskStatus(q.task_id, "done"); }
   else if (q.kind === "task_new") createTask({ client_id: q.client_id, title: q.title, details: q.evidence ? `## Звідки\n${q.evidence}` : "", due_date: ymd() });
   else if (q.kind === "log") addWork({ client_id: q.client_id, what: q.title, result: q.evidence ? `з Telegram: ${q.evidence}` : "", done_at: ymd() });
+  else if (q.kind === "next_step") {
+    const c = getClient(q.client_id);
+    if (c?.next_step) addWork({ client_id: q.client_id, what: `Наступний крок: ${c.next_step}`, result: "авто: закрито з черги «Підтверди»", done_at: ymd() });
+    updateClient(q.client_id, { next_step: "", next_step_at: null });
+  } else if (q.kind === "strategy") addStrategyItem(q.client_id, { kind: "log", title: q.title, body: q.evidence, source: "jerry" });
+}
+
+// Автоісторія з розділів картки (бренд, конкуренти…): один запис на день на тему, з позначкою «авто»
+export function autoLog(clientId: number, what: string, note = ""): void {
+  if (!clientId || !what.trim()) return;
+  addWork({ client_id: clientId, done_at: ymd(), what, result: `авто${note ? `: ${note}` : ""}` });
 }
