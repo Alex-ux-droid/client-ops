@@ -1,3 +1,4 @@
+import CampaignsView, { NewCampaign } from "./campaigns/CampaignsView";
 import Link from "next/link";
 import DataTable from "@/components/DataTable";
 import Pop from "@/components/Pop";
@@ -33,6 +34,7 @@ const fmtN = (n: number) => Math.round(n).toLocaleString("uk-UA");
 const pct = (n: number | null, d = 2) => (n == null ? "—" : `${n.toFixed(d)}%`);
 const VIEWS = [
   { k: "overview", label: "Огляд" },
+  { k: "campaigns", label: "Кампанії" },
   { k: "tree", label: "Структура" },
   { k: "creatives", label: "Креативи" },
   { k: "audience", label: "Аудиторія" },
@@ -50,7 +52,7 @@ function Delta({ now, before, lowerIsBetter = false }: { now: number | null; bef
 }
 
 // Живі цифри з Meta, розбиті на підвкладки (?mv=)
-export default function MetaLive({ clientId, view = "overview", err }: { clientId: number; view?: string; err?: string }) {
+export default function MetaLive({ clientId, view = "overview", err, cmp, sel }: { clientId: number; view?: string; err?: string; cmp?: string; sel?: string }) {
   const accs = accountsForClient(clientId);
   if (!accs.length) return null;
   const cur = accs[0].currency || "";
@@ -69,7 +71,7 @@ export default function MetaLive({ clientId, view = "overview", err }: { clientI
             {synced ? ` · оновлено ${new Date(synced.replace(" ", "T") + "Z").toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : " · ще не оновлювалось"}
           </div>
         </div>
-        <AskAssistant text="Подивись рекламу цього клієнта: що працює, що зливає бюджет, який креатив найкращий і що б ти змінив.">Джері, як реклама?</AskAssistant>
+        <span className="inline"><NewCampaign clientId={clientId} /><AskAssistant text="Подивись рекламу цього клієнта: що працює, що зливає бюджет, який креатив найкращий і що б ти змінив.">Джері, як реклама?</AskAssistant></span>
       </div>
       {problems.length > 0 && (
         <div className="mx-warn">
@@ -83,6 +85,7 @@ export default function MetaLive({ clientId, view = "overview", err }: { clientI
           <Link key={x.k} href={x.k === "overview" ? base : `${base}&mv=${x.k}`} scroll={false} className={x.k === v ? "on" : ""}>{x.label}</Link>
         ))}
       </nav>
+      {v === "campaigns" && <CampaignsView clientId={clientId} cmp={cmp} sel={sel} err={err} />}
       {v === "overview" && <Overview clientId={clientId} m={m} base={base} />}
       {v === "tree" && <Tree clientId={clientId} m={m} />}
       {v === "creatives" && <Creatives clientId={clientId} m={m} />}
@@ -463,8 +466,8 @@ function LeadRouting({ clientId }: { clientId: number }) {
 // Промпти креативів переїхали в розділ «Креативи» (студія) — тут лише посилання
 function CreativePrompts({ clientId }: { clientId: number; m?: Fmt; ads?: unknown }) {
   return (
-    <Link href={`/clients/${clientId}?tab=creatives`} className="card cs-link" style={{ marginTop: "1rem" }}>
-      <b>Студія креативів →</b> <span className="mono">«Контекст клієнта» для нового чату, промпти з кодом CR-N, дошка і що працює</span>
+    <Link href={`/clients/${clientId}?tab=meta_ads&mv=campaigns`} className="card cs-link" style={{ marginTop: "1rem" }}>
+      <b>Конструктор кампаній →</b> <span className="mono">оголошення з креативом і текстами від Джері, промпт для Claude, копіювання в Ads Manager</span>
     </Link>
   );
 }

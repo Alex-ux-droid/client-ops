@@ -4,6 +4,7 @@
 import { listMeetings } from "../repo/meetings";
 import { brandMd } from "../brand";
 import { competitorsSnapshot } from "../competitors";
+import { campaignsSnapshot } from "../campaigns";
 import { getClientRow } from "../repo/clients";
 import { adMoreText, adsetMoreText } from "../metaExtra";
 import { monthlyForClient } from "../repo/meta";
@@ -76,6 +77,8 @@ export function clientSnapshot(clientId: number): string {
   if (bmd) out.push(`БРЕНДБУК (розділ «Бренд»; тексти, креативи і пропозиції — в цьому стилі):\n${bmd.slice(0, 2500)}`);
   const comps = competitorsSnapshot(clientId);
   if (comps) out.push(`КОНКУРЕНТИ (розділ «Конкуренти», деталі — competitors):\n${comps}`);
+  const camps = campaignsSnapshot(clientId);
+  if (camps) out.push(`${camps}\n(деталі й тексти — ad_campaign get; уроки враховуй у всіх нових текстах і кампаніях)`);
   const meets = listMeetings(clientId, 5).filter((m) => m.status === "new");
   if (meets.length) out.push(`НЕРОЗІБРАНІ ЗУСТРІЧІ (тези Саші; розбери на прохання — meetings get/done):\n${meets.map((m) => `- [meeting_id ${m.id}] ${m.title} (${m.created_at.slice(0, 10)}): ${m.notes.replace(/\s+/g, " ").slice(0, 500)}`).join("\n")}`);
   const strat = strategySnapshot(clientId);

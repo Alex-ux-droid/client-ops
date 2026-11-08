@@ -85,7 +85,7 @@ function Overview() {
           const best = list.filter((x) => x.n.verdict === "win" || x.n.verdict === "mid").sort((a, b) => (a.n.cpl ?? 1e9) - (b.n.cpl ?? 1e9))[0];
           const st = (s: string) => list.filter((x) => x.p.status === s).length;
           return (
-            <Link key={c.id} href={`/clients/${c.id}?tab=creatives`} className="card cc-client">
+            <Link key={c.id} href={`/clients/${c.id}?tab=meta_ads&mv=campaigns`} className="card cc-client">
               <b>{c.name}</b>
               <span className="cc-row"><span>ідеї <b>{st("idea")}</b></span><span>зроблено <b>{st("ready")}</b></span><span>у рекламі <b>{st("live")}</b></span></span>
               <span className="cs-fmt">{best ? `★ ${codeOf(best.p)} ${best.p.title} — ${money(best.n.cpl)} за лід` : list.length ? "переможця ще нема" : "креативів ще нема — почни з контексту клієнта"}</span>

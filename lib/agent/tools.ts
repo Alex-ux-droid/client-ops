@@ -142,6 +142,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "client_memory", description: "Памʼять по клієнту: де ми зараз, домовленості (гроші, обсяг, терміни), що вже зроблено, що далі, що важливо. action get | rewrite (text — повний новий текст з розділами ## Де ми зараз / ## Домовленості (гроші, обсяг, терміни) / ## Що вже зроблено / ## Що в роботі і далі / ## Важливо памʼятати). Коли Саша розповідає про зустріч, домовленість, запуск — одразу онови.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["get", "rewrite"] }, text: str("Повний текст памʼяті") }, ["client_id", "action"]) },
   { name: "meetings", description: "Зустрічі з клієнтом — тези, які Саша записав під час зустрічі (кнопка «Зустріч» у картці). action list (client_id; нерозібрані позначені) | get (meeting_id — повний текст) | done (meeting_id — позначити розібраною після того, як розклав по памʼяті/задачах). Розбір: домовленості, гроші, терміни → client_memory; нові кроки → create_task без дублів; ідеї → ідеї клієнта.", input_schema: obj({ action: { type: "string", enum: ["list", "get", "done"] }, client_id: int("ID клієнта"), meeting_id: int("ID зустрічі") }, ["action"]) },
   { name: "brand", description: "Брендбук клієнта (розділ «Бренд» у картці): позиціонування, для кого, що рекламуємо, головне обіцяння, тон, можна/не можна, візуальний стиль, кольори (HEX з роллю), шрифти, файли (логотипи, гайдлайни). action get | save (поля positioning/audience/offer/promise/tone/rules/notes — ПОВНИЙ текст поля) | add_color (hex, name, role primary|secondary|accent|background|text) | add_font (name, role headings|body|accent, url) | import (text — витяжка [CLIENT-OPS:БРЕНД] або опис бренду) | prompt (промпт для Claude: зробити дизайн-систему). Креативи і пропозиції роби в стилі брендбуку.", input_schema: obj({ action: { type: "string", enum: ["get", "save", "add_color", "add_font", "import", "prompt"] }, client_id: int("ID клієнта"), positioning: str("Позиціонування"), audience: str("Для кого"), offer: str("Що рекламуємо"), promise: str("Головне обіцяння"), tone: str("Тон"), rules: str("Можна / не можна"), notes: str("Візуальний стиль"), hex: str("#RRGGBB"), name: str("Назва кольору/шрифту"), role: str("Роль"), url: str("Посилання на шрифт"), text: str("Витяжка") }, ["action", "client_id"]) },
+  { name: "ad_campaign", description: "Конструктор кампаній Meta (клієнт → Meta Ads → «Кампанії»): кампанія → групи (таргетинг, лід-форма) → оголошення (креатив, тексти, кнопка, посилання) + журнал уроків. Саша копіює звідти в Ads Manager; код AD-N у назві оголошення звʼязує з живими цифрами. action list (client_id) | get (campaign_id — уся структура, перевірки, журнал) | create (client_id, name, objective leads|sales|traffic|engagement|awareness|app, budget, budget_type daily|lifetime, target_cpl, idea; draft=true — одразу зібрати групи й оголошення) | update (campaign_id + поля кампанії: name, objective, status draft|ready|live|paused|done, budget, budget_type, target_cpl, idea, start_date) | adset (campaign_id для нової або adset_id для правки; name, conversion form|site|messenger|call, url, locations, age_min, age_max, gender all|male|female, interests — по рядку, exclusions, form) | ad (adset_id для нового або ad_id; angle, primary_text, headline ≤40, description ≤30, cta, url, status) | gen_copy (ad_id, wish — тексти під креатив, Джері бачить картинку) | gen_targeting (adset_id, wish) | note (campaign_id, kind note|change|budget|win|lose|lesson|result, text, ad_id) — уроки йдуть у всі наступні генерації.", input_schema: obj({ action: { type: "string", enum: ["list", "get", "create", "update", "adset", "ad", "gen_copy", "gen_targeting", "note"] }, client_id: int("ID клієнта"), campaign_id: int("ID кампанії"), adset_id: int("ID групи"), ad_id: int("ID оголошення"), name: str("Назва"), objective: str("Ціль"), status: str("Стан"), budget: { type: "number" }, budget_type: str("daily|lifetime"), target_cpl: { type: "number" }, idea: str("Ідея"), start_date: str("YYYY-MM-DD"), draft: { type: "boolean" }, conversion: str("form|site|messenger|call"), url: str("Посилання"), locations: str("Локації"), age_min: int("Вік від"), age_max: int("Вік до"), gender: str("all|male|female"), interests: str("Інтереси по рядку"), exclusions: str("Виключення"), form: str("Лід-форма"), angle: str("Кут"), primary_text: str("Основний текст"), headline: str("Заголовок"), description: str("Опис"), cta: str("Кнопка"), wish: str("Побажання"), kind: str("Тип запису"), text: str("Текст запису") }, ["action"]) },
   { name: "competitors", description: "Конкуренти клієнта (розділ «Конкуренти»): рівень, регіон, масштаб, що роблять, переваги/мінуси, цифри, загроза high|mid|low, «що з цим робимо», нагляд, журнал спостережень. action list (client_id; level — фільтр) | get (competitor_id — з журналом) | save (client_id, competitor_id для правки або нові поля: name, level, site, region, scale, what, for_whom, why, pros, cons, numbers, threat, action) | note (competitor_id, text, kind note|change|price|ad|content, url) | watch (competitor_id, on) | check (competitor_id — Джері дивиться сайт і новини, пише в журнал; 1–2 хв).", input_schema: obj({ action: { type: "string", enum: ["list", "get", "save", "note", "watch", "check"] }, client_id: int("ID клієнта"), competitor_id: int("ID конкурента"), level: str("Рівень"), name: str("Компанія"), site: str("Сайт"), region: str("Регіон"), scale: str("Масштаб"), what: str("Що роблять"), for_whom: str("Для кого"), why: str("Чому конкурент"), pros: str("Переваги"), cons: str("Мінуси"), numbers: str("Цифри/ціни"), threat: { type: "string", enum: ["high", "mid", "low", ""] }, text: str("Нотатка"), kind: str("Тип нотатки"), url: str("Посилання"), on: { type: "boolean" } }, ["action"]) },
   { name: "client_money", description: "Гроші клієнта: абонплата, день оплати, БОРГ (прострочені оплати з сумами і датами), очікувані, останні отримані. Для повідомлення клієнту про заборгованість — це + message_templates (шаблон «Оплата»).", input_schema: obj({ client_id: int("ID клієнта") }, ["client_id"]) },
   { name: "comm_profile", description: "Профіль спілкування з клієнтом (звертання, хто вирішує, тон, що цікавить, чого уникати). action get — прочитати; build — скласти заново з переписки групи; save — записати текст (коли Саша сам каже, як з клієнтом говорити).", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["get", "build", "save"] }, profile: str("Текст профілю для save") }, ["client_id", "action"]) },
@@ -496,6 +497,44 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       if (a === "prompt") return { prompt: bl.brandPrompt(cid) };
       return { brandbook: bl.brandMd(cid) || "порожньо", fields: br.getBrand(cid), colors: br.listColors(cid), fonts: br.listFonts(cid), files: br.listAssets(cid).map((x) => ({ kind: x.kind, title: x.title, url: x.url || (x.file_id ? `/api/files/${x.file_id}` : "") })) };
     }
+    case "ad_campaign": {
+      const cr = await import("../repo/campaigns");
+      const cl = await import("../campaigns");
+      const a = s(input.action);
+      const href = (cid: number, cmp?: number) => `/clients/${cid}?tab=meta_ads&mv=campaigns${cmp ? `&cmp=${cmp}` : ""}`;
+      const pickP = (keys: string[]) => Object.fromEntries(keys.filter((k) => input[k] !== undefined).map((k) => [k, typeof input[k] === "string" ? s(input[k]) : input[k]]));
+      if (a === "list") return { campaigns: cr.listCampaigns(need(id(input.client_id), "client_id обов'язковий")).map((c) => ({ campaign_id: c.id, name: c.name, status: c.status, objective: c.objective, budget: c.budget, adsets: c.adsets, ads: c.ads, live: cl.campaignLive(c) })) };
+      if (a === "create") {
+        const cid = need(id(input.client_id), "client_id обов'язковий");
+        const cmp = cr.addCampaign(cid, pickP(["name", "objective", "budget", "budget_type", "target_cpl", "idea", "start_date"]) as Partial<import("../repo/campaigns").Campaign>);
+        let made = null;
+        if (input.draft) made = await cl.genCampaignDraft(cmp); else cr.addAdset(cmp);
+        act("client", `Кампанія: ${s(input.name) || "нова"}`, href(cid, cmp));
+        return { ok: true, campaign_id: cmp, made, link: href(cid, cmp) };
+      }
+      if (a === "adset") {
+        const p = pickP(["name", "conversion", "url", "locations", "age_min", "age_max", "gender", "interests", "exclusions", "form"]) as Partial<import("../repo/campaigns").AdSet>;
+        if (id(input.adset_id)) { cr.updateAdset(id(input.adset_id)!, p); return { ok: true, adset_id: id(input.adset_id) }; }
+        return { ok: true, adset_id: cr.addAdset(need(id(input.campaign_id), "campaign_id або adset_id"), p) };
+      }
+      if (a === "ad") {
+        const p = pickP(["name", "angle", "primary_text", "headline", "description", "cta", "url", "status"]) as Partial<import("../repo/campaigns").Ad>;
+        if (id(input.ad_id)) { cr.updateAd(id(input.ad_id)!, p); return { ok: true, ad_id: id(input.ad_id) }; }
+        const nid = cr.addAd(need(id(input.adset_id), "adset_id або ad_id"), p);
+        return { ok: true, ad_id: nid, code: `AD-${nid}` };
+      }
+      if (a === "gen_copy") return { variants: await cl.genAdCopy(need(id(input.ad_id), "ad_id обов'язковий"), s(input.wish)) };
+      if (a === "gen_targeting") return { why: await cl.genTargeting(need(id(input.adset_id), "adset_id обов'язковий"), s(input.wish)) };
+      const c = need(cr.getCampaign(need(id(input.campaign_id), "campaign_id обов'язковий")), "Кампанії нема");
+      if (a === "update") { cr.updateCampaign(c.id, pickP(["name", "objective", "status", "budget", "budget_type", "target_cpl", "idea", "start_date"]) as Partial<import("../repo/campaigns").Campaign>); return { ok: true }; }
+      if (a === "note") { cr.addNote(c.id, (s(input.kind) || "note") as import("../repo/campaigns").NoteKind, need(s(input.text), "text обов'язковий"), { ad_id: id(input.ad_id) }); return { ok: true }; }
+      cl.syncCampaign(c);
+      return {
+        campaign: c, live: cl.campaignLive(c), link: href(c.client_id, c.id), checks: cl.campaignChecks(c),
+        adsets: cr.listAdsets(c.id).map((st) => ({ ...st, ads: cr.listAds(st.id).map((ad) => ({ ad_id: ad.id, code: cr.adCode(ad), name: ad.name, angle: ad.angle, format: ad.format, has_media: !!(ad.file_id || ad.media_url), primary_text: ad.primary_text, headline: ad.headline, description: ad.description, cta: ad.cta, url: ad.url, status: ad.status, live: cl.adLive(ad) })) })),
+        journal: cr.listNotes(c.id).slice(0, 30).map((n) => ({ date: n.created_at.slice(0, 10), kind: n.kind, text: n.text, ad_id: n.ad_id })),
+      };
+    }
     case "competitors": {
       const cr = await import("../repo/competitors");
       const a = s(input.action);
@@ -566,7 +605,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       const lab = await import("../creativeLab");
       const cs = await import("../creativeStudio");
       const a = s(input.action);
-      const href = (cid: number) => `/clients/${cid}?tab=creatives`;
+      const href = (cid: number) => `/clients/${cid}?tab=meta_ads&mv=campaigns`;
       if (a === "brief") {
         const cid = need(id(input.client_id), "client_id обов'язковий");
         return { brief: cs.creativeBrief(cid) };

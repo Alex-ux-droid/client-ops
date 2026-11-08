@@ -2,7 +2,7 @@ import LogoMark from "@/components/LogoMark";
 import { logoSrc } from "@/lib/repo/logos";
 import Link from "next/link";
 import TabsScroll from "./TabsScroll";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { saveNextStep } from "@/app/actions";
 import { money } from "@/lib/config";
 import { fmtDate } from "@/lib/dates";
@@ -21,7 +21,6 @@ import Overview from "./Overview";
 import StrategyTab from "./strategy/StrategyTab";
 import SalesTab from "./SalesTab";
 import MeetingNote from "@/components/MeetingNote";
-import CreativesTab from "./CreativesTab";
 import BrandTab from "./BrandTab";
 import CompetitorsTab from "./CompetitorsTab";
 import SetupTab from "./SetupTab";
@@ -30,11 +29,13 @@ import ServiceTab from "./ServiceTab";
 import { HistoryTab, MaterialsTab, MoneyTab, PlaybooksTab, TasksTab } from "./tabs";
 
 
-export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; new?: string; m?: string; err?: string; sent?: string; edit?: string; saved?: string; q?: string; n?: string; mv?: string; sv?: string; p?: string; sp?: string; pulled?: string; c?: string; lv?: string }> }) {
+export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; new?: string; m?: string; err?: string; sent?: string; edit?: string; saved?: string; q?: string; n?: string; mv?: string; sv?: string; p?: string; sp?: string; pulled?: string; c?: string; lv?: string; cmp?: string; sel?: string }> }) {
   const id = Number((await params).id);
   const c = getClientRow(id);
   if (!c) notFound();
   const sp = await searchParams;
+  // Студія креативів переїхала в конструктор кампаній (Meta Ads → Кампанії): креатив тепер частина оголошення
+  if (sp.tab === "creatives") redirect(`/clients/${id}?tab=meta_ads&mv=campaigns`);
   const services = listServices(id);
   const google = googleConnected();
   const tabs = clientSections(c, services);
@@ -107,12 +108,11 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
 
       {tab === "overview" && <Overview c={c} services={services} paidTotal={paidTotal} isNew={sp.new === "1"} cplText={cplText} />}
       {tab === "sales" && <SalesTab clientId={id} sp={sp.sp} err={sp.err} pulled={sp.pulled} />}
-      {tab === "creatives" && <CreativesTab clientId={id} />}
       {tab === "brand" && <BrandTab clientId={id} />}
       {tab === "competitors" && <CompetitorsTab clientId={id} sel={sp.c} lv={sp.lv} />}
       {tab === "strategy" && <StrategyTab clientId={id} sv={sp.sv} p={sp.p} />}
       {tab === "setup" && <SetupTab c={c} services={services} />}
-      {service && <ServiceTab clientId={id} service={service} edit={sp.edit === "1"} saved={sp.saved === "1"} mv={sp.mv} err={sp.err} />}
+      {service && <ServiceTab clientId={id} service={service} edit={sp.edit === "1"} saved={sp.saved === "1"} mv={sp.mv} err={sp.err} cmp={sp.cmp} sel={sp.sel} />}
       {tab === "tasks" && <TasksTab id={id} />}
       {tab === "history" && <HistoryTab id={id} />}
       {tab === "money" && <MoneyTab id={id} fee={c.fee_monthly} payDay={c.pay_day} paidTotal={paidTotal} />}
