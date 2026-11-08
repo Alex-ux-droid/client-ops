@@ -3,7 +3,7 @@
 import Link from "next/link";
 import {
   adOpAction, addAdsetAction, adsetOpAction, createCampaignAction, deleteCampaignAction, deleteNoteAction, duplicateCampaignAction,
-  mediaFromMetaAction, noteAction, saveAdAction, saveAdsetAction, saveCampaignAction, savePlanAction,
+  mediaFromMetaAction, noteAction, saveAdAction, saveAdsetAction, saveCampaignAction, saveCardAction, savePlanAction,
 } from "@/app/campaigns/actions";
 import EditBlock from "@/components/EditBlock";
 import Icon from "@/components/Icon";
@@ -14,14 +14,14 @@ import { adLive, adPromptFull, adUrl, adsetTargeting, campaignChatPrompt, campai
 import { creativeBrief } from "@/lib/creativeStudio";
 import { fmtDate } from "@/lib/dates";
 import {
-  AD_FORMATS, AD_STATUS, adCode, CM_STATUS, CREATIVE_TOOLS, cardsOf, isMotion, PLAN_FIELDS, planOf, CONVERSIONS, CTAS, GENDERS, getCampaign, listAds, listAdsets, listCampaigns, listNotes,
+  AD_FORMATS, AD_STATUS, adCode, CM_STATUS, CARD_LIMITS, CREATIVE_TOOLS, cardsOf, cardTextsOf, isMotion, PLAN_FIELDS, planOf, CONVERSIONS, CTAS, GENDERS, getCampaign, listAds, listAdsets, listCampaigns, listNotes,
   NOTE_KINDS, OBJECTIVES, variantsOf, type Ad, type AdSet, type Campaign,
 } from "@/lib/repo/campaigns";
 import { getClientRow } from "@/lib/repo/clients";
 import { getFile } from "@/lib/repo/files";
 import { logoSrc } from "@/lib/repo/logos";
 import { adsForClient, adTotalsForClient, campaignsWithStats, kyivDay } from "@/lib/repo/meta";
-import { CardStrip, CopyBtn, CopyField, FolderButton, GenCopy, GenDraft, GenTargeting, GenWish, MediaUpload, UseVariant } from "./CampaignClient";
+import { CardStrip, CopyBtn, CopyField, FolderButton, PrevCarousel, GenCopy, GenDraft, GenTargeting, GenWish, MediaUpload, UseVariant } from "./CampaignClient";
 
 const lbl = (m: Record<string, string>, k: string) => m[k] ?? k;
 const opts = (m: Record<string, string>) => Object.entries(m).map(([k, v]) => <option key={k} value={k}>{v}</option>);
@@ -343,6 +343,7 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
   const live = adLive(a, metaAds);
   const promptFull = adPromptFull(c, a, client?.name ?? "");
   const cards = cardsOf(a);
+  const ct = cardTextsOf(a);
   return (
     <div className="stack" style={{ gap: "0.875rem" }}>
       <Live l={live} target={c.target_cpl} />
@@ -355,15 +356,15 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
             <span><b>{client?.name.replace(/^Тест:\s*/, "")}</b><small>Реклама</small></span>
           </div>
           <div className="kp-prev-t">{a.primary_text ? <>{a.primary_text.slice(0, LIMITS.primary)}{a.primary_text.length > LIMITS.primary && <span className="kp-more">… Ще</span>}</> : <span className="mono">Основний текст</span>}</div>
+          {cards.length > 1 ? <PrevCarousel cards={cards.map((id) => ({ id, ...(ct[String(id)] ?? {}) }))} cta={lbl(CTAS, a.cta).split(" · ")[0]} /> :
           <div className={`kp-prev-m${src ? "" : " kp-none"}`} style={{ aspectRatio: ({ square: "1", carousel: "1", story: "9 / 16", motion: "9 / 16", video: "9 / 16", wide: "16 / 9" } as Record<string, string>)[a.format] ?? "4 / 5" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {cards.length > 1 ? <div className="kp-prev-car">{cards.map((id) => <img key={id} src={`/api/files/${id}`} alt="" />)}</div>
-              : !src ? <span>{lbl(AD_FORMATS, a.format)}<br />креатив ще не додано</span> : isVideo ? <video src={src} controls preload="metadata" /> : <img src={src} alt="" />}
-          </div>
-          <div className="kp-prev-f">
+            {!src ? <span>{lbl(AD_FORMATS, a.format)}<br />креатив ще не додано</span> : isVideo ? <video src={src} controls preload="metadata" /> : <img src={src} alt="" />}
+          </div>}
+          {cards.length < 2 && <div className="kp-prev-f">
             <span><small>{url ? (() => { try { return new URL(url).hostname.toUpperCase(); } catch { return ""; } })() : lbl(CONVERSIONS, s.conversion).split(" (")[0].toUpperCase()}</small><b>{a.headline || "Заголовок"}</b>{a.description && <small>{a.description}</small>}</span>
             <i>{lbl(CTAS, a.cta).split(" · ")[0]}</i>
-          </div>
+          </div>}
         </div>
 
         <div className="stack" style={{ gap: "0.875rem", minWidth: 0 }}>
@@ -470,6 +471,36 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
                 <CopyField label="Кнопка (CTA)" value={lbl(CTAS, a.cta)} />
                 {(url || s.conversion === "site") && <CopyField label="Посилання з UTM" value={url} />}
               </>
+            )}
+            {cards.length > 1 && (
+              <div className="kp-ctexts">
+                <b className="kp-vars-h">Картки каруселі <i>заголовок до {CARD_LIMITS.headline}, опис до {CARD_LIMITS.description}; порожнє посилання = посилання оголошення</i></b>
+                {cards.map((id, i) => {
+                  const t = ct[String(id)] ?? {};
+                  return (
+                    <div key={id} className="kp-ctext">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={`/api/files/${id}`} alt="" />
+                      <div className="kp-ctext-b">
+                        <div className="kp-ctext-h"><b>Картка {i + 1}</b>
+                          <Pop closeOnSubmit className="pop-trigger pop-inline" title={`Картка ${i + 1}`} trigger={<span className="btn ghost small">Змінити</span>}>
+                            <form action={saveCardAction} className="stack" style={{ gap: "0.625rem" }}>
+                              {hid}<input type="hidden" name="file_id" value={id} />
+                              <label className="cg-f"><span>Заголовок <i>до {CARD_LIMITS.headline}</i></span><input name="headline" defaultValue={t.headline ?? ""} maxLength={120} autoFocus /></label>
+                              <label className="cg-f"><span>Опис <i>до {CARD_LIMITS.description}</i></span><input name="description" defaultValue={t.description ?? ""} maxLength={120} /></label>
+                              <label className="cg-f"><span>Посилання <i>порожньо = як в оголошенні</i></span><input name="url" defaultValue={t.url ?? ""} placeholder={url || "https://"} /></label>
+                              <div><SubmitButton className="small">Зберегти</SubmitButton></div>
+                            </form>
+                          </Pop>
+                        </div>
+                        <CopyField label="Заголовок" value={t.headline ?? ""} limit={CARD_LIMITS.headline} />
+                        <CopyField label="Опис" value={t.description ?? ""} limit={CARD_LIMITS.description} />
+                        {(t.url || url) && <CopyField label="Посилання" value={t.url || url} hint={t.url ? "" : "як в оголошенні"} />}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
             {a.notes && <div className="kp-idea"><b>Нотатка</b><p>{a.notes}</p></div>}
           </Section>

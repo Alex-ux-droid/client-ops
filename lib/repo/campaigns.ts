@@ -42,7 +42,7 @@ export type AdSet = {
 };
 export type Ad = {
   id: number; adset_id: number; name: string; angle: string; format: string; file_id: number | null; media_url: string; creative_id: number | null;
-  creative_prompt: string; overlay: string; tool: string; files_json: string;
+  creative_prompt: string; overlay: string; tool: string; files_json: string; cards_json: string;
   primary_text: string; headline: string; description: string; variants_json: string; cta: string; url: string; utm: string;
   status: string; notes: string; sort: number; meta_ad_id: string; created_at: string;
 };
@@ -54,7 +54,7 @@ export const variantsOf = (a: Ad): Variants => { try { return JSON.parse(a.varia
 
 const C_FIELDS = ["name", "objective", "status", "budget_level", "budget_type", "budget", "start_date", "end_date", "idea", "target_cpl", "special_category", "notes", "meta_campaign_id", "drive_folder_id", "drive_folder_name", "plan_json"] as const;
 const S_FIELDS = ["name", "conversion", "form", "url", "budget", "locations", "age_min", "age_max", "gender", "languages", "interests", "exclusions", "audiences", "advantage", "placements", "notes", "sort", "meta_adset_id"] as const;
-const A_FIELDS = ["name", "angle", "format", "creative_prompt", "overlay", "tool", "files_json", "file_id", "media_url", "creative_id", "primary_text", "headline", "description", "variants_json", "cta", "url", "utm", "status", "notes", "sort", "meta_ad_id"] as const;
+const A_FIELDS = ["name", "angle", "format", "creative_prompt", "overlay", "tool", "files_json", "cards_json", "file_id", "media_url", "creative_id", "primary_text", "headline", "description", "variants_json", "cta", "url", "utm", "status", "notes", "sort", "meta_ad_id"] as const;
 
 function patchSql<T extends string>(table: string, fields: readonly T[], id: number, patch: Partial<Record<T, unknown>>, touch = false) {
   const keys = fields.filter((k) => k in patch);
@@ -145,3 +145,7 @@ export const cardsOf = (a: Ad): number[] => {
   return a.file_id ? [a.file_id] : [];
 };
 export const hasMediaOf = (a: Ad) => cardsOf(a).length > 0 || !!a.media_url;
+
+export type CardText = { headline?: string; description?: string; url?: string };
+export const cardTextsOf = (a: Ad): Record<string, CardText> => { try { const v = JSON.parse(a.cards_json || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; } };
+export const CARD_LIMITS = { headline: 40, description: 20 } as const;

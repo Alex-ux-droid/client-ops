@@ -8,7 +8,7 @@ import { adLive, campaignLive, defaultUtm, ensureCampaignFolder, genAdCopy, genC
 import { llmErrorText } from "@/lib/llmJson";
 import {
   adCode, addAd, addAdset, addCampaign, addNote, campaignOfAd, deleteAd, deleteAdset, deleteCampaign, deleteNote, getAd, getAdset, getCampaign,
-  isMotion, listAds, NOTE_KINDS, PLAN_FIELDS, planOf, updateAd, updateAdset, updateCampaign, type Ad, type AdSet, type Campaign, type NoteKind,
+  cardTextsOf, isMotion, listAds, NOTE_KINDS, PLAN_FIELDS, planOf, updateAd, updateAdset, updateCampaign, type Ad, type AdSet, type Campaign, type NoteKind,
 } from "@/lib/repo/campaigns";
 import { adsForClient } from "@/lib/repo/meta";
 
@@ -208,4 +208,15 @@ export async function folderAction(campaignId: number) {
   const r = await ensureCampaignFolder(c);
   back(c.client_id);
   return r.ok ? { ok: true as const, url: r.url } : { ok: false as const, error: r.error ?? "Не вдалось" };
+}
+
+// Заголовок / опис / посилання однієї картки каруселі
+export async function saveCardAction(fd: FormData) {
+  await requireUser();
+  const a = getAd(Number(fd.get("ad_id"))); if (!a) return;
+  const key = String(Number(fd.get("file_id")));
+  const all = cardTextsOf(a);
+  all[key] = { headline: str(fd, "headline"), description: str(fd, "description"), url: str(fd, "url") };
+  updateAd(a.id, { cards_json: JSON.stringify(all) });
+  back(campaignOfAd(a.id)!.client_id);
 }

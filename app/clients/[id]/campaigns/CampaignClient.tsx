@@ -170,3 +170,30 @@ export function FolderButton({ campaignId, url }: { campaignId: number; url?: st
     </span>
   );
 }
+
+// Прев'ю каруселі: одна картка, гортання стрілками / свайпом, крапки, заголовок і кнопка картки
+export function PrevCarousel({ cards, cta }: { cards: { id: number; headline?: string; description?: string }[]; cta: string }) {
+  const [i, setI] = useState(0);
+  const x0 = useRef<number | null>(null);
+  const go = (d: number) => setI((v) => Math.max(0, Math.min(cards.length - 1, v + d)));
+  const c = cards[i];
+  return (
+    <div className="kp-car">
+      <div className="kp-car-view" onTouchStart={(e) => { x0.current = e.touches[0].clientX; }}
+        onTouchEnd={(e) => { if (x0.current == null) return; const dx = e.changedTouches[0].clientX - x0.current; if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1); x0.current = null; }}>
+        <div className="kp-car-track" style={{ transform: `translateX(-${i * 100}%)` }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {cards.map((k) => <img key={k.id} src={`/api/files/${k.id}`} alt="" draggable={false} />)}
+        </div>
+        {i > 0 && <button type="button" className="kp-car-btn l" onClick={() => go(-1)} aria-label="Попередня">‹</button>}
+        {i < cards.length - 1 && <button type="button" className="kp-car-btn r" onClick={() => go(1)} aria-label="Наступна">›</button>}
+        <span className="kp-car-n">{i + 1}/{cards.length}</span>
+      </div>
+      <div className="kp-prev-f">
+        <span><b>{c.headline || "Заголовок картки"}</b>{c.description && <small>{c.description}</small>}</span>
+        <i>{cta}</i>
+      </div>
+      <div className="kp-car-dots">{cards.map((k, j) => <button key={k.id} type="button" className={j === i ? "on" : ""} onClick={() => setI(j)} aria-label={`Картка ${j + 1}`} />)}</div>
+    </div>
+  );
+}
