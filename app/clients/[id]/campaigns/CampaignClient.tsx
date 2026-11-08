@@ -2,7 +2,7 @@
 // Клієнтські шматки конструктора кампаній: поле з кнопкою «Копіювати» і лічильником, кнопки Джері, завантаження креативу
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { folderAction, genBriefAction, genCopyAction, genDraftAction, genPlanAction, genTargetingAction, useVariantAction } from "@/app/campaigns/actions";
+import { folderAction, genBriefAction, genFormAction, genCopyAction, genDraftAction, genPlanAction, genTargetingAction, useVariantAction } from "@/app/campaigns/actions";
 
 async function copy(text: string) { try { await navigator.clipboard.writeText(text); return true; } catch { return false; } }
 
@@ -194,6 +194,27 @@ export function PrevCarousel({ cards, cta }: { cards: { id: number; headline?: s
         <i>{cta}</i>
       </div>
       <div className="kp-car-dots">{cards.map((k, j) => <button key={k.id} type="button" className={j === i ? "on" : ""} onClick={() => setI(j)} aria-label={`Картка ${j + 1}`} />)}</div>
+    </div>
+  );
+}
+
+// «✨ Нова форма від Джері» — для бібліотеки (adId null → відкрити нову) або для оголошення
+export function GenForm({ clientId, adId, label = "✨ Нова форма від Джері" }: { clientId: number; adId?: number; label?: string }) {
+  const [wish, setWish] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const router = useRouter();
+  return (
+    <div className="kp-gen">
+      <input value={wish} onChange={(e) => setWish(e.target.value)} placeholder="Що врахувати: напр. «спитати бюджет», «тільки телефон, без email»" />
+      <button type="button" className="small" disabled={busy} onClick={async () => {
+        setBusy(true); setErr("");
+        const r = await genFormAction(clientId, adId ?? null, wish);
+        setBusy(false);
+        if (!r.ok) { setErr(r.error); return; }
+        if (adId) router.refresh(); else router.push(`/clients/${clientId}?tab=meta_ads&mv=forms&form=${r.id}`);
+      }}>{busy ? "Джері складає форму… ~20 с" : label}</button>
+      {err && <span className="kp-msg bad">{err}</span>}
     </div>
   );
 }

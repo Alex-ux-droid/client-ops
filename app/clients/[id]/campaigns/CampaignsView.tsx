@@ -2,7 +2,7 @@
 // після запуску бачимо цифри (код AD-N у назві оголошення) і записуємо, що зайшло — Джері на цьому вчиться.
 import Link from "next/link";
 import {
-  adOpAction, addAdsetAction, adsetOpAction, createCampaignAction, deleteCampaignAction, deleteNoteAction, duplicateCampaignAction,
+  adOpAction, addAdsetAction, attachFormAction, adsetOpAction, createCampaignAction, deleteCampaignAction, deleteNoteAction, duplicateCampaignAction,
   mediaFromMetaAction, noteAction, saveAdAction, saveAdsetAction, saveCampaignAction, saveCardAction, savePlanAction,
 } from "@/app/campaigns/actions";
 import EditBlock from "@/components/EditBlock";
@@ -10,18 +10,18 @@ import Icon from "@/components/Icon";
 import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
 import VoiceTextarea from "@/components/VoiceTextarea";
-import { adLive, adPromptFull, adUrl, adsetTargeting, campaignChatPrompt, campaignChecks, campaignLive, campaignMd, LIMITS, money2, syncCampaign, type LiveNums } from "@/lib/campaigns";
+import { adLive, adPromptFull, adUrl, formMd, adsetTargeting, campaignChatPrompt, campaignChecks, campaignLive, campaignMd, LIMITS, money2, syncCampaign, type LiveNums } from "@/lib/campaigns";
 import { creativeBrief } from "@/lib/creativeStudio";
 import { fmtDate } from "@/lib/dates";
 import {
-  AD_FORMATS, AD_STATUS, adCode, CM_STATUS, CARD_LIMITS, CREATIVE_TOOLS, cardsOf, cardTextsOf, isMotion, PLAN_FIELDS, planOf, CONVERSIONS, CTAS, GENDERS, getCampaign, listAds, listAdsets, listCampaigns, listNotes,
+  AD_FORMATS, AD_STATUS, adCode, CM_STATUS, CARD_LIMITS, CREATIVE_TOOLS, cardsOf, cardTextsOf, getForm, listForms, parseQuestions, isMotion, PLAN_FIELDS, planOf, CONVERSIONS, CTAS, GENDERS, getCampaign, listAds, listAdsets, listCampaigns, listNotes,
   NOTE_KINDS, OBJECTIVES, variantsOf, type Ad, type AdSet, type Campaign,
 } from "@/lib/repo/campaigns";
 import { getClientRow } from "@/lib/repo/clients";
 import { getFile } from "@/lib/repo/files";
 import { logoSrc } from "@/lib/repo/logos";
 import { adsForClient, adTotalsForClient, campaignsWithStats, kyivDay } from "@/lib/repo/meta";
-import { CardStrip, CopyBtn, CopyField, FolderButton, PrevCarousel, GenCopy, GenDraft, GenTargeting, GenWish, MediaUpload, UseVariant } from "./CampaignClient";
+import { CardStrip, CopyBtn, CopyField, FolderButton, GenForm, PrevCarousel, GenCopy, GenDraft, GenTargeting, GenWish, MediaUpload, UseVariant } from "./CampaignClient";
 
 const lbl = (m: Record<string, string>, k: string) => m[k] ?? k;
 const opts = (m: Record<string, string>) => Object.entries(m).map(([k, v]) => <option key={k} value={k}>{v}</option>);
@@ -282,7 +282,7 @@ function AdsetPanel({ c, s, ads }: { c: Campaign; s: AdSet; ads: Ad[] }) {
               <input type="hidden" name="advantage_present" value="1" />
               <label className="lp-check"><input type="checkbox" name="advantage" value="1" defaultChecked={!!s.advantage} /> Advantage+ аудиторія (Meta розширює сама)</label>
               <label className="cg-f"><span>Плейсменти</span><input name="placements" defaultValue={s.placements} placeholder="advantage = автоматично" /></label>
-              <label className="cg-f"><span>Лід-форма <i>заголовок, питання, «дякуємо»</i></span><VoiceTextarea name="form" defaultValue={s.form} style={{ minHeight: "5rem" }} /></label>
+              <label className="cg-f"><span>Нотатка про форму <i>самі форми — у «Лід-форми» і в кожному оголошенні</i></span><textarea name="form" defaultValue={s.form} style={{ minHeight: "3rem" }} /></label>
               <div><SubmitButton className="small">Зберегти</SubmitButton></div>
             </form>
           </Pop>
@@ -309,7 +309,7 @@ function AdsetPanel({ c, s, ads }: { c: Campaign; s: AdSet; ads: Ad[] }) {
         {s.exclusions && <CopyField label="Виключити" value={s.exclusions.split("\n").filter(Boolean).join(", ")} />}
         {s.audiences && <CopyField label="Власні аудиторії" value={s.audiences} />}
         <CopyField label="Плейсменти" value={s.placements === "advantage" ? "Advantage+ плейсменти (автоматично)" : s.placements} />
-        {s.form && <CopyField label="Лід-форма" value={s.form} multiline />}
+        {s.form && <CopyField label="Нотатка про форму" value={s.form} multiline />}
         <div><CopyBtn text={adsetTargeting(s)} label="⧉ Весь таргетинг текстом" small /></div>
       </Section>
       <Section title="Джері"><GenTargeting adsetId={s.id} /></Section>
@@ -343,6 +343,8 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
   const live = adLive(a, metaAds);
   const promptFull = adPromptFull(c, a, client?.name ?? "");
   const cards = cardsOf(a);
+  const form = a.form_id ? getForm(a.form_id) : undefined;
+  const forms = listForms(c.client_id, true);
   const ct = cardTextsOf(a);
   return (
     <div className="stack" style={{ gap: "0.875rem" }}>
@@ -504,6 +506,25 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
             )}
             {a.notes && <div className="kp-idea"><b>Нотатка</b><p>{a.notes}</p></div>}
           </Section>
+
+          {s.conversion === "form" && (
+            <Section title="Лід-форма" action={<Link href={`/clients/${c.client_id}?tab=meta_ads&mv=forms${form ? `&form=${form.id}` : ""}`} className="h-link">{form ? "Відкрити форму →" : "Бібліотека форм →"}</Link>}>
+              {form ? (
+                <div className="kp-fsum">
+                  <b>{form.name} <span className="tag accent">v{form.version}</span></b>
+                  <span className="mono">{form.intro_headline}</span>
+                  <ol>{parseQuestions(form.questions).map((q, i) => <li key={i}>{q.label}{q.options.length ? <small> — {q.options.join(" / ")}</small> : null}</li>)}</ol>
+                  <div><CopyBtn text={formMd(form)} label="⧉ Уся форма текстом" small /></div>
+                </div>
+              ) : <p className="mono" style={{ margin: 0 }}>Форми ще нема — вибери з бібліотеки або нехай Джері складе під це оголошення.</p>}
+              <form action={attachFormAction} className="kp-gen">
+                {hid}
+                <select name="form_id" defaultValue={a.form_id ?? ""}><option value="">— без форми —</option>{forms.map((x) => <option key={x.id} value={x.id}>{x.name} · v{x.version}{x.status !== "active" ? " (архів)" : ""}</option>)}</select>
+                <SubmitButton className="small">Підключити</SubmitButton>
+              </form>
+              <GenForm clientId={c.client_id} adId={a.id} label={form ? "✨ Інша форма від Джері" : "✨ Форма від Джері"} />
+            </Section>
+          )}
 
           <Section title="Що вийшло">
             <form action={noteAction} className="kp-rate">

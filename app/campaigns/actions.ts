@@ -220,3 +220,57 @@ export async function saveCardAction(fd: FormData) {
   updateAd(a.id, { cards_json: JSON.stringify(all) });
   back(campaignOfAd(a.id)!.client_id);
 }
+
+// ---------- лід-форми
+export async function saveFormAction(fd: FormData) {
+  await requireUser();
+  const { FORM_FIELDS, getForm, updateForm } = await import("@/lib/repo/campaigns");
+  const f = getForm(Number(fd.get("form_id"))); if (!f) return;
+  const p: Record<string, string> = {};
+  for (const k of FORM_FIELDS) if (fd.has(k)) p[k] = str(fd, k);
+  updateForm(f.id, p);
+  back(f.client_id);
+}
+export async function newFormAction(fd: FormData) {
+  await requireUser();
+  const { addForm } = await import("@/lib/repo/campaigns");
+  const cid = Number(fd.get("client_id"));
+  const id = addForm(cid, { name: str(fd, "name") || "Нова форма", questions: "Імʼя\nТелефон", privacy_text: "Політика конфіденційності" });
+  back(cid); redirect(`/clients/${cid}?tab=meta_ads&mv=forms&form=${id}`);
+}
+export async function formVersionAction(fd: FormData) {
+  await requireUser();
+  const { getForm, newFormVersion } = await import("@/lib/repo/campaigns");
+  const f = getForm(Number(fd.get("form_id"))); if (!f) return;
+  const id = newFormVersion(f.id, str(fd, "changes"));
+  back(f.client_id); redirect(`/clients/${f.client_id}?tab=meta_ads&mv=forms&form=${id}`);
+}
+export async function formStatusAction(fd: FormData) {
+  await requireUser();
+  const { getForm, updateForm } = await import("@/lib/repo/campaigns");
+  const f = getForm(Number(fd.get("form_id"))); if (!f) return;
+  updateForm(f.id, { status: f.status === "active" ? "archived" : "active" });
+  back(f.client_id);
+}
+export async function attachFormAction(fd: FormData) {
+  await requireUser();
+  const a = getAd(Number(fd.get("ad_id"))); if (!a) return;
+  const fid = Number(fd.get("form_id")) || null;
+  const c = campaignOfAd(a.id)!;
+  if (fid !== a.form_id) {
+    const { getForm } = await import("@/lib/repo/campaigns");
+    const f = fid ? getForm(fid) : undefined;
+    addNote(c.id, "change", `${adCode(a)}: лід-форма → ${f ? `«${f.name}» v${f.version}` : "без форми"}`, { ad_id: a.id });
+  }
+  updateAd(a.id, { form_id: fid });
+  back(c.client_id);
+}
+export async function genFormAction(clientId: number, adId: number | null, wish: string) {
+  await requireUser();
+  if (off()) return { ok: false as const, error: off() };
+  try {
+    const { genForm } = await import("@/lib/campaigns");
+    const id = await genForm({ clientId, adId: adId ?? undefined, wish });
+    back(clientId); return { ok: true as const, id };
+  } catch (e) { return { ok: false as const, error: llmErrorText(e) }; }
+}
