@@ -10,7 +10,7 @@ import {
 import { addIdea, deleteIdea, listIdeas, setIdeaStatus } from "../repo/ideas";
 import { addMaterial, deleteMaterial, getMaterial, listMaterials, MATERIAL_KINDS, type MaterialKind } from "../repo/materials";
 import { addPayment, deletePayment, listPayments, markPaid, moneySummary } from "../repo/payments";
-import { attachPlaybook, checklistItems, clientPlaybooks, detachPlaybook, getPlaybook, listPlaybooks, savePlaybook, setChecklistItem } from "../repo/playbooks";
+import { attachPlaybook, checklistItems, clientPlaybooks, detachPlaybook, getPlaybook, listPlaybooks, playbookSteps, savePlaybook, setChecklistItem } from "../repo/playbooks";
 import { searchAll } from "../repo/search";
 import { addTaskItems, addTaskLink, createTask, deleteTask, deleteTaskItem, getTask, listTasks, setTaskItem, setTaskStatus, taskItems, taskLinks, updateTask, type TaskPriority, type TaskView } from "../repo/tasks";
 import { addWork, deleteWork, findSimilarWork, listWork } from "../repo/worklog";
@@ -105,6 +105,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "task_subtasks", description: "Відмітити / зняти відмітку / перейменувати / видалити підзадачі (id з get_task).", input_schema: obj({ task_id: int("ID задачі"), check: { type: "array", items: { type: "integer" } }, uncheck: { type: "array", items: { type: "integer" } }, remove: { type: "array", items: { type: "integer" } }, rename: { type: "array", items: obj({ id: int("ID підзадачі"), text: str("Новий текст") }, ["id", "text"]) } }, ["task_id"]) },
   { name: "complete_task", description: "Закрити задачу і записати в історію клієнта, що зробили, навіщо і результат.", input_schema: obj({ task_id: int("ID задачі"), what: str("Що зробили"), why: str("Навіщо"), result: str("Результат") }, ["task_id"]) },
   { name: "client_metrics", description: "Головна метрика клієнта (що означає успіх) і інші метрики. action list | add (source: crm_contact_pct | crm_sale_pct | crm_sales | crm_revenue | meta_leads | meta_cpl | manual; target; main) | update (metric_id, target/name) | main (metric_id) | value (metric_id + value — для manual) | delete. Ціль і головну обирає Саша — пропонуй, не став сам без його слів.", input_schema: obj({ action: { type: "string", enum: ["list", "add", "update", "main", "value", "delete"] }, client_id: int("ID клієнта"), metric_id: int("ID метрики"), source: { type: "string", enum: ["crm_contact_pct", "crm_sale_pct", "crm_sales", "crm_revenue", "meta_leads", "meta_cpl", "manual"] }, name: str("Своя назва"), target: num("Ціль"), baseline: num("База — як було до нас"), direction: { type: "string", enum: ["up", "down"] }, main: { type: "boolean" }, value: num("Значення (manual)") }, ["action"]) },
+  { name: "playbook_apply", description: "Застосувати плейбук з кроками до клієнта: задача на кожен крок з дедлайном «start + offset днів» (повторно — лише нові кроки). Тільки коли Саша попросив.", input_schema: obj({ client_id: int("ID клієнта"), playbook_id: int("ID плейбука (list_playbooks)"), start: str("Дата старту YYYY-MM-DD, за замовчуванням сьогодні") }, ["client_id", "playbook_id"]) },
   { name: "confirm_queue", description: "Черга «Підтверди» (Центр): пропозиції системи з переписки груп — task_done (задача схоже зроблена), task_new (клієнт просив), log (в історію), з доказом. action list | decide (item_id + op ok|skip — ТІЛЬКИ коли Саша сказав) | scan (перевірити клієнта зараз, client_id).", input_schema: obj({ action: { type: "string", enum: ["list", "decide", "scan"] }, client_id: int("Клієнт (для list — фільтр, для scan — обовʼязково)"), item_id: int("Для decide"), op: { type: "string", enum: ["ok", "skip"] } }, ["action"]) },
   { name: "log_work", description: "Записати в історію клієнта виконану роботу (без задачі).", input_schema: obj({ client_id: int("ID клієнта"), what: str("Що зробили"), why: str("Навіщо"), result: str("Результат"), done_at: str("Дата YYYY-MM-DD, за замовчуванням сьогодні") }, ["client_id", "what"]) },
   { name: "add_idea", description: "Записати ідею (загальну або для клієнта).", input_schema: obj({ text: str("Ідея"), client_id: int("ID клієнта, необов'язково") }, ["text"]) },
@@ -375,6 +376,16 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       else r.updateMetric(m.id, { ...(input.baseline !== undefined ? { baseline: input.baseline == null ? null : n(input.baseline) } : {}), ...(input.target !== undefined ? { target: input.target == null ? null : n(input.target) } : {}), ...(input.name !== undefined ? { name: s(input.name) } : {}), ...(input.direction ? { direction: input.direction === "down" ? "down" as const : "up" as const } : {}) });
       act("client", `Метрика: ${r.metricName(m)}`, `/clients/${m.client_id}`);
       return { ok: true };
+    }
+
+    case "playbook_apply": {
+      const r = await import("../repo/playbooks");
+      const cid = need(id(input.client_id), "client_id обовʼязковий"), pid = need(id(input.playbook_id), "playbook_id обовʼязковий");
+      need(r.getPlaybook(pid), "Плейбука нема");
+      if (!r.playbookSteps(pid).length) return { error: "У плейбука ще нема кроків — Саша вписує їх на сторінці плейбука (або старий чекліст: задачі через «решту → в задачі»)." };
+      const n = r.applyPlaybook(cid, pid, date(input.start) ?? ymd());
+      act("task", `Плейбук → ${n} задач`, `/clients/${cid}?tab=playbooks`);
+      return { ok: true, tasks_created: n };
     }
 
     case "confirm_queue": {
@@ -1048,7 +1059,7 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
     }
 
     case "list_playbooks":
-      return listPlaybooks().map((p) => ({ id: p.id, title: p.title, items: p.items, tags: p.tags }));
+      return listPlaybooks().map((p) => ({ id: p.id, title: p.title, items: p.items, tags: p.tags, steps: playbookSteps(p.id).length }));
 
     case "get_playbook":
       return need(getPlaybook(need(id(input.playbook_id), "playbook_id обов'язковий")), "Плейбука нема");
