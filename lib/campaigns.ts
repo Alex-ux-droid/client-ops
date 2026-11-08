@@ -2,7 +2,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { asText, askJson } from "./llmJson";
 import {
-  AD_FORMATS, adCode, addAd, addAdset, cardsOf, hasMediaOf, isMotion, PLAN_FIELDS, planOf, adsOfCampaign, clientLessons, CONVERSIONS, CTAS, GENDERS, getAd, getAdset, getCampaign, globalLessons,
+  AD_FORMATS, adCode, addAd, addAdset, CARD_LIMITS, cardsOf, cardTextsOf, hasMediaOf, isMotion, PLAN_FIELDS, planOf, adsOfCampaign, clientLessons, CONVERSIONS, CTAS, GENDERS, getAd, getAdset, getCampaign, globalLessons,
   listAdsets, listAds, listCampaigns, OBJECTIVES, updateAd, updateAdset, updateCampaign, variantsOf,
   type Ad, type AdSet, type Campaign, type Variants,
 } from "./repo/campaigns";
@@ -89,7 +89,15 @@ export function campaignChecks(c: Campaign): Check[] {
       const hasMedia = hasMediaOf(a);
       if (!hasMedia) out.push({ level: "bad", text: a.creative_prompt ? "Креатив ще не завантажено — промпт готовий" : "Нема креативу і промпту для нього", where: an });
       else if (!a.primary_text.trim()) out.push({ level: "bad", text: "Креатив є — напиши тексти («Тексти під цей креатив»)", where: an });
-      if (hasMedia && !a.headline.trim()) out.push({ level: "warn", text: "Нема заголовка", where: an });
+      if (hasMedia && !a.headline.trim() && cardsOf(a).length < 2) out.push({ level: "warn", text: "Нема заголовка", where: an });
+      const cids = cardsOf(a);
+      if (cids.length > 1) {
+        const ct = cardTextsOf(a);
+        const empty = cids.map((id, i) => (ct[String(id)]?.headline?.trim() ? 0 : i + 1)).filter(Boolean);
+        if (empty.length) out.push({ level: "warn", text: `Картки без заголовка: ${empty.join(", ")}`, where: an });
+        const long = cids.map((id, i) => ((ct[String(id)]?.headline ?? "").length > CARD_LIMITS.headline ? i + 1 : 0)).filter(Boolean);
+        if (long.length) out.push({ level: "warn", text: `Заголовок картки довший за ${CARD_LIMITS.headline}: ${long.join(", ")}`, where: an });
+      }
       if (a.primary_text.length > LIMITS.primary * 3) out.push({ level: "tip", text: `Основний текст ${a.primary_text.length} симв. — довгий; головне має бути в перших ${LIMITS.primary}`, where: an });
       if (a.headline.length > LIMITS.headline) out.push({ level: "warn", text: `Заголовок ${a.headline.length} > ${LIMITS.headline} симв. — обріжеться`, where: an });
       if (a.description.length > LIMITS.description) out.push({ level: "warn", text: `Опис ${a.description.length} > ${LIMITS.description} симв. — обріжеться`, where: an });
@@ -132,6 +140,8 @@ export function campaignMd(c: Campaign): string {
     for (const a of listAds(s.id)) {
       out.push("", `### ${a.name}`, a.angle ? `Кут: ${a.angle}` : "", `Креатив: ${lbl(AD_FORMATS, a.format)}${a.tool ? ` · ${a.tool}` : ""}`, a.overlay ? `Текст на креативі:\n${a.overlay}` : "", a.creative_prompt ? `Промпт креативу:\n${a.creative_prompt}` : "", `Основний текст:\n${a.primary_text || "—"}`, `Заголовок: ${a.headline || "—"}`, a.description ? `Опис: ${a.description}` : "",
         `Кнопка: ${lbl(CTAS, a.cta)}`, adUrl(a, s) ? `Посилання: ${adUrl(a, s)}` : "");
+      const cids = cardsOf(a), ct = cardTextsOf(a);
+      if (cids.length > 1) out.push(`Картки каруселі:\n${cids.map((id, i) => { const t = ct[String(id)] ?? {}; return `${i + 1}. ${t.headline || "—"}${t.description ? ` · ${t.description}` : ""}${t.url ? ` · ${t.url}` : ""}`; }).join("\n")}`);
       const v = variantsOf(a);
       if ((v.primary?.length ?? 0) > 1) out.push(`Варіанти тексту:\n${v.primary!.map((x, i) => `${i + 1}. ${x}`).join("\n")}`);
       if ((v.headline?.length ?? 0) > 1) out.push(`Варіанти заголовка: ${v.headline!.join(" | ")}`);
@@ -199,13 +209,23 @@ export async function genAdCopy(adId: number, wish = ""): Promise<Variants> {
     `ОГОЛОШЕННЯ ${adCode(a)}: кут — ${a.angle || "обери сам"}; формат — ${lbl(AD_FORMATS, a.format)}${a.overlay ? `\nТекст на креативі: ${a.overlay}` : ""}${a.primary_text ? `\nПоточний текст: ${a.primary_text}` : ""}`,
     imgs.length > 1 ? `Креатив — карусель з ${imgs.length} карток (картинки нижче по порядку). Подивись кожну; основний текст — про всю історію каруселі, заголовки — такі, що пасують до карток.` : img ? "Креатив — на картинці нижче. Спершу подивись, що на ній (сцена, текст, емоція), і пиши тексти, що доповнюють її, а не повторюють текст з картинки." : isMotion(a.format) ? `Креатив — відео/моушен (його не видно), спирайся на бриф: ${a.creative_prompt.slice(0, 800)}` : a.creative_prompt ? `Креатив ще не завантажено, спирайся на бриф: ${a.creative_prompt.slice(0, 800)}` : "",
     wish && `Побажання Саші: ${wish}`,
-    `Поверни ТІЛЬКИ JSON: {"primary":[3 різні основні тексти],"headline":[5 заголовків ≤${LIMITS.headline}],"description":[3 описи ≤${LIMITS.description}],"cta":"одна з ${Object.keys(CTAS).join("|")}","tips":[1-3 коротких поради до цього оголошення]}`,
+    `Поверни ТІЛЬКИ JSON: {${imgs.length > 1 ? `"cards":[для КОЖНОЇ з ${imgs.length} карток по порядку: {"headline":"≤${CARD_LIMITS.headline}","description":"≤${CARD_LIMITS.description}"}],` : ""}"primary":[3 різні основні тексти],"headline":[5 заголовків ≤${LIMITS.headline}],"description":[3 описи ≤${LIMITS.description}],"cta":"одна з ${Object.keys(CTAS).join("|")}","tips":[1-3 коротких поради до цього оголошення]}`,
   ].filter(Boolean).join("\n\n");
   const content: Anthropic.ContentBlockParam[] = [...imgs, { type: "text", text: user }];
   const raw = await askJson<Record<string, unknown>>(`Ти — Джері, сильний копірайтер реклами Meta для малого бізнесу в Україні. ${RULES}`, content, { maxTokens: 6000, effort: "medium" });
   const arr = (v: unknown) => (Array.isArray(v) ? v : v ? [v] : []).map(asText).map((x) => x.trim()).filter(Boolean);
   const v: Variants = { primary: arr(raw.primary).slice(0, 5), headline: arr(raw.headline).slice(0, 5), description: arr(raw.description).slice(0, 5), tips: arr(raw.tips).slice(0, 3) };
   const cta = asText(raw.cta).trim().toUpperCase();
+  const ids = cardsOf(a);
+  if (ids.length > 1 && Array.isArray(raw.cards)) {
+    const all = cardTextsOf(a);
+    (raw.cards as unknown[]).slice(0, ids.length).forEach((rc, i) => {
+      const r = (rc && typeof rc === "object" ? rc : {}) as Record<string, unknown>;
+      const k = String(ids[i]); const cur = all[k] ?? {};
+      all[k] = { ...cur, headline: cur.headline || asText(r.headline).trim(), description: cur.description || asText(r.description).trim() };
+    });
+    updateAd(a.id, { cards_json: JSON.stringify(all) });
+  }
   updateAd(a.id, {
     variants_json: JSON.stringify(v),
     primary_text: a.primary_text || v.primary?.[0] || "", headline: a.headline || v.headline?.[0] || "", description: a.description || v.description?.[0] || "",
