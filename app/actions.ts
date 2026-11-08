@@ -15,7 +15,8 @@ import { addPayment, createMonthInvoices, deletePayment, markPaid } from "@/lib/
 import {
   attachPlaybook, checklistItems, clientPlaybooks, deletePlaybook, detachPlaybook, getPlaybook, savePlaybook, toggleChecklistItem,
 } from "@/lib/repo/playbooks";
-import { addTaskItems, addTaskLink, createTask, createTasksBulk, deleteTask, deleteTaskItem, deleteTaskLink, getTask, setTaskItem, setTaskStatus, updateTask, type TaskPriority, type TaskStatus } from "@/lib/repo/tasks";
+import { applyConfirm, autoLogDone } from "@/lib/taskLog";
+import { addTaskItems, addTaskLink, createTask, createTasksBulk, deleteTask, deleteTaskItem, deleteTaskLink, getTask, listTasks, setTaskItem, setTaskStatus, taskItems, updateTask, type TaskPriority, type TaskStatus } from "@/lib/repo/tasks";
 import { addWork, deleteWork } from "@/lib/repo/worklog";
 import { addTool, deleteFolder, deleteTool, enableService, findToolByName, removeService, saveFolder, updateService } from "@/lib/repo/services";
 import { createClientFolders, googleConnected, readMail, sendMail } from "@/lib/google";
@@ -275,6 +276,7 @@ export async function setTask(fd: FormData) {
   await requireUser();
   const id = num(fd, "id");
   const status = str(fd, "status") as TaskStatus;
+  if (id && status === "done") autoLogDone(id, str(fd, "reason").slice(0, 300));
   if (id && ["todo", "doing", "done"].includes(status)) setTaskStatus(id, status);
   done();
 }
@@ -473,9 +475,10 @@ export async function analyzeMetaAction(fd: FormData) {
 }
 
 // ---- Вікно задачі (викликається з клієнта напряму, без форм)
-export async function taskPatch(id: number, input: { title?: string; details?: string; due_date?: string | null; priority?: string; status?: string }) {
+export async function taskPatch(id: number, input: { title?: string; details?: string; due_date?: string | null; priority?: string; status?: string; reason?: string }) {
   await requireUser();
   if (!getTask(id)) return;
+  if (input.status === "done") autoLogDone(id, (input.reason ?? "").slice(0, 300));
   const patch: Parameters<typeof updateTask>[1] = {};
   if (input.title !== undefined && input.title.trim()) patch.title = input.title.trim().slice(0, 300);
   if (input.details !== undefined) patch.details = input.details.slice(0, 20000);
@@ -554,3 +557,26 @@ export async function taskCloseWithLog(id: number, input: { what: string; why: s
   if (task.client_id) addWork({ client_id: task.client_id, task_id: task.id, done_at: ymd(), what: input.what || task.title, why: input.why, result: input.result });
   revalidatePath("/", "layout");
 }
+
+// «Потребують уваги» → задача з тривоги (з причинами в інструкції). Така сама відкрита вже є — не дублюємо.
+export async function taskFromFlag(fd: FormData) {
+  await requireUser();
+  const clientId = num(fd, "client_id"), text = str(fd, "text").slice(0, 120);
+  if (!clientId || !text) return;
+  const title = `Розібратись: ${text}`;
+  const exists = listTasks("all", clientId).some((t) => t.title === title);
+  if (!exists) createTask({ client_id: clientId, title, details: `## Чому\n${str(fd, "reason").slice(0, 3000)}`, priority: str(fd, "level") === "bad" ? "high" : "normal", due_date: ymd() });
+  done();
+}
+
+// Черга «Підтверди»: ✓ — система робить запропоноване, ✕ — відкидаємо (і більше не пропонуємо 14 днів)
+export async function confirmDecide(fd: FormData) {
+  await requireUser();
+  const { getConfirm, setConfirmStatus } = await import("@/lib/repo/confirm");
+  const q = getConfirm(num(fd, "id") ?? 0);
+  if (!q || q.status !== "new") return;
+  if (str(fd, "op") === "ok") applyConfirm(q);
+  setConfirmStatus(q.id, str(fd, "op") === "ok" ? "ok" : "skip");
+  done();
+}
+

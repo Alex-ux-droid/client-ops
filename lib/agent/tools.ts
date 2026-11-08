@@ -100,6 +100,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "task_to_calendar", description: "Поставити задачу в Google Календар Саші: подія на день дедлайну з нагадуванням напередодні (якщо вже є — оновити). Потрібен дедлайн.", input_schema: obj({ task_id: int("ID задачі") }, ["task_id"]) },
   { name: "task_subtasks", description: "Відмітити / зняти відмітку / перейменувати / видалити підзадачі (id з get_task).", input_schema: obj({ task_id: int("ID задачі"), check: { type: "array", items: { type: "integer" } }, uncheck: { type: "array", items: { type: "integer" } }, remove: { type: "array", items: { type: "integer" } }, rename: { type: "array", items: obj({ id: int("ID підзадачі"), text: str("Новий текст") }, ["id", "text"]) } }, ["task_id"]) },
   { name: "complete_task", description: "Закрити задачу і записати в історію клієнта, що зробили, навіщо і результат.", input_schema: obj({ task_id: int("ID задачі"), what: str("Що зробили"), why: str("Навіщо"), result: str("Результат") }, ["task_id"]) },
+  { name: "confirm_queue", description: "Черга «Підтверди» (Центр): пропозиції системи з переписки груп — task_done (задача схоже зроблена), task_new (клієнт просив), log (в історію), з доказом. action list | decide (item_id + op ok|skip — ТІЛЬКИ коли Саша сказав) | scan (перевірити клієнта зараз, client_id).", input_schema: obj({ action: { type: "string", enum: ["list", "decide", "scan"] }, client_id: int("Клієнт (для list — фільтр, для scan — обовʼязково)"), item_id: int("Для decide"), op: { type: "string", enum: ["ok", "skip"] } }, ["action"]) },
   { name: "log_work", description: "Записати в історію клієнта виконану роботу (без задачі).", input_schema: obj({ client_id: int("ID клієнта"), what: str("Що зробили"), why: str("Навіщо"), result: str("Результат"), done_at: str("Дата YYYY-MM-DD, за замовчуванням сьогодні") }, ["client_id", "what"]) },
   { name: "add_idea", description: "Записати ідею (загальну або для клієнта).", input_schema: obj({ text: str("Ідея"), client_id: int("ID клієнта, необов'язково") }, ["text"]) },
   { name: "add_material", description: "Зберегти матеріал клієнта: переписку, звіт, бриф.", input_schema: obj({ client_id: int("ID клієнта"), kind: { type: "string", enum: [...MATERIAL_KINDS] }, title: str("Назва"), content: str("Повний текст") }, ["client_id", "content"]) },
@@ -343,6 +344,24 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       if (t.client_id) addWork({ client_id: t.client_id, task_id: tid, done_at: ymd(), what: s(input.what) || t.title, why: s(input.why), result: s(input.result) });
       act("done", `Закрито: ${t.title}${t.client_id ? " (+ в історію)" : ""}`, t.client_id ? `/clients/${t.client_id}?tab=history` : "/tasks?view=done");
       return { ok: true, logged: !!t.client_id };
+    }
+
+    case "confirm_queue": {
+      const r = await import("../repo/confirm");
+      if (input.action === "scan") {
+        const cid = need(id(input.client_id), "client_id обовʼязковий");
+        const { scanClient } = await import("../confirmQueue");
+        return { ok: true, added: await scanClient(cid), items: r.pendingConfirms(cid) };
+      }
+      if (input.action === "decide") {
+        const q = need(r.getConfirm(need(id(input.item_id), "item_id обовʼязковий")), "Запису нема");
+        if (q.status !== "new") return { ok: true, note: "уже вирішено" };
+        if (input.op === "ok") { const { applyConfirm } = await import("../taskLog"); applyConfirm(q); }
+        r.setConfirmStatus(q.id, input.op === "ok" ? "ok" : "skip");
+        act("done", `Підтверди: ${q.title}`, "/");
+        return { ok: true };
+      }
+      return { items: r.pendingConfirms(id(input.client_id) ?? undefined).map((q) => ({ id: q.id, client: q.client_name, kind: r.CONFIRM_UA[q.kind], task_id: q.task_id, title: q.title, evidence: q.evidence })) };
     }
 
     case "log_work": {
