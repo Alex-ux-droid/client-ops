@@ -90,27 +90,58 @@ export function UseVariant({ adId, field, value, current }: { adId: number; fiel
   );
 }
 
-export function MediaUpload({ adId, has }: { adId: number; has: boolean }) {
+export function MediaUpload({ adId, has, carousel }: { adId: number; has: boolean; carousel?: boolean }) {
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [over, setOver] = useState(false);
   const router = useRouter();
-  const send = async (f: File | undefined) => {
-    if (!f) return;
+  const send = async (list: FileList | File[] | null | undefined) => {
+    const files = [...(list ?? [])];
+    if (!files.length) return;
     setBusy(true); setErr("");
-    const fd = new FormData(); fd.append("file", f);
-    const r = await fetch(`/api/campaigns/ad/${adId}`, { method: "POST", body: fd }).then((x) => x.json()).catch(() => ({ error: "Не вдалось завантажити" }));
+    const fd = new FormData(); files.forEach((f) => fd.append("file", f));
+    const r = await fetch(`/api/campaigns/ad/${adId}`, { method: "POST", body: fd }).then((x) => x.json()).catch(() => ({ error: "Не вдалось завантажити (файл завеликий або обірвався звʼязок)" }));
     setBusy(false);
-    if (r.error) setErr(r.error); else router.refresh();
+    if (r.error) setErr(r.error); else { if (r.skipped) setErr(`Максимум 10 карток — ${r.skipped} не додано`); router.refresh(); }
+    if (ref.current) ref.current.value = "";
   };
   return (
     <div className={`kp-drop${over ? " over" : ""}`} onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
-      onDrop={(e) => { e.preventDefault(); setOver(false); send(e.dataTransfer.files[0]); }}>
-      <input ref={ref} type="file" accept="image/*,video/*" hidden onChange={(e) => send(e.target.files?.[0])} />
-      <button type="button" className="ghost small" disabled={busy} onClick={() => ref.current?.click()}>{busy ? "Завантажую…" : has ? "Замінити фото / відео" : "Завантажити фото / відео"}</button>
-      <span className="mono">або перетягни сюди</span>
+      onDrop={(e) => { e.preventDefault(); setOver(false); send(e.dataTransfer.files); }}>
+      <input ref={ref} type="file" accept="image/*,video/*" multiple hidden onChange={(e) => send(e.target.files)} />
+      <button type="button" className="ghost small" disabled={busy} onClick={() => ref.current?.click()}>
+        {busy ? "Завантажую…" : carousel ? (has ? "+ Додати картки" : "Завантажити картки (кілька файлів)") : has ? "Замінити фото / відео" : "Завантажити фото / відео"}
+      </button>
+      <span className="mono">{carousel ? "виділи кілька файлів або перетягни пачкою, до 10" : "або перетягни сюди · кілька файлів = карусель"}</span>
       {err && <span className="kp-msg bad">{err}</span>}
+    </div>
+  );
+}
+
+// Картки каруселі: порядок ← →, прибрати
+export function CardStrip({ adId, cards }: { adId: number; cards: number[] }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const op = async (o: string, file_id: number) => {
+    setBusy(true);
+    await fetch(`/api/campaigns/ad/${adId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ op: o, file_id }) }).catch(() => null);
+    setBusy(false); router.refresh();
+  };
+  return (
+    <div className="kp-cards-strip">
+      {cards.map((id, i) => (
+        <div key={id} className="kp-card-i">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`/api/files/${id}`} alt="" />
+          <span className="kp-card-n">{i + 1}</span>
+          <span className="kp-card-a">
+            <button type="button" className="ghost small" disabled={busy || i === 0} onClick={() => op("left", id)} aria-label="Вліво">←</button>
+            <button type="button" className="ghost small" disabled={busy || i === cards.length - 1} onClick={() => op("right", id)} aria-label="Вправо">→</button>
+            <button type="button" className="ghost small" disabled={busy} onClick={() => op("remove", id)} aria-label="Прибрати">✕</button>
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

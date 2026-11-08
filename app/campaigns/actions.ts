@@ -112,7 +112,7 @@ export async function adOpAction(fd: FormData) {
   const op = str(fd, "op");
   if (op === "delete") { deleteAd(a.id); back(c.client_id); redirect(href(c.client_id, c.id, `s${a.adset_id}`)); }
   if (op === "duplicate") { const nid = copyAd(a, a.adset_id); back(c.client_id); redirect(href(c.client_id, c.id, `a${nid}`)); }
-  if (op === "clear_media") { updateAd(a.id, { file_id: null, media_url: "" }); back(c.client_id); }
+  if (op === "clear_media") { updateAd(a.id, { file_id: null, media_url: "", files_json: "[]" }); back(c.client_id); }
 }
 // Взяти креатив з робочого оголошення Meta (картинка) — переможця не треба малювати заново
 export async function mediaFromMetaAction(fd: FormData) {

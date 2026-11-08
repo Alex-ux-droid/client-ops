@@ -2,7 +2,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { asText, askJson } from "./llmJson";
 import {
-  AD_FORMATS, adCode, addAd, addAdset, isMotion, PLAN_FIELDS, planOf, adsOfCampaign, clientLessons, CONVERSIONS, CTAS, GENDERS, getAd, getAdset, getCampaign, globalLessons,
+  AD_FORMATS, adCode, addAd, addAdset, cardsOf, hasMediaOf, isMotion, PLAN_FIELDS, planOf, adsOfCampaign, clientLessons, CONVERSIONS, CTAS, GENDERS, getAd, getAdset, getCampaign, globalLessons,
   listAdsets, listAds, listCampaigns, OBJECTIVES, updateAd, updateAdset, updateCampaign, variantsOf,
   type Ad, type AdSet, type Campaign, type Variants,
 } from "./repo/campaigns";
@@ -86,7 +86,7 @@ export function campaignChecks(c: Campaign): Check[] {
     if (ads.length > 1 && !ads.some((a) => ["story", "motion", "video"].includes(a.format))) out.push({ level: "tip", text: "Нема вертикального 9:16 — додай фото/моушен для Reels і Stories", where: w });
     for (const a of ads) {
       const an = adCode(a);
-      const hasMedia = !!(a.file_id || a.media_url);
+      const hasMedia = hasMediaOf(a);
       if (!hasMedia) out.push({ level: "bad", text: a.creative_prompt ? "Креатив ще не завантажено — промпт готовий" : "Нема креативу і промпту для нього", where: an });
       else if (!a.primary_text.trim()) out.push({ level: "bad", text: "Креатив є — напиши тексти («Тексти під цей креатив»)", where: an });
       if (hasMedia && !a.headline.trim()) out.push({ level: "warn", text: "Нема заголовка", where: an });
@@ -153,19 +153,23 @@ export function campaignsSnapshot(clientId: number): string {
 }
 
 // ---------- генерація Джері
-async function mediaBlock(a: Ad): Promise<Anthropic.ImageBlockParam | null> {
+async function imageOf(buf: Buffer | null, mime: string): Promise<Anthropic.ImageBlockParam | null> {
+  if (!buf || buf.length > 4.5 * 1024 * 1024 || !/^image\//.test(mime)) return null;
+  const mt = /png/.test(mime) ? "image/png" : /webp/.test(mime) ? "image/webp" : /gif/.test(mime) ? "image/gif" : "image/jpeg";
+  return { type: "image", source: { type: "base64", media_type: mt, data: buf.toString("base64") } };
+}
+// Картинки креативу для Джері: одна або до 5 карток каруселі
+async function mediaBlocks(a: Ad): Promise<Anthropic.ImageBlockParam[]> {
+  const out: Anthropic.ImageBlockParam[] = [];
   try {
-    let buf: Buffer | null = null, mime = "";
-    if (a.file_id) { const f = getFile(a.file_id); if (f && /^image\//.test(f.mime)) { buf = readFile(f); mime = f.mime; } }
-    else if (/^https?:\/\//.test(a.media_url)) {
+    for (const id of cardsOf(a).slice(0, 5)) { const f = getFile(id); const b = f ? await imageOf(readFile(f), f.mime) : null; if (b) out.push(b); }
+    if (!out.length && /^https?:\/\//.test(a.media_url)) {
       const r = await fetch(a.media_url, { signal: AbortSignal.timeout(10_000) });
-      mime = r.headers.get("content-type") ?? "";
-      if (r.ok && /^image\//.test(mime)) buf = Buffer.from(await r.arrayBuffer());
+      const b = r.ok ? await imageOf(Buffer.from(await r.arrayBuffer()), r.headers.get("content-type") ?? "") : null;
+      if (b) out.push(b);
     }
-    if (!buf || buf.length > 4.5 * 1024 * 1024) return null;
-    const mt = /png/.test(mime) ? "image/png" : /webp/.test(mime) ? "image/webp" : /gif/.test(mime) ? "image/gif" : "image/jpeg";
-    return { type: "image", source: { type: "base64", media_type: mt, data: buf.toString("base64") } };
-  } catch { return null; }
+  } catch { /* без картинки */ }
+  return out;
 }
 
 async function contextFor(clientId: number): Promise<string> {
@@ -186,17 +190,18 @@ const RULES = `Пиши українською (якщо в контексті �
 export async function genAdCopy(adId: number, wish = ""): Promise<Variants> {
   const a = getAd(adId); if (!a) throw new Error("Нема оголошення");
   const s = getAdset(a.adset_id)!, c = getCampaign(s.campaign_id)!;
-  const img = await mediaBlock(a);
+  const imgs = await mediaBlocks(a);
+  const img = imgs[0];
   const user = [
     await contextFor(c.client_id),
     `КАМПАНІЯ: ${c.name} · ціль ${lbl(OBJECTIVES, c.objective)}${c.idea ? ` · ідея: ${c.idea}` : ""}`,
     `ГРУПА: ${s.name} · куди: ${lbl(CONVERSIONS, s.conversion)}\n${adsetTargeting(s)}`,
     `ОГОЛОШЕННЯ ${adCode(a)}: кут — ${a.angle || "обери сам"}; формат — ${lbl(AD_FORMATS, a.format)}${a.overlay ? `\nТекст на креативі: ${a.overlay}` : ""}${a.primary_text ? `\nПоточний текст: ${a.primary_text}` : ""}`,
-    img ? "Креатив — на картинці нижче. Спершу подивись, що на ній (сцена, текст, емоція), і пиши тексти, що доповнюють її, а не повторюють текст з картинки." : isMotion(a.format) ? `Креатив — відео/моушен (його не видно), спирайся на бриф: ${a.creative_prompt.slice(0, 800)}` : a.creative_prompt ? `Креатив ще не завантажено, спирайся на бриф: ${a.creative_prompt.slice(0, 800)}` : "",
+    imgs.length > 1 ? `Креатив — карусель з ${imgs.length} карток (картинки нижче по порядку). Подивись кожну; основний текст — про всю історію каруселі, заголовки — такі, що пасують до карток.` : img ? "Креатив — на картинці нижче. Спершу подивись, що на ній (сцена, текст, емоція), і пиши тексти, що доповнюють її, а не повторюють текст з картинки." : isMotion(a.format) ? `Креатив — відео/моушен (його не видно), спирайся на бриф: ${a.creative_prompt.slice(0, 800)}` : a.creative_prompt ? `Креатив ще не завантажено, спирайся на бриф: ${a.creative_prompt.slice(0, 800)}` : "",
     wish && `Побажання Саші: ${wish}`,
     `Поверни ТІЛЬКИ JSON: {"primary":[3 різні основні тексти],"headline":[5 заголовків ≤${LIMITS.headline}],"description":[3 описи ≤${LIMITS.description}],"cta":"одна з ${Object.keys(CTAS).join("|")}","tips":[1-3 коротких поради до цього оголошення]}`,
   ].filter(Boolean).join("\n\n");
-  const content: Anthropic.ContentBlockParam[] = img ? [img, { type: "text", text: user }] : [{ type: "text", text: user }];
+  const content: Anthropic.ContentBlockParam[] = [...imgs, { type: "text", text: user }];
   const raw = await askJson<Record<string, unknown>>(`Ти — Джері, сильний копірайтер реклами Meta для малого бізнесу в Україні. ${RULES}`, content, { maxTokens: 6000, effort: "medium" });
   const arr = (v: unknown) => (Array.isArray(v) ? v : v ? [v] : []).map(asText).map((x) => x.trim()).filter(Boolean);
   const v: Variants = { primary: arr(raw.primary).slice(0, 5), headline: arr(raw.headline).slice(0, 5), description: arr(raw.description).slice(0, 5), tips: arr(raw.tips).slice(0, 3) };

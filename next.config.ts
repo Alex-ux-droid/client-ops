@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   serverExternalPackages: ["better-sqlite3", "pdfkit"],
   poweredByHeader: false,
+  // proxy.ts пропускає крізь себе тіло запиту; за замовчуванням Next обрізає його на 10 МБ — і великі фото/відео/каруселі не завантажувались
+  experimental: { proxyClientMaxBodySize: "220mb" },
   async headers() {
     return [{
       source: "/:path*",
