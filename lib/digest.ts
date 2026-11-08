@@ -1,5 +1,6 @@
 // Ранкове зведення в Telegram Саші — тільки важливе: що горить, що сьогодні, гроші, що не так з рекламою.
 // Без ШІ — збирається з бази (безкоштовно). Розклад — instrumentation.ts, час і вимикач — Налаштування → Конектори → Telegram.
+import { dueWeek, weekLabel } from "./repo/review";
 import { money } from "./config";
 import { logError } from "./log";
 import { kyivDay, listAccounts, metaAlerts } from "./repo/meta";
@@ -49,6 +50,10 @@ export function buildDigest(): string {
     if (alerts.length) ads.push(`• ${esc(name)}: ${esc(alerts.join(", "))}`);
   }
   if (ads.length) blocks.push(`<b>📣 Реклама</b>\n${ads.slice(0, 5).join("\n")}`);
+
+  // Тижневий рев'ю не закритий (з неділі 18:00)
+  const rv = dueWeek();
+  if (rv.due) blocks.unshift(`<b>📋 Рев'ю тижня ${weekLabel(rv.week)}</b> ще не закрите — «Рев'ю» в меню: рішення на тиждень по кожному клієнту.`);
 
   const head = `☀️ <b>${date[0].toUpperCase()}${date.slice(1)}</b>`;
   if (!blocks.length) return `${head}\n\nСьогодні все спокійно: нічого не горить, задач на сьогодні нема 👌`;

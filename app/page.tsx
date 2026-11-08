@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { addTask, confirmDecide, taskFromFlag } from "@/app/actions";
 import { CONFIRM_UA, pendingConfirms } from "@/lib/repo/confirm";
+import { dueWeek, weekLabel } from "@/lib/repo/review";
 import TaskItem from "@/components/TaskItem";
 import Icon from "@/components/Icon";
 import { crmStats } from "@/lib/crm";
@@ -27,6 +28,7 @@ const score = (fs: Flag[]) => fs.filter((f) => f.level === "bad").length * 10 + 
 
 export default function Home() {
   const confirms = pendingConfirms();
+  const rv = dueWeek();
   const now = new Date();
   const today = ymd(now);
   const t = taskCounts();
@@ -69,7 +71,8 @@ export default function Home() {
         </div>
         <div className="dash-right">
           <div className="dash-brief">{brief}</div>
-          {orgFocus && <Link href="/kb" className="dash-focus" title="Розвиток → Головне зараз"><Icon name="compass" size={15} /> {orgFocus}</Link>}
+          {rv.due ? <Link href="/review" className="dash-focus dash-review" title="Тижневий рев'ю не закритий"><Icon name="flag" size={15} /> Рев&apos;ю тижня {weekLabel(rv.week)} — закрий тиждень</Link>
+            : orgFocus && <Link href="/kb" className="dash-focus" title="Розвиток → Головне зараз"><Icon name="compass" size={15} /> {orgFocus}</Link>}
         </div>
       </header>
 
