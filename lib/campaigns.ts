@@ -233,17 +233,18 @@ const STYLE_KIND: Record<string, string> = { feed: "feed", square: "square", sto
 function creativeKnowhow(format?: string): string {
   const st = stylesFor(format ? STYLE_KIND[format] : undefined).slice(0, 6);
   return [
-    `Чим Саша робить креативи: ${creativeTools() || "Claude, Midjourney, Higgsfield, CapCut"}.`,
-    "Як вибирати інструмент: фото/реалістична сцена — Midjourney (в кінці промпту --ar під формат, напр. --ar 4:5, --ar 9:16, --ar 1:1, --ar 16:9; --style raw для реалізму); оживити фото в моушен/відео — Higgsfield (image→video: опиши рух камери і що рухається, 5–10 с); графічний креатив з текстом, цінами, інфографікою — Claude (одна HTML/CSS-сторінка рівно під розмір, щоб зберегти PNG); монтаж відео, субтитри — CapCut.",
-    "Текст НА креативі (overlay) — коротко: заголовок до 6–7 слів + 1 рядок підзаголовка/ціни/заклику. Для 9:16 — без тексту у верхніх 250 і нижніх 340 px (безпечні зони). Генератори картинок погано пишуть кирилицю: для Midjourney/Higgsfield текст НЕ вставляй у промпт — його накладаємо окремо (Claude/CapCut/Canva).",
+    "Саша робить креативи ТІЛЬКИ в Claude (без Midjourney, Higgsfield, CapCut та інших) — промпт = завдання для Claude українською.",
+    "Як Claude робить кожен формат: статика 4:5 / 1:1 / 9:16 / 16:9 — одна HTML/CSS-сторінка рівно під розмір (1080×1350, 1080×1080, 1080×1920, 1920×1080), щоб зберегти PNG; карусель — 3–5 таких сторінок 1080×1080 (перша — хук, остання — CTA); моушен — HTML/CSS/SVG-анімація 1080×1920 на 6–10 с з таймлайном по секундах. Реальне відео Claude не знімає — формат «Відео» не пропонуй.",
+    "Фото Claude не генерує: якщо потрібна людина чи обʼєкт — напиши, яке СПРАВЖНЄ фото/рендер клієнта взяти (з брендбуку чи папки клієнта) і як Claude робить дизайн поверх; інакше — графічний креатив (типографіка, іконки, інфографіка, кольори бренду).",
+    "Текст НА креативі (overlay) — коротко: заголовок до 6–7 слів + 1 рядок підзаголовка/ціни/заклику. Для 9:16 — без тексту у верхніх 250 і нижніх 340 px (безпечні зони).",
     st.length ? `Шаблони стилю Саші (дотримуйся):\n${st.map((x) => `- ${x.title}: ${x.body.replace(/\s+/g, " ").slice(0, 600)}`).join("\n")}` : "",
   ].filter(Boolean).join("\n");
 }
 const FORMAT_KEYS = Object.keys(AD_FORMATS);
-const briefShape = `{"angle":"кут одним реченням","format":"${FORMAT_KEYS.join("|")}","tool":"Midjourney|Higgsfield|Claude (HTML)|CapCut","overlay":"текст на креативі: заголовок\\nпідзаголовок/ціна (порожньо, якщо креатив без тексту)","prompt":"готовий промпт англійською для Midjourney/Higgsfield або українською ТЗ для Claude — з розміром/--ar, сценою, світлом, стилем, кольорами бренду"}`;
+const briefShape = `{"angle":"кут одним реченням","format":"${FORMAT_KEYS.filter((f) => f !== "video").join("|")}","overlay":"текст на креативі: заголовок\\nпідзаголовок/ціна (порожньо, якщо без тексту)","prompt":"готове завдання для Claude українською: розмір у px, композиція, яке фото клієнта взяти (якщо треба), шрифти й кольори бренду, де текст, CTA; для моушену — таймлайн по секундах"}`;
 function applyBrief(r: Record<string, unknown>) {
   const f = asText(r.format);
-  return { angle: asText(r.angle), format: f in AD_FORMATS ? f : "feed", tool: asText(r.tool), overlay: asText(r.overlay), creative_prompt: asText(r.prompt) };
+  return { angle: asText(r.angle), format: f in AD_FORMATS && f !== "video" ? f : "feed", tool: "Claude", overlay: asText(r.overlay), creative_prompt: asText(r.prompt) };
 }
 
 // Зібрати чернетку всієї кампанії з ідеї: групи з таргетингом + по 4 креативи-брифи (формат, інструмент, текст на креативі, промпт).
@@ -251,7 +252,7 @@ function applyBrief(r: Record<string, unknown>) {
 export async function genCampaignDraft(campaignId: number): Promise<{ adsets: number; ads: number }> {
   const c = getCampaign(campaignId); if (!c) throw new Error("Нема кампанії");
   const raw = await askJson<{ adsets?: unknown[] }>(
-    `Ти — Джері, медіабаєр і креативний директор Meta-реклами. Збираєш структуру кампанії для ручного запуску в Ads Manager: мало груп (1–2, рідко 3), у кожній РІВНО 4 креативи з РІЗНИМИ кутами (не варіації одного) і різними форматами (обовʼязково хоча б один 9:16 — фото або моушен; плюс 4:5). На цьому етапі тексти оголошення НЕ пишеш — тільки бриф і промпт креативу. ${RULES}`,
+    `Ти — Джері, медіабаєр і креативний директор Meta-реклами. Збираєш структуру кампанії для ручного запуску в Ads Manager: мало груп (1–2, рідко 3), у кожній РІВНО 4 креативи з РІЗНИМИ кутами (не варіації одного) і різними форматами (обовʼязково хоча б один 9:16 — статика або моушен; плюс 4:5). На цьому етапі тексти оголошення НЕ пишеш — тільки бриф і промпт креативу. ${RULES}`,
     [await contextFor(c.client_id), creativeKnowhow(),
       `КАМПАНІЯ: ${c.name} · ціль ${lbl(OBJECTIVES, c.objective)} · бюджет ${money2(c.budget)} ${c.budget_type === "daily" ? "на день" : "на весь час"}${c.target_cpl != null ? ` · ціль ціни ліда ${money2(c.target_cpl)}` : ""}`,
       `Ідея / що рекламуємо: ${c.idea || "визнач з контексту клієнта"}`,
@@ -345,7 +346,7 @@ export function adPromptFull(c: Campaign, a: Ad, clientName: string): string {
   return [
     `КРЕАТИВ ${adCode(a)} · ${lbl(AD_FORMATS, a.format)}${a.tool ? ` · ${a.tool}` : ""}`,
     a.angle && `Кут: ${a.angle}`,
-    a.overlay && `Текст на креативі (накласти окремо, не генерувати в картинці):\n${a.overlay}`,
+    a.overlay && `Текст на креативі:\n${a.overlay}`,
     `Промпт:\n${a.creative_prompt}`,
     "", saveBlock(c, clientName, [a]),
   ].filter(Boolean).join("\n");

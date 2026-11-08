@@ -148,7 +148,7 @@ function Styles() {
         <b>Чим робимо креативи</b>
         <span className="mono">Іде в кожен промпт і в AI-радар — щоб писали під твої інструменти.</span>
         <div className="inline" style={{ flexWrap: "wrap" }}>
-          <input name="tools" defaultValue={creativeTools()} placeholder="Claude, Midjourney, Higgsfield, CapCut…" style={{ flex: 1, minWidth: "14rem" }} />
+          <input name="tools" defaultValue={creativeTools()} placeholder="Claude" style={{ flex: 1, minWidth: "14rem" }} />
           <SubmitButton className="small">Зберегти</SubmitButton>
         </div>
       </form>

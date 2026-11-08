@@ -386,10 +386,10 @@ function AdPanel({ c, s, a }: { c: Campaign; s: AdSet; a: Ad }) {
             </span>
           }>
             {a.angle && <div className="kp-idea"><b>Кут</b><p>{a.angle}</p></div>}
-            {a.overlay && <CopyField label="Текст на креативі" value={a.overlay} hint="накладається окремо" multiline />}
+            {a.overlay && <CopyField label="Текст на креативі" value={a.overlay} hint="що написати на креативі" multiline />}
             {a.creative_prompt ? <CopyField label="Промпт для генерації" value={promptFull} hint="+ куди зберегти файл" multiline />
               : <p className="mono" style={{ margin: 0 }}>Промпту ще нема — Джері напише бриф: формат, розмір, текст на креативі і готовий промпт.</p>}
-            <GenWish kind="brief" id={a.id} label="✨ Бриф і промпт від Джері" again={a.creative_prompt ? "✨ Інший варіант" : undefined} placeholder="Побажання: напр. «моушен замість фото», «жінка 40 років, світла клініка»" />
+            <GenWish kind="brief" id={a.id} label="✨ Бриф і промпт від Джері" again={a.creative_prompt ? "✨ Інший варіант" : undefined} placeholder="Побажання: напр. «моушен замість статики», «на фоні рендеру будинку»" />
             <div className="kp-up">
               <b>Готовий креатив</b>
               <MediaUpload adId={a.id} has={!!src} />
