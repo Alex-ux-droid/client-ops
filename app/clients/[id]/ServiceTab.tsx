@@ -20,7 +20,7 @@ const STATUS = [
 ] as const;
 
 // Вкладка однієї послуги: налаштування, інструмент, поля, папка; для реклами — цифри по періодах
-export default function ServiceTab({ clientId, service, edit, saved, mv, err, cmp, sel, form }: { clientId: number; service: ClientService; edit: boolean; saved: boolean; mv?: string; err?: string; cmp?: string; sel?: string; form?: string }) {
+export default function ServiceTab({ clientId, service, edit, saved, mv, err, cmp, sel, form, mp }: { clientId: number; service: ClientService; edit: boolean; saved: boolean; mv?: string; err?: string; cmp?: string; sel?: string; form?: string; mp?: string }) {
   const type = service.type as ServiceType;
   const def = serviceDef(type);
   const tools = def.tool ? listTools(def.tool.category) : [];
@@ -54,7 +54,7 @@ export default function ServiceTab({ clientId, service, edit, saved, mv, err, cm
         )}
       </div>
 
-      {live && <MetaLive clientId={clientId} view={mv} err={err} cmp={cmp} sel={sel} form={form} />}
+      {live && <MetaLive clientId={clientId} view={mv} err={err} cmp={cmp} sel={sel} form={form} mp={mp} />}
       {/* Без привʼязаного кабінету конструктор кампаній теж працює */}
       {type === "meta_ads" && !live && (mv === "campaigns" ? <CampaignsView clientId={clientId} cmp={cmp} sel={sel} err={err} /> : mv === "forms" ? <FormsView clientId={clientId} form={form} />
         : <div className="card kp-promo"><div><b>Конструктор кампаній</b><span className="mono">Готуєш кампанію тут — групи, таргетинг, оголошення з креативом і текстами від Джері — і копіюєш у Ads Manager.</span></div><Link href={`/clients/${clientId}?tab=meta_ads&mv=campaigns`} className="btn small">Відкрити →</Link></div>)}

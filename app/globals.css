@@ -1149,6 +1149,8 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
   html.side-mini .side-link .count { position: absolute; top: -0.125rem; right: -0.25rem; min-width: 1.125rem; height: 1.125rem; padding: 0 0.25rem; font-size: 0.6875rem; display: grid; place-items: center; }
   html.side-mini .side-foot { align-items: center; padding: 0; }
   html.side-mini .client-back { justify-content: center; padding: 0.5rem; }
+  html.side-mini .client-meet { padding: 0 0 0.5rem; width: 100%; display: flex; justify-content: center; }
+  html.side-mini .client-meet .btn { width: 2.5rem; height: 2.5rem; padding: 0; gap: 0; }
   html.side-mini .client-name { align-items: center; padding: 0.5rem 0 0.75rem; }
   html.side-mini .client-initial { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: 10px; background: var(--accent-soft); color: var(--accent-hover); font-style: normal; font-weight: 700; }
 }
@@ -2218,6 +2220,8 @@ button.pop-card.bb-field.empty { border-style: dashed; }
 .bb-cwrap, .bb-asset, .bb-font { position: relative; }
 .bb-chip { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 0.25rem; width: 100%; box-sizing: border-box; }
 .bb-chip:focus-visible .bb-sw { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.bb-chip:hover { background: transparent; color: inherit; border-color: transparent; }
+button.bb-chip:hover .bb-sw { box-shadow: 0 4px 14px rgba(15, 23, 42, 0.14); }
 .bb-sw { height: 4.5rem; border-radius: var(--radius); border: 1px solid rgba(17, 24, 39, 0.12); display: grid; place-items: center; font-size: 0.8125rem; font-weight: 600; }
 .bb-chip b { font-size: 0.9375rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bb-x { all: unset; cursor: pointer; width: 1.5rem; height: 1.5rem; display: grid; place-items: center; border-radius: 50%; color: var(--muted); font-size: 1rem; }
@@ -2513,3 +2517,4 @@ button.kp-car-btn:hover { background: #fff; color: #1c1e21; }
 .kp-fsum small { color: var(--muted); }
 .kp-gen select { flex: 1; min-width: 12rem; }
 .kp-names { display: flex; flex-direction: column; gap: 0.375rem; padding-left: 0.75rem; border-left: 2px solid var(--line); }
+.mx-per { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }

@@ -54,7 +54,7 @@ function Delta({ now, before, lowerIsBetter = false }: { now: number | null; bef
 }
 
 // Живі цифри з Meta, розбиті на підвкладки (?mv=)
-export default function MetaLive({ clientId, view = "overview", err, cmp, sel, form }: { clientId: number; view?: string; err?: string; cmp?: string; sel?: string; form?: string }) {
+export default function MetaLive({ clientId, view = "overview", err, cmp, sel, form, mp }: { clientId: number; view?: string; err?: string; cmp?: string; sel?: string; form?: string; mp?: string }) {
   const accs = accountsForClient(clientId);
   if (!accs.length) return null;
   const cur = accs[0].currency || "";
@@ -89,7 +89,7 @@ export default function MetaLive({ clientId, view = "overview", err, cmp, sel, f
       </nav>
       {v === "forms" && <FormsView clientId={clientId} form={form} />}
       {v === "campaigns" && <CampaignsView clientId={clientId} cmp={cmp} sel={sel} err={err} />}
-      {v === "overview" && <Overview clientId={clientId} m={m} base={base} />}
+      {v === "overview" && <Overview clientId={clientId} m={m} base={base} mp={mp} />}
       {v === "tree" && <Tree clientId={clientId} m={m} />}
       {v === "creatives" && <Creatives clientId={clientId} m={m} />}
       {v === "audience" && <Audience clientId={clientId} m={m} />}
@@ -102,42 +102,54 @@ export default function MetaLive({ clientId, view = "overview", err, cmp, sel, f
 type Fmt = (n: number | null) => string;
 
 // ---------- Огляд: тиждень проти тижня, місяць у блоках, графік, кампанії, головне
-function Overview({ clientId, m, base }: { clientId: number; m: Fmt; base: string }) {
-  const w = totals(clientId, kyivDay(6), kyivDay(0));
-  const p = totals(clientId, kyivDay(13), kyivDay(7));
-  const mo = totals(clientId, kyivDay(29), kyivDay(0));
+const PERIODS = { today: "Сьогодні", "7": "7 днів", "30": "30 днів", year: "Рік" } as const;
+type Period = keyof typeof PERIODS;
+const sumT = (xs: { spend: number; impressions: number; clicks: number; leads: number }[]) =>
+  xs.reduce((a, x) => ({ spend: a.spend + x.spend, impressions: a.impressions + x.impressions, clicks: a.clicks + x.clicks, leads: a.leads + x.leads }), { spend: 0, impressions: 0, clicks: 0, leads: 0 });
+
+function Overview({ clientId, m, base, mp }: { clientId: number; m: Fmt; base: string; mp?: string }) {
+  const per: Period = mp && mp in PERIODS ? (mp as Period) : "7";
+  const months = monthlyForClient(clientId);
+  // Поточний і попередній період; рік — з помісячних цифр (порівняння нема)
+  const [w, p, cmpLabel] = per === "today" ? [totals(clientId, kyivDay(0), kyivDay(0)), totals(clientId, kyivDay(1), kyivDay(1)), "Сьогодні проти вчора"]
+    : per === "30" ? [totals(clientId, kyivDay(29), kyivDay(0)), totals(clientId, kyivDay(59), kyivDay(30)), "Останні 30 днів проти попередніх 30"]
+    : per === "year" ? [sumT(months.slice(-12)), null, `За рік (${months.length ? `${months.slice(-12)[0].month} — ${months.at(-1)!.month}` : "даних ще нема"})`]
+    : [totals(clientId, kyivDay(6), kyivDay(0)), totals(clientId, kyivDay(13), kyivDay(7)), "Останні 7 днів проти попередніх 7"];
+  const prevOk = !!p && p.spend > 0;
   const t = breakdowns(clientId, "total")[0];
-  const series = dailySeries(clientId, kyivDay(29));
+  const series = dailySeries(clientId, kyivDay(per === "30" ? 29 : 13));
   const camps = campaignsWithStats(clientId, kyivDay(29)).filter((c) => c.spend > 0 || c.status === "ACTIVE");
   const ins = metaInsights(clientId, m);
-  const months = monthlyForClient(clientId);
   const bad = badAdsForClient(clientId);
   const top = [...bad.slice(0, 3).map((x) => ({ t: "bad" as Tone, x: `Оголошення «${x.name}» — ${x.status}${x.why ? `: ${x.why}` : ""}` })), ...ins.cons.map((x) => ({ t: "bad" as Tone, x })), ...ins.tips.map((x) => ({ t: "" as Tone, x })), ...ins.pros.map((x) => ({ t: "good" as Tone, x }))];
   const active = camps.filter((c) => c.status === "ACTIVE");
   const purch = months.some((x) => x.purchases);
   const lastM = months.at(-1), prevM = months.at(-2);
+  const d = (now: number | null, before: number | null, lower = false) => (prevOk ? <Delta now={now} before={before} lowerIsBetter={lower} /> : null);
 
   return (
     <>
-      <div className="mono">Останні 7 днів проти попередніх 7</div>
+      <div className="mx-per">
+        <span className="mono">{cmpLabel}{per !== "year" && p && !prevOk ? " · за попередній період даних нема" : ""}</span>
+        <nav className="rd-areas">
+          {(["today", "7", "30", "year"] as Period[]).map((k) => <Link key={k} href={k === "7" ? base : `${base}&mp=${k}`} scroll={false} className={k === per ? "on" : ""}>{PERIODS[k]}</Link>)}
+        </nav>
+      </div>
       <div className="kpis meta-kpis">
-        <div className="kpi"><div className="n">{m(w.spend)}</div><div className="l">Витрачено <Delta now={w.spend} before={p.spend} /></div></div>
-        <div className="kpi"><div className="n">{fmtN(w.leads)}</div><div className="l">Лідів <Delta now={w.leads} before={p.leads} /></div></div>
-        <div className="kpi"><div className="n">{m(cplOf(w))}</div><div className="l">Ціна ліда <Delta now={cplOf(w)} before={cplOf(p)} lowerIsBetter /></div></div>
-        <div className="kpi"><div className="n">{pct(ctrOf(w))}</div><div className="l">CTR <Delta now={ctrOf(w)} before={ctrOf(p)} /></div></div>
+        <div className="kpi"><div className="n">{m(w.spend)}</div><div className="l">Витрачено {d(w.spend, p?.spend ?? null)}</div></div>
+        <div className="kpi"><div className="n">{fmtN(w.leads)}</div><div className="l">Лідів {d(w.leads, p?.leads ?? null)}</div></div>
+        <div className="kpi"><div className="n">{m(cplOf(w))}</div><div className="l">Ціна ліда {d(cplOf(w), p ? cplOf(p) : null, true)}</div></div>
+        <div className="kpi"><div className="n">{pct(ctrOf(w))}</div><div className="l">CTR {d(ctrOf(w), p ? ctrOf(p) : null)}</div></div>
       </div>
 
-      {/* 30 днів — одна компактна смужка */}
       <div className="mx-strip">
-        <span className="mx-strip-h">30 днів</span>
-        <div><b>{fmtN(mo.leads)}</b><span>лідів</span></div>
-        <div><b>{m(mo.spend)}</b><span>витрачено</span></div>
-        <div><b>{m(cplOf(mo))}</b><span>ціна ліда</span></div>
-        <div><b>{pct(ctrOf(mo))}</b><span>CTR</span></div>
-        <div><b>{m(mo.clicks ? mo.spend / mo.clicks : null)}</b><span>ціна кліку</span></div>
-        <div><b>{m(mo.impressions ? (mo.spend / mo.impressions) * 1000 : null)}</b><span>CPM</span></div>
-        <div><b>{t?.reach ? fmtN(t.reach) : "—"}</b><span>охоплення</span></div>
-        <div><b>{t ? (freqOf(t.impressions, t.reach)?.toFixed(1) ?? "—") : "—"}</b><span>частота</span></div>
+        <span className="mx-strip-h">{PERIODS[per]}</span>
+        <div><b>{fmtN(w.clicks)}</b><span>кліків</span></div>
+        <div><b>{fmtN(w.impressions)}</b><span>показів</span></div>
+        <div><b>{m(w.clicks ? w.spend / w.clicks : null)}</b><span>ціна кліку</span></div>
+        <div><b>{m(w.impressions ? (w.spend / w.impressions) * 1000 : null)}</b><span>CPM</span></div>
+        {per === "30" && <div><b>{t?.reach ? fmtN(t.reach) : "—"}</b><span>охоплення</span></div>}
+        {per === "30" && <div><b>{t ? (freqOf(t.impressions, t.reach)?.toFixed(1) ?? "—") : "—"}</b><span>частота</span></div>}
       </div>
 
       {top.length > 0 && (
@@ -153,10 +165,15 @@ function Overview({ clientId, m, base }: { clientId: number; m: Fmt; base: strin
         </Pop>
       )}
 
-      {series.length > 1 && (
+      {per === "year" ? (months.length > 1 && (
         <div className="card">
           <ComboChart barName="Витрати" lineName="Ліди" fmtBar={(n) => fmtN(n)} fmtLine={(n) => fmtN(n)}
-            data={series.map((d) => ({ label: d.date.slice(8, 10), bar: d.spend, line: d.leads, tip: `${fmtDate(d.date)}: ${m(d.spend)}, лідів ${d.leads}${d.leads ? `, ціна ${m(cplOf(d))}` : ""}` }))} />
+            data={months.slice(-12).map((x) => ({ label: x.month.slice(5, 7), bar: x.spend, line: x.leads, tip: `${x.month}: ${m(x.spend)}, лідів ${x.leads}${x.leads ? `, ціна ${m(x.spend / x.leads)}` : ""}` }))} />
+        </div>
+      )) : series.length > 1 && (
+        <div className="card">
+          <ComboChart barName="Витрати" lineName="Ліди" fmtBar={(n) => fmtN(n)} fmtLine={(n) => fmtN(n)}
+            data={series.map((x) => ({ label: x.date.slice(8, 10), bar: x.spend, line: x.leads, tip: `${fmtDate(x.date)}: ${m(x.spend)}, лідів ${x.leads}${x.leads ? `, ціна ${m(cplOf(x))}` : ""}` }))} />
         </div>
       )}
 
