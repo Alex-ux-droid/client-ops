@@ -12,7 +12,7 @@ export const SECTIONS: { title: string; collapsed?: boolean; items: { href: stri
       { href: "/clients", label: "Клієнти", ico: "users" },
       { href: "/money", label: "Гроші", ico: "wallet", count: "debts", bad: true },
       { href: "/ads", label: "Реклама", ico: "megaphone" },
-      { href: "/creatives", label: "Креативи", ico: "sparkles" },
+      { href: "/products", label: "Проєкти", ico: "box" },
     ],
   },
   {
@@ -20,7 +20,6 @@ export const SECTIONS: { title: string; collapsed?: boolean; items: { href: stri
     collapsed: true,
     items: [
       { href: "/startups", label: "Стартапи", ico: "rocket" },
-      { href: "/products", label: "Продукти", ico: "box" },
       { href: "/kb", label: "Розвиток", ico: "compass" },
       { href: "/ideas", label: "Ідеї", ico: "bulb", count: "ideas" },
     ],
@@ -28,7 +27,6 @@ export const SECTIONS: { title: string; collapsed?: boolean; items: { href: stri
   {
     title: "Знання",
     items: [
-      { href: "/playbooks", label: "Плейбуки", ico: "book" },
       { href: "/journal", label: "Журнал системи", ico: "wrench", count: "journal" },
       { href: "/settings", label: "Налаштування", ico: "gear" },
     ],

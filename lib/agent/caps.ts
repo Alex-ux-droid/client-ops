@@ -27,7 +27,7 @@ export const CAPS = [
   { key: "access", label: "Доступи клієнтів", desc: "додавати і змінювати записи «де лежить доступ» (сервіс, логін, назва в Bitwarden, 2FA) — паролів не бачить і не зберігає", tools: ["access_save"] },
   { key: "tips", label: "Поради дня (запис)", desc: "записує в базу порад корисне, що виникло в розмові", tools: ["tip_add"] },
   { key: "strategy", label: "Стратегія клієнта", desc: "веде стратегію в картці клієнта: конспект, системи, план тиждень/місяць/далі, знання; розкладає витяжки з Claude Code (≈1–3 цента за витяжку)", tools: ["strategy_update", "strategy_part", "strategy_item", "strategy_path", "strategy_import", "hypotheses"] },
-  { key: "products", label: "Продукти і розвиток", desc: "вести паспорти наших продуктів (що це, як працює, знання, юридичне, хроніка), розкладати витяжки з Claude Code, план розвитку організації (≈1–3 цента за витяжку)", tools: ["product_save", "product_item", "product_import", "org_update", "org_item"] },
+  { key: "products", label: "Продукти і розвиток", desc: "вести паспорти наших продуктів (що це, як працює, знання, юридичне, хроніка), розкладати витяжки з Claude Code, план розвитку організації (≈1–3 цента за витяжку)", tools: ["product_save", "product_item", "product_import", "product_request", "org_update", "org_item"] },
   { key: "lab", label: "Лабораторія (стара)", desc: "вести сесії вибору інструментів", tools: ["lab_create", "lab_update", "lab_add_option", "lab_update_option", "lab_add_criterion", "lab_set_scores", "lab_finish", "lab_scenario", "lab_proposal", "lab_package", "lab_proposal_pdf", "lab_product", "lab_stage", "lab_delete_option"] },
 ] as const;
 

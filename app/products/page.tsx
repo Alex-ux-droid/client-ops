@@ -4,7 +4,8 @@ import LogoMark from "@/components/LogoMark";
 import { logoMap } from "@/lib/repo/logos";
 import { lines } from "@/lib/repo/strategy";
 import { fmtDate } from "@/lib/dates";
-import { listProducts, PRODUCT_KINDS, PRODUCT_STATUS, productClients, listPItems } from "@/lib/repo/products";
+import { listProducts, PRODUCT_KINDS, PRODUCT_STATUS, productClients, listPItems, openRequestCounts, productCode, type Product } from "@/lib/repo/products";
+import { listClients } from "@/lib/repo/clients";
 import SubmitButton from "@/components/SubmitButton";
 import { saveProductAction } from "./actions";
 import { ProductImport, ProductPrompt } from "./ProductClient";
@@ -15,12 +16,26 @@ export const dynamic = "force-dynamic";
 export default async function ProductsPage() {
   const ps = listProducts();
   const logos = logoMap("product");
+  const reqs = openRequestCounts();
+  const clientName = new Map(listClients().map((c) => [c.id, c.name]));
+  const mine = ps.filter((p) => !p.client_id), theirs = ps.filter((p) => p.client_id);
+  const card = (p: Product) => {
+    const cl = productClients(p.id), kn = listPItems(p.id, "knowledge").length, rq = reqs.get(p.id) ?? 0;
+    return (
+      <Link key={p.id} href={`/products/${p.id}`} className={`card st-part s-${p.status}`}>
+        <div className="st-part-h"><LogoMark kind="product" id={p.id} name={p.name} src={logos.get(p.id)} size={32} /><b>{p.name}</b><span className="pj-code sm">{productCode(p.id)}</span><span className={`tag st-s-${p.status}`}>{PRODUCT_STATUS[p.status] ?? p.status}</span></div>
+        {p.summary && <p className="pv-s">{p.summary}</p>}
+        {(() => { const ms = [...new Set(lines(p.stack).map((x) => brandOf(x)?.name).filter(Boolean))] as string[]; return ms.length ? <span className="qt-marks">{ms.slice(0, 8).map((m) => <BrandDot key={m} text={m} size={16} />)}</span> : null; })()}
+        <small>{[rq ? `⚠ правок: ${rq}` : "", !p.client_id && cl.length ? `клієнтів: ${cl.length}` : "", kn ? `знань: ${kn}` : "", `оновлено ${fmtDate(p.updated_at)}`].filter(Boolean).join(" · ")}</small>
+      </Link>
+    );
+  };
   return (
     <>
       <div className="head">
         <div>
-          <h1>Продукти</h1>
-          <div className="row-sub">Наші програми, набори й послуги: що це, як працює, з чого складається, що ламалось і що треба знати наперед. Джері бачить усе це.</div>
+          <h1>Проєкти</h1>
+          <div className="row-sub">Усе, що будуємо в Claude Code: мої продукти і проєкти клієнтів. У кожного код P-N — так само називається його чат у Claude Code. Паспорт, оновлення, правки — тут.</div>
         </div>
       </div>
       <div className="card stack" style={{ gap: "0.625rem", marginBottom: "1.25rem" }}>
@@ -39,28 +54,24 @@ export default async function ProductsPage() {
           </form>
         </details>
       </div>
+      <h2 style={{ marginBottom: "0.75rem" }}>Мої продукти</h2>
       {(Object.keys(PRODUCT_KINDS) as (keyof typeof PRODUCT_KINDS)[]).map((k) => {
-        const xs = ps.filter((p) => p.kind === k);
+        const xs = mine.filter((p) => p.kind === k);
         if (!xs.length) return null;
         return (
           <section key={k} style={{ marginBottom: "1.5rem" }}>
-            <h2 style={{ marginBottom: "0.75rem" }}>{PRODUCT_KINDS[k]}</h2>
-            <div className="st-parts">
-              {xs.map((p) => {
-                const cl = productClients(p.id), kn = listPItems(p.id, "knowledge").length;
-                return (
-                  <Link key={p.id} href={`/products/${p.id}`} className={`card st-part s-${p.status}`}>
-                    <div className="st-part-h"><LogoMark kind="product" id={p.id} name={p.name} src={logos.get(p.id)} size={32} /><b>{p.name}</b><span className={`tag st-s-${p.status}`}>{PRODUCT_STATUS[p.status] ?? p.status}</span></div>
-                    {p.summary && <p className="pv-s">{p.summary}</p>}
-                    {(() => { const ms = [...new Set(lines(p.stack).map((x) => brandOf(x)?.name).filter(Boolean))] as string[]; return ms.length ? <span className="qt-marks">{ms.slice(0, 8).map((m) => <BrandDot key={m} text={m} size={16} />)}</span> : null; })()}
-                    <small>{[cl.length ? `клієнтів: ${cl.length}` : "", kn ? `знань: ${kn}` : "", `оновлено ${fmtDate(p.updated_at)}`].filter(Boolean).join(" · ")}</small>
-                  </Link>
-                );
-              })}
-            </div>
+            <h3 className="mono" style={{ margin: "0 0 0.5rem" }}>{PRODUCT_KINDS[k]}</h3>
+            <div className="st-parts">{xs.map(card)}</div>
           </section>
         );
       })}
+      <h2 style={{ margin: "0.5rem 0 0.75rem" }}>Проєкти клієнтів</h2>
+      {theirs.length ? [...new Set(theirs.map((p) => p.client_id!))].map((cid) => (
+        <section key={cid} style={{ marginBottom: "1.5rem" }}>
+          <h3 className="mono" style={{ margin: "0 0 0.5rem" }}><Link href={`/clients/${cid}`} className="h-link">{clientName.get(cid) ?? `Клієнт ${cid}`}</Link></h3>
+          <div className="st-parts">{theirs.filter((p) => p.client_id === cid).map(card)}</div>
+        </section>
+      )) : <p className="mono">Ще нема. Проєкт клієнта зʼявиться, коли в його вкладці «Сайт» / «CRM» / «Автоматизація» натиснеш «Почати вести розвиток», або в будь-якому продукті: «Змінити» → «Чий проєкт».</p>}
     </>
   );
 }

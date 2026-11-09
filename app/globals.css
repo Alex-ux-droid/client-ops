@@ -2729,3 +2729,16 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
 .gl-form { display: flex; flex-direction: column; gap: 0.625rem; }
 .gl-form textarea { min-height: min(22rem, 50vh); font-size: 1rem; line-height: 1.55; }
 @media (max-width: 640px) { button.pop-card.gl-card { grid-template-columns: auto minmax(0, 1fr); } .gl-edit { display: none; } .gl-t { -webkit-line-clamp: 4; } }
+
+/* Проєкти: код, робоче місце, правки */
+.pj-code { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 700; font-size: 0.875rem; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+.pj-code.sm { padding: 0.05rem 0.45rem; font-size: 0.75rem; }
+.pj-work { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.pj-ws { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.625rem; }
+.pj-ws label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8125rem; color: var(--muted); }
+.pj-req { display: flex; flex-direction: column; gap: 0.375rem; padding: 0.75rem 1rem; }
+.pj-req.s-done, .pj-req.s-rejected { opacity: 0.7; }
+.pj-req-h { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.pj-rc { font-variant-numeric: tabular-nums; }
+.pj-req-t { margin: 0; white-space: pre-wrap; line-height: 1.5; }
+.pj-req-tile { border-color: var(--warn); }

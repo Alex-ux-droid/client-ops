@@ -10,9 +10,9 @@ export const P_KNOW = { fix: "Зламалось → виправили", integr
 export const P_ITEM_KINDS = ["log", "knowledge", "decision", "idea", "plan", "update"] as const;
 export type PItemKind = (typeof P_ITEM_KINDS)[number];
 
-export type Product = { id: number; name: string; kind: ProductKind; status: ProductStatus; summary: string; how: string; features: string; stack: string; pros: string; cons: string; next_step: string; links: string; kit_md: string; last_event_at: string | null; client_id: number | null; service_type: string | null; position: number; created_at: string; updated_at: string };
+export type Product = { id: number; name: string; kind: ProductKind; status: ProductStatus; summary: string; how: string; features: string; stack: string; pros: string; cons: string; next_step: string; links: string; kit_md: string; last_event_at: string | null; chat_url: string; repo_url: string; prod_url: string; client_id: number | null; service_type: string | null; position: number; created_at: string; updated_at: string };
 export type PItem = { id: number; product_id: number; kind: PItemKind; cat: string; title: string; body: string; done: number; source: string; created_at: string; ver: number | null };
-export const PF = ["name", "kind", "status", "summary", "how", "features", "stack", "pros", "cons", "next_step", "links", "kit_md"] as const;
+export const PF = ["name", "kind", "status", "summary", "how", "features", "stack", "pros", "cons", "next_step", "links", "kit_md", "chat_url", "repo_url", "prod_url"] as const;
 export type ProductPatch = Partial<Pick<Product, (typeof PF)[number]>>;
 
 export const listProducts = () => db().prepare("SELECT * FROM products ORDER BY position, status = 'paused', name").all() as Product[];
@@ -125,3 +125,38 @@ export function updateOrgItem(id: number, p: Partial<Pick<OrgItem, "title" | "bo
   db().prepare(`UPDATE org_items SET ${keys.map((k) => `${k} = @${k}`).join(", ")}${p.horizon === "done" ? ", done_at = datetime('now')" : p.horizon ? ", done_at = NULL" : ""} WHERE id = @id`).run({ ...p, id });
 }
 export const deleteOrgItem = (id: number) => db().prepare("DELETE FROM org_items WHERE id = ?").run(id);
+
+// ---- Проєкти: код P-N (так само називається чат у Claude Code) і правки R-N
+export const productCode = (id: number) => `P-${id}`;
+export const chatTitle = (p: Pick<Product, "id" | "name">) => `${productCode(p.id)} · ${p.name}`;
+export function setProductOwner(productId: number, clientId: number | null): void {
+  db().prepare("UPDATE products SET client_id = ?, updated_at = datetime('now') WHERE id = ?").run(clientId, productId);
+  if (clientId) db().prepare("INSERT OR IGNORE INTO product_clients (product_id, client_id, note) VALUES (?, ?, 'проєкт клієнта')").run(productId, clientId);
+}
+
+export const REQ_STATUS = { new: "нова", doing: "в роботі", done: "виправлено", rejected: "не робимо" } as const;
+export type ReqStatus = keyof typeof REQ_STATUS;
+export const REQ_SOURCE = { manual: "Саша", jerry: "Джері", app: "з програми", bot: "бот клієнта" } as const;
+export type PRequest = { id: number; product_id: number; client_id: number | null; source: keyof typeof REQ_SOURCE; author: string; text: string; files_json: string; status: ReqStatus; done_note: string; notified: number; created_at: string; done_at: string | null };
+export const reqCode = (id: number) => `R-${id}`;
+export const listRequests = (productId: number, openOnly = false) =>
+  db().prepare(`SELECT * FROM product_requests WHERE product_id = ? ${openOnly ? "AND status IN ('new','doing')" : ""} ORDER BY status IN ('done','rejected'), id DESC`).all(productId) as PRequest[];
+export const getRequest = (id: number) => db().prepare("SELECT * FROM product_requests WHERE id = ?").get(id) as PRequest | undefined;
+export const openRequestCounts = () => new Map((db().prepare("SELECT product_id, COUNT(*) n FROM product_requests WHERE status IN ('new','doing') GROUP BY product_id").all() as { product_id: number; n: number }[]).map((r) => [r.product_id, r.n]));
+export function addRequest(productId: number, r: { text: string; source?: keyof typeof REQ_SOURCE; author?: string; client_id?: number | null; files?: number[] }): number {
+  const p = getProduct(productId);
+  return Number(db().prepare("INSERT INTO product_requests (product_id, client_id, source, author, text, files_json) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(productId, r.client_id ?? p?.client_id ?? null, r.source ?? "manual", (r.author ?? "").trim(), r.text.trim(), JSON.stringify(r.files ?? [])).lastInsertRowid);
+}
+export function setRequestStatus(id: number, status: ReqStatus, note?: string): void {
+  db().prepare("UPDATE product_requests SET status = ?, done_note = COALESCE(?, done_note), done_at = CASE WHEN ? IN ('done','rejected') THEN COALESCE(done_at, datetime('now')) ELSE NULL END WHERE id = ?").run(status, note ?? null, status, id);
+}
+export const deleteRequest = (id: number) => db().prepare("DELETE FROM product_requests WHERE id = ?").run(id);
+// Оновлення з Claude Code називає закриті правки кодами R-N — закриваємо тільки правки цього продукту
+export function closeRequestsFromText(productId: number, text: string, note = ""): number[] {
+  const block = text.match(/Закриті правки[^\n]*\n([\s\S]*?)(?:\n[А-ЯІЇЄҐA-Z][^\n]*:\s*\n|\[\/CLIENT-OPS\]|$)/)?.[1] ?? "";
+  const ids = [...new Set([...block.matchAll(/R-(\d+)/g)].map((m) => Number(m[1])))];
+  const done: number[] = [];
+  for (const id of ids) { const r = getRequest(id); if (r && r.product_id === productId && r.status !== "done") { setRequestStatus(id, "done", note); done.push(id); } }
+  return done;
+}
