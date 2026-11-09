@@ -10,6 +10,7 @@ export type ServiceDef = {
   ico: string;
   hint: string;
   tool?: { category: ToolCategory; label: string };
+  builtWith?: string;    // завжди робимо цим (без вибору з довідника), напр. сайти — Claude Code
   adPlatform?: string;   // для рекламних: значення ad_stats.platform
   folder?: string;       // яку папку клієнта показувати кнопкою
   fields: ServiceField[];
@@ -46,10 +47,11 @@ export const SERVICES = {
     ],
   },
   website: {
-    label: "Сайт", short: "Сайт", group: "Сайт і продажі", ico: "◫", hint: "Розробка, підтримка, доопрацювання", folder: "website",
-    tool: { category: "site", label: "На чому зроблено" },
+    label: "Сайт", short: "Сайт", group: "Сайт і продажі", ico: "◫", hint: "Робимо в Claude Code: розробка, підтримка, доопрацювання", folder: "website",
+    builtWith: "Claude Code",
     fields: [
       { key: "url", label: "Адреса сайту", type: "url", placeholder: "https://" },
+      { key: "repo", label: "Репозиторій (GitHub)", type: "url", placeholder: "https://github.com/…" },
       { key: "admin_url", label: "Адмінка (посилання, без пароля)", type: "url" },
       { key: "hosting", label: "Хостинг", type: "text" },
       { key: "domain", label: "Домен: де куплений, до коли", type: "text" },
