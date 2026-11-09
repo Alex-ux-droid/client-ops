@@ -6,7 +6,7 @@ import { autoOn } from "./agent/caps";
 import { logError } from "./log";
 import { askJson, llmErrorText } from "./llmJson";
 import {
-  addPItem, addProduct, addProductEvent, getOrg, getProduct, listPItems, listProducts, ORG_FIELDS, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productEvents, productTimeline, productUpdates, nextUpdateVer, hasPassport, updateProduct,
+  addPItem, addProduct, addProductEvent, getOrg, getProduct, listPItems, listProducts, ORG_FIELDS, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productEvents, productTimeline, productUpdates, nextUpdateVer, hasPassport, updateProduct, listRequests, closeRequestsFromText, productCode, chatTitle, reqCode, REQ_SOURCE,
   type Product, type ProductKind, type ProductStatus,
 } from "./repo/products";
 import { lines } from "./repo/strategy";
@@ -60,7 +60,9 @@ export function productMd(p: Product, full = true): string {
   const plan = listPItems(p.id, "plan").filter((x) => !x.done), ideas = listPItems(p.id, "idea", 15);
   const cl = productClients(p.id);
   return [
-    `ПРОДУКТ: ${p.name} (product_id ${p.id}) — ${PRODUCT_KINDS[p.kind] ?? p.kind}, ${PRODUCT_STATUS[p.status] ?? p.status}`,
+    `ПРОДУКТ: ${p.name} (product_id ${p.id}, код ${productCode(p.id)}, чат у Claude Code: «${chatTitle(p)}») — ${PRODUCT_KINDS[p.kind] ?? p.kind}, ${PRODUCT_STATUS[p.status] ?? p.status}`,
+    [p.chat_url && `Чат Claude Code: ${p.chat_url}`, p.repo_url && `Репозиторій: ${p.repo_url}`, p.prod_url && `Прод: ${p.prod_url}`].filter(Boolean).join("\n"),
+    (() => { const rq = listRequests(p.id, true); return rq.length ? `Відкриті правки:\n${rq.map((r) => `- ${reqCode(r.id)} (${r.status === "doing" ? "в роботі" : "нова"}, ${r.created_at.slice(0, 10)}${r.author ? `, ${r.author}` : ""}): ${r.text.replace(/\s+/g, " ").slice(0, 300)}`).join("\n")}` : ""; })(),
     p.summary && `Що це: ${p.summary}`,
     p.how && `Як працює: ${p.how}`,
     list("Головні фічі", lines(p.features)),
@@ -155,6 +157,8 @@ export const updateTemplate = (name: string, ver: number, since: string) => `${U
 - …
 Де зупинились (стан прямо зараз):
 - …
+Закриті правки (коди R-… з мого списку, які виправлено в цьому оновленні):
+- R-…
 Наступні кроки:
 - …
 Ідеї, як розвивати далі (ідея → навіщо):
@@ -182,6 +186,29 @@ ${open.length ? `- Відкриті кроки: ${open.join("; ")}` : ""}
 ${p.next_step ? `- Наступний крок був: ${p.next_step}` : ""}
 
 Подивись, що ми робили в цьому чаті і в коді (коміти) після ${since || "останнього запису"}, і видай оновлення СТРОГО в такому блоці (тільки факти, без ключів і паролів; порожні розділи пропусти):
+
+${updateTemplate(p.name, ver, since)}`;
+}
+
+// Промпт «Виправити правки»: паспорт + відкриті правки з кодами R-N → після роботи оновлення, де вказано закриті коди
+export function requestPrompt(productId: number, ids?: number[]): string {
+  const p = getProduct(productId);
+  if (!p) return "";
+  const rq = listRequests(productId, true).filter((r) => !ids?.length || ids.includes(r.id)).sort((a, b) => a.id - b.id);
+  const ver = nextUpdateVer(productId);
+  const since = (productUpdates(productId).at(-1)?.created_at ?? "").slice(0, 10);
+  if (!rq.length) return updatePrompt(productId);
+  return `Проєкт «${p.name}» (${productCode(p.id)}). Треба виправити правки нижче. Спирайся на паспорт: не ламай те, що працює, і враховуй, що вже ламалось. Відповідай українською.
+
+<product>
+${productMd(p, false)}
+</product>
+
+ПРАВКИ (зроби по черзі; якщо щось незрозуміло або ризиковано — спершу спитай мене):
+${rq.map((r) => `${reqCode(r.id)} · ${r.created_at.slice(0, 10)} · від: ${r.author || REQ_SOURCE[r.source] || "—"}\n${r.text}`).join("\n\n")}
+
+Порядок: 1) розберись у причині кожної правки; 2) виправ і перевір; 3) закоміть і запуш (як заведено в цьому репо); 4) коротко поясни, що зроблено по кожному R-коду.
+Наприкінці видай оновлення СТРОГО в такому блоці (тільки факти, без ключів і паролів; у «Закриті правки» — тільки ті R-коди, які реально виправлено):
 
 ${updateTemplate(p.name, ver, since)}`;
 }
@@ -217,7 +244,10 @@ export async function importProduct(text: string, productId: number | null): Pro
 ${isUpdate ? `Це ОНОВЛЕННЯ (не повний паспорт): додай у JSON ще "update": {"title": "коротко про оновлення (з поля «Коротко»)", "summary": "що змінилось — пунктами", "stopped": "де зупинились", "changes": "що змінилось для користувача і в складі — пунктами"}; поля product повертай з урахуванням змін (нові фічі/склад додай до наявних), next_step = перший з «Наступних кроків»; timeline — етапи з «Що зробили».\n` : ""}Правила: тільки факти з витяжки; поля, яких у витяжці нема, повертай як є в паспорті (не стирай); списки зливай зі старими без дублів; юридичні моменти, доступи, платежі, верифікації → knowledge cat legal; ніяких ключів і паролів.`;
   try {
     const ops = await askJson<Ops>(system + "\nПиши стисло: body — до 3 коротких пунктів, без води.", `ПАСПОРТ:\n${JSON.stringify(state)}\n\nEXISTING_TIMELINE:\n${JSON.stringify(cur ? productTimeline(cur.id).map((x) => ({ at: x.created_at.slice(0, 10), title: x.title })) : [])}\n\nНАЯВНІ ПРОДУКТИ:\n${JSON.stringify(all)}\n\nВИТЯЖКА:\n${text.slice(0, 60000)}`);
-    return { ok: true, ...applyProductOps(ops, productId, isUpdate) };
+    const res = applyProductOps(ops, productId, isUpdate);
+    const closed = closeRequestsFromText(res.id, text, `закрито оновленням ${new Date().toISOString().slice(0, 10)}`);
+    if (closed.length) res.summary.push(`Закрито правок: ${closed.map(reqCode).join(", ")}`);
+    return { ok: true, ...res };
   } catch (e) {
     logError("product-import", e);
     return { ok: false, error: llmErrorText(e) };

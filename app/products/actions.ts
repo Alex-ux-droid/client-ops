@@ -4,13 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { capOn } from "@/lib/agent/caps";
-import { fixPrompt, importProduct, newAppSecret, productPrompt, updatePrompt } from "@/lib/products";
+import { fixPrompt, importProduct, newAppSecret, productPrompt, requestPrompt, updatePrompt } from "@/lib/products";
 import {
   addOrgItem, addPItem, listPItems, addProduct, deleteOrgItem, deletePItem, deleteProduct, getPItem, ORG_FIELDS, P_ITEM_KINDS, saveOrg, setProductClient, updateOrgItem, updatePItem, updateProduct,
   type PItemKind, type ProductPatch,
 } from "@/lib/repo/products";
 import { setSetting } from "@/lib/repo/settings";
-import { createServiceProduct } from "@/lib/repo/products";
+import { addRequest, createServiceProduct, deleteRequest, getRequest, REQ_STATUS, setProductOwner, setRequestStatus, type ReqStatus } from "@/lib/repo/products";
 import { getClient } from "@/lib/repo/clients";
 import { isServiceType, serviceDef } from "@/lib/services";
 
@@ -22,7 +22,7 @@ export async function saveProductAction(fd: FormData) {
   const id = Number(fd.get("product_id")) || 0;
   if (id && fd.get("delete") === "1") { deleteProduct(id); re(); redirect("/products"); }
   const p: ProductPatch = {};
-  for (const k of ["name", "kind", "status", "summary", "how", "features", "stack", "links", "pros", "cons", "next_step", "kit_md"] as const) if (fd.has(k)) (p as Record<string, string>)[k] = str(fd, k);
+  for (const k of ["name", "kind", "status", "summary", "how", "features", "stack", "links", "pros", "cons", "next_step", "kit_md", "chat_url", "repo_url", "prod_url"] as const) if (fd.has(k)) (p as Record<string, string>)[k] = str(fd, k);
   if (id) { updateProduct(id, p); re(id); return; }
   if (!p.name) return;
   const nid = addProduct({ ...p, name: p.name });
@@ -67,8 +67,9 @@ export async function productImportAction(productId: number | null, text: string
   return r;
 }
 
-export async function productPromptAction(productId: number | null, mode: "full" | "update" | "fix" = "full"): Promise<string> {
+export async function productPromptAction(productId: number | null, mode: "full" | "update" | "fix" | "requests" = "full"): Promise<string> {
   await requireUser();
+  if (productId && mode === "requests") return requestPrompt(productId);
   if (productId && mode === "fix") return fixPrompt(productId);
   return mode === "update" && productId ? updatePrompt(productId) : productPrompt(productId);
 }
@@ -112,4 +113,32 @@ export async function startServiceDevAction(fd: FormData) {
   const id = createServiceProduct(clientId, type, `${label} · ${c.name}`, label);
   re(id);
   revalidatePath(`/clients/${clientId}`);
+}
+
+// Чий проєкт: мій (без клієнта) або клієнта X
+export async function productOwnerAction(fd: FormData) {
+  await requireUser();
+  const pid = Number(fd.get("product_id"));
+  const cid = Number(fd.get("owner")) || null;
+  if (!pid) return;
+  setProductOwner(pid, cid);
+  re(pid);
+  if (cid) revalidatePath(`/clients/${cid}`);
+}
+
+// Правки: додати / статус / видалити
+export async function requestAction(fd: FormData) {
+  await requireUser();
+  const pid = Number(fd.get("product_id"));
+  const op = str(fd, "op") || "add";
+  if (op === "add") {
+    // кілька правок за раз — порожній рядок між ними
+    for (const t of str(fd, "text").split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean)) addRequest(pid, { text: t, author: str(fd, "author"), source: "manual" });
+    return re(pid);
+  }
+  const r = getRequest(Number(fd.get("id")));
+  if (!r || r.product_id !== pid) return;
+  if (op === "delete") deleteRequest(r.id);
+  else if (op === "status" && str(fd, "status") in REQ_STATUS) setRequestStatus(r.id, str(fd, "status") as ReqStatus, fd.has("note") ? str(fd, "note") : undefined);
+  re(pid);
 }

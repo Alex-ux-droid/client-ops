@@ -15,15 +15,15 @@ import { CopyText } from "@/app/startups/[id]/CopyText";
 import { fmtDate } from "@/lib/dates";
 import { appSecret, kitText, productIssues } from "@/lib/products";
 import { listClients } from "@/lib/repo/clients";
-import { getProduct, listPItems, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productEventCounts, productEvents, productTimeline, productUpdates, nextUpdateVer, hasPassport, type PItem } from "@/lib/repo/products";
+import { getProduct, listRequests, productCode, chatTitle, reqCode, REQ_STATUS, REQ_SOURCE, type PRequest, listPItems, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productEventCounts, productEvents, productTimeline, productUpdates, nextUpdateVer, hasPassport, type PItem } from "@/lib/repo/products";
 import { getSetting } from "@/lib/repo/settings";
 import { lines } from "@/lib/repo/strategy";
-import { issuesDoneAction, productClientAction, productItemAction, productSecretAction, saveProductAction } from "../actions";
+import { requestAction, productOwnerAction, issuesDoneAction, productClientAction, productItemAction, productSecretAction, saveProductAction } from "../actions";
 import { CopyBig, ProductImport, ProductPrompt } from "../ProductClient";
 
 export const dynamic = "force-dynamic";
 
-const VIEWS = [{ k: "overview", label: "Паспорт" }, { k: "log", label: "Хронологія і план" }, { k: "knowledge", label: "Знання" }, { k: "kit", label: "Набір" }, { k: "connect", label: "Звʼязок" }, { k: "edit", label: "Змінити" }] as const;
+const VIEWS = [{ k: "overview", label: "Паспорт" }, { k: "requests", label: "Правки" }, { k: "log", label: "Хронологія і план" }, { k: "knowledge", label: "Знання" }, { k: "kit", label: "Набір" }, { k: "connect", label: "Звʼязок" }, { k: "edit", label: "Змінити" }] as const;
 
 export default async function ProductPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ v?: string }> }) {
   const id = Number((await params).id);
@@ -36,6 +36,9 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
   const h = await headers();
   const host = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host") ?? ""}`;
   const hid = <input type="hidden" name="product_id" value={id} />;
+  const openReq = listRequests(id, true);
+  const clientsAll = listClients().filter((c) => c.status !== "archived");
+  const owner = p.client_id ? clientsAll.find((c) => c.id === p.client_id) ?? null : null;
   const src = (i: PItem) => `${fmtDate(i.created_at)}${i.ver ? ` · Оновлення ${i.ver}` : i.source === "extract" ? " · старт" : i.source === "jerry" ? " · Джері" : ""}`;
   const acts = (i: PItem) => (
     <>
@@ -55,7 +58,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
 
   return (
     <section className="st stack">
-      <Link href="/products" className="h-link">← Продукти</Link>
+      <Link href="/products" className="h-link">← Проєкти</Link>
       <div className="st-head">
         <div className="ent-head">
           <LogoMark kind="product" id={id} name={p.name} src={logoSrc("product", id)} size={52} editable />
@@ -72,9 +75,18 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
           <ProductImport productId={id} compact />
         </div>
       </div>
-      <nav className="mx-tabs st-tabs">{views.map((x) => <Link key={x.k} href={x.k === "overview" ? base : `${base}?v=${x.k}`} scroll={false} className={x.k === v ? "on" : ""}>{x.label}</Link>)}</nav>
+      <div className="pj-work">
+        <span className="pj-code" title="Код проєкту — так само назви чат у Claude Code">{productCode(id)}</span>
+        <CopyText text={chatTitle(p)} label="Скопіювати назву чату" />
+        {p.chat_url ? <a href={p.chat_url} target="_blank" rel="noreferrer" className="btn small">Чат Claude Code ↗</a> : <Link href={`${base}?v=edit`} className="btn ghost small">+ чат Claude Code</Link>}
+        {p.repo_url && <a href={p.repo_url} target="_blank" rel="noreferrer" className="btn ghost small">GitHub ↗</a>}
+        {p.prod_url && <a href={p.prod_url} target="_blank" rel="noreferrer" className="btn ghost small">{p.kind === "app" ? "Відкрити" : "Сайт"} ↗</a>}
+        {owner && <Link href={`/clients/${owner.id}`} className="btn ghost small">Клієнт: {owner.name}</Link>}
+      </div>
+      <nav className="mx-tabs st-tabs">{views.map((x) => <Link key={x.k} href={x.k === "overview" ? base : `${base}?v=${x.k}`} scroll={false} className={x.k === v ? "on" : ""}>{x.label}{x.k === "requests" && openReq.length ? ` · ${openReq.length}` : ""}</Link>)}</nav>
 
       {v === "overview" && <Overview />}
+      {v === "requests" && <Requests />}
       {v === "knowledge" && <Knowledge />}
       {v === "log" && <Log />}
       {v === "kit" && <Kit />}
@@ -107,6 +119,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
           )}
         </div>
         <div className="qt-grid">
+          {openReq.length > 0 && <Link href={`${base}?v=requests`} className="card qt qt-link pj-req-tile"><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="alert" /></span><b>Правки</b></span><span className="qt-n">{openReq.length}</span></span>{openReq.slice(0, 2).map((r) => <span key={r.id} className="qt-l">{reqCode(r.id)} · {r.text}</span>)}<span className="qt-more">виправити →</span></Link>}
           <ListPop title="Головні фічі" ico="sparkles" items={lines(p!.features)} tone="accent" empty="ще не описано" />
           <ListPop title="З чого складається" ico="layers" brands items={lines(p!.stack)} empty="ще не описано" />
           <ListPop title="Плюси" ico="check" items={lines(p!.pros)} tone="good" />
@@ -139,6 +152,50 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
           <div className="mx-main-head"><b>Хронологія{tlAll.length > 6 ? ` · останні 6 з ${tlAll.length}` : ""}</b><Link href={`${base}?v=log`}>уся і план →</Link></div>
           <Timeline items={tlAll.slice(-6)} empty="Ще порожньо. Встав витяжку з Claude Code — етапи стануть блоками." />
         </div>
+      </div>
+    );
+  }
+
+  function Requests() {
+    const all = listRequests(id);
+    const open = all.filter((r) => r.status === "new" || r.status === "doing"), closed = all.filter((r) => !open.includes(r));
+    const row = (r: PRequest) => (
+      <div key={r.id} className={`card pj-req s-${r.status}`}>
+        <div className="pj-req-h">
+          <b className="pj-rc">{reqCode(r.id)}</b>
+          <span className={`tag ${r.status === "done" ? "ok" : r.status === "doing" ? "warn" : r.status === "rejected" ? "" : "bad"}`}>{REQ_STATUS[r.status]}</span>
+          <span className="mono">{fmtDate(r.created_at)} · {r.author || REQ_SOURCE[r.source] || "—"}</span>
+          <span className="grow" />
+          {(Object.keys(REQ_STATUS) as (keyof typeof REQ_STATUS)[]).filter((st) => st !== r.status).map((st) => (
+            <form key={st} action={requestAction}>{hid}<input type="hidden" name="id" value={r.id} /><input type="hidden" name="op" value="status" /><input type="hidden" name="status" value={st} /><button className="ghost small">{st === "done" ? "✓ виправлено" : st === "doing" ? "в роботу" : st === "new" ? "повернути" : "не робимо"}</button></form>
+          ))}
+          <form action={requestAction}>{hid}<input type="hidden" name="id" value={r.id} /><input type="hidden" name="op" value="delete" /><button className="ghost small" aria-label="Видалити">×</button></form>
+        </div>
+        <p className="pj-req-t">{r.text}</p>
+        {r.done_note && <span className="mono">{r.done_note}</span>}
+      </div>
+    );
+    return (
+      <div className="stack" style={{ gap: "1rem" }}>
+        <div className={`card stack${open.length ? " dv-focus" : ""}`} style={{ gap: "0.625rem" }}>
+          <b>{open.length ? `Відкритих правок: ${open.length}` : "Відкритих правок нема"}</b>
+          <div className="mono">Як працює: записуєш, що виправити → «Промпт: виправити» → вставляєш у чат «{chatTitle(p!)}» у Claude Code → він виправляє і видає оновлення → встав його сюди («Вставити витяжку» зверху). Правки, чиї коди R-N він назве закритими, закриються самі.</div>
+          <div className="inline" style={{ flexWrap: "wrap" }}>
+            {open.length > 0 && <ProductPrompt productId={id} mode="requests" primary label={`Промпт: виправити ${open.length}`} />}
+            {p!.chat_url && <a href={p!.chat_url} target="_blank" rel="noreferrer" className="btn ghost small">Чат Claude Code ↗</a>}
+          </div>
+        </div>
+        <form action={requestAction} className="card stack" style={{ gap: "0.5rem" }}>
+          {hid}
+          <b>Нова правка</b>
+          <VoiceTextarea name="text" required placeholder={"Що не так і як має бути. Можна кілька — розділи порожнім рядком.\nнапр.: На телефоні форма заявки не відправляється — кнопка сіра"} style={{ minHeight: "6rem" }} />
+          <div className="inline" style={{ flexWrap: "wrap" }}>
+            <input name="author" placeholder="від кого (клієнт / менеджер)" aria-label="Від кого" style={{ maxWidth: "18rem" }} />
+            <SubmitButton className="small">Записати</SubmitButton>
+          </div>
+        </form>
+        {open.length > 0 && <div className="stack" style={{ gap: "0.5rem" }}>{open.map(row)}</div>}
+        {closed.length > 0 && <details><summary className="h-link">Закриті · {closed.length}</summary><div className="stack" style={{ gap: "0.5rem", marginTop: "0.625rem" }}>{closed.map(row)}</div></details>}
       </div>
     );
   }
@@ -264,6 +321,26 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
             </form>
           </Pop>
         </div>
+        <form action={saveProductAction} className="card stack" style={{ gap: "0.5rem" }}>
+          {hid}
+          <b>Робоче місце · {productCode(id)}</b>
+          <div className="mono">Назви чат у Claude Code: «{chatTitle(p!)}». Посилання на чат — з адресного рядка claude.ai/code.</div>
+          <div className="pj-ws">
+            <label>Чат Claude Code<input name="chat_url" defaultValue={p!.chat_url} placeholder="https://claude.ai/code/session_…" inputMode="url" autoCapitalize="off" /></label>
+            <label>GitHub-репо<input name="repo_url" defaultValue={p!.repo_url} placeholder="https://github.com/…" inputMode="url" autoCapitalize="off" /></label>
+            <label>Сайт / застосунок<input name="prod_url" defaultValue={p!.prod_url} placeholder="https://…" inputMode="url" autoCapitalize="off" /></label>
+          </div>
+          <div><SubmitButton className="small">Зберегти</SubmitButton></div>
+        </form>
+        <form action={productOwnerAction} className="card inline" style={{ flexWrap: "wrap" }}>
+          {hid}
+          <b>Чий проєкт</b>
+          <select name="owner" defaultValue={p!.client_id ?? ""} aria-label="Чий проєкт">
+            <option value="">Мій продукт (загальний)</option>
+            {clientsAll.map((c) => <option key={c.id} value={c.id}>Клієнта: {c.name}</option>)}
+          </select>
+          <SubmitButton className="small">Зберегти</SubmitButton>
+        </form>
         <div className="eb-grid">
           {blocks.filter(([k]) => k !== "kit_md" || p!.kind === "kit" || p!.kit_md).map(([k, t, list, hint, wide]) => (
             <EditBlock key={k} title={t} name={k} value={String(p![k] ?? "")} list={list} hint={hint} wide={wide} action={saveProductAction} hidden={hid} rows={k === "kit_md" ? 16 : list ? 10 : 6} />

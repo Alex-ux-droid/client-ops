@@ -184,6 +184,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "tip_add", description: "Записати пораду в базу «Поради від Джері» (Саша побачить її під час роботи). Коли в розмові виникло щось корисне про бізнес, маркетинг, рекламу, продажі, переговори, термін чи факт — або Саша попросив «запамʼятай як пораду». Коротко: заголовок до 60 символів, текст 2–4 речення, тільки перевірені факти.", input_schema: obj({ topic: { type: "string", enum: Object.keys(TIP_TOPICS) }, title: str("Заголовок"), body: str("Текст поради: думка + як застосувати") }, ["topic", "title", "body"]) },
   { name: "tips_stats", description: "Поради дня: скільки показано, як Саша реагує по темах (знав / нове / не цікаво / детальніше) і які саме поради зачепили чи були відомі. Дивись, щоб розуміти його рівень і інтереси.", input_schema: obj({}) },
   { name: "system_updates", description: "Журнал оновлень системи: що Claude додав або змінив і коли (твої нові можливості). Дивись, коли не впевнений, чи щось уже вміє система.", input_schema: obj({ limit: int("Скільки останніх, за замовчуванням 20") }, []) },
+  { name: "product_request", description: "Правки проєкту (заявки на виправлення, коди R-N). action list | add | status | prompt. add — коли Саша (або клієнт через Сашу) каже, що в проєкті щось не так: text — що не так і як має бути, author — від кого. status: new|doing|done|rejected. prompt — повертає готовий промпт «виправити» для чату цього проєкту в Claude Code (Саша вставляє його сам). Проєкт шукай через product_get (код P-N = product_id N).", input_schema: obj({ product_id: int("ID продукту / проєкту (P-N → N)"), action: { type: "string", enum: ["list", "add", "status", "prompt"] }, text: str("Для add: що не так і як має бути"), author: str("Для add: від кого"), request_id: int("Для status (R-N → N)"), status: { type: "string", enum: ["new", "doing", "done", "rejected"] }, note: str("Для status: коротко що зробили / чому ні") }, ["product_id", "action"]) },
   { name: "product_get", description: "Наші продукти (вкладка «Продукти»): без product_id — список; з product_id — повний паспорт: що це, як працює, фічі, склад, посилання, плюси/мінуси, знання (що ламалось, інтеграції, юридичне), рішення, план, клієнти, події з програми. Перед роботою з продуктом або порадою клієнту про інструмент — дивись сюди.", input_schema: obj({ product_id: int("ID продукту") }) },
   { name: "product_save", description: "Створити (без product_id) або оновити паспорт продукту. kind: app (програма) | kit (набір / промпт) | service (послуга). status: idea|building|live|improving|paused. features/stack/links/pros/cons — ПОВНИЙ перелік по рядку. clients — назви або id клієнтів, які користуються (тільки ДОДАЄ; відвʼязати — лише Саша руками на сторінці продукту).", input_schema: obj({ product_id: int("ID для оновлення"), name: str("Назва"), kind: { type: "string", enum: ["app", "kit", "service"] }, status: { type: "string", enum: ["idea", "building", "live", "improving", "paused"] }, summary: str("Що це"), how: str("Як працює"), features: str("Фічі по рядку"), stack: str("Склад по рядку"), links: str("Посилання по рядку"), pros: str("Плюси"), cons: str("Мінуси"), next_step: str("Наступний крок"), clients: { type: "array", items: { type: "string" }, description: "Клієнти, що користуються" } }) },
   { name: "product_item", description: "Запис у продукті. action add | done | delete. kind: knowledge (cat fix|integration|legal|lesson — що ламалось, як підключали, юридичне/доступи/платежі, урок) | log (що зроблено) | decision | plan | idea. Саша розповідає про нюанс (напр. «телефонію важко підключити, бо…») — одразу knowledge.", input_schema: obj({ product_id: int("ID продукту"), action: { type: "string", enum: ["add", "done", "delete"] }, item_id: int("Для done/delete"), kind: { type: "string", enum: ["knowledge", "log", "decision", "plan", "idea"] }, cat: { type: "string", enum: ["fix", "integration", "legal", "lesson"] }, title: str("Коротко"), body: str("Деталі") }, ["product_id", "action"]) },
@@ -1101,10 +1102,34 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       return { ok: true };
     }
 
+    case "product_request": {
+      const r = await import("../repo/products");
+      const pid = need(id(input.product_id), "product_id обовʼязковий");
+      const p = need(r.getProduct(pid), "Продукту нема");
+      const href = `/products/${pid}?v=requests`;
+      if (input.action === "list") return { requests: r.listRequests(pid).slice(0, 40).map((x) => ({ code: r.reqCode(x.id), request_id: x.id, status: x.status, from: x.author || x.source, at: x.created_at, text: x.text, note: x.done_note })) };
+      if (input.action === "add") {
+        const rid = r.addRequest(pid, { text: need(s(input.text), "text обовʼязковий"), author: s(input.author), source: "jerry" });
+        act("product", `Правка ${r.reqCode(rid)} · ${p.name}`, href);
+        return { ok: true, code: r.reqCode(rid), request_id: rid };
+      }
+      if (input.action === "prompt") { const { requestPrompt } = await import("../products"); return { chat: r.chatTitle(p), chat_url: p.chat_url || null, prompt: requestPrompt(pid) }; }
+      if (input.action === "status") {
+        const x = need(r.getRequest(need(id(input.request_id), "request_id обовʼязковий")), "Правки нема");
+        if (x.product_id !== pid) throw new Error("Правка іншого проєкту");
+        const st = s(input.status);
+        if (!(st in r.REQ_STATUS)) return { error: "status: new | doing | done | rejected" };
+        r.setRequestStatus(x.id, st as "new", input.note != null ? s(input.note) : undefined);
+        act("product", `${r.reqCode(x.id)} → ${r.REQ_STATUS[st as "new"]}`, href);
+        return { ok: true };
+      }
+      return { error: "Невідома дія" };
+    }
+
     case "product_get": {
       const r = await import("../repo/products");
       const pid = id(input.product_id);
-      if (!pid) return { products: r.listProducts().map((p) => ({ product_id: p.id, name: p.name, kind: p.kind, status: p.status, summary: p.summary, clients: r.productClients(p.id).map((c) => c.name) })) };
+      if (!pid) { const rq = r.openRequestCounts(); return { products: r.listProducts().map((p) => ({ product_id: p.id, code: r.productCode(p.id), chat: r.chatTitle(p), name: p.name, kind: p.kind, status: p.status, summary: p.summary, client_project_of: p.client_id ?? null, open_requests: rq.get(p.id) ?? 0, clients: r.productClients(p.id).map((c) => c.name) })) }; }
       const p = need(r.getProduct(pid), "Продукту нема");
       const { productMd } = await import("../products");
       return { passport: productMd(p), events_7d: r.productEventCounts(pid), last_events: r.productEvents(pid, 8).map((e) => ({ at: e.received_at, event: e.event, summary: e.summary })) };

@@ -7,7 +7,7 @@ import Icon from "@/components/Icon";
 import { crmStats } from "@/lib/crm";
 import { productIssues } from "@/lib/products";
 import { listCrmLinks } from "@/lib/repo/crm";
-import { getOrg, listProducts, productClients } from "@/lib/repo/products";
+import { getOrg, listProducts, openRequestCounts, productClients } from "@/lib/repo/products";
 import { money } from "@/lib/config";
 import { ymd } from "@/lib/dates";
 import { monthLabel } from "@/lib/labels";
@@ -55,7 +55,8 @@ export default function Home() {
   const monthName = now.toLocaleDateString("uk-UA", { month: "long" });
   // Загальна картина: фокус організації, поломки наших продуктів, продажі клієнтів з CRM
   const orgFocus = (getOrg().focus || "").split("\n")[0].slice(0, 120);
-  const broken = listProducts().map((p) => { const i = productIssues(p.id); return { id: p.id, name: p.name, n: i.errors.reduce((a, x) => a + x.n, 0) + i.feedback.length, clients: productClients(p.id).map((c) => c.name).join(", ") }; }).filter((x) => x.n > 0);
+  const reqOpen = openRequestCounts();
+  const broken = listProducts().map((p) => { const i = productIssues(p.id); return { id: p.id, name: p.name, n: i.errors.reduce((a, x) => a + x.n, 0) + i.feedback.length, rq: reqOpen.get(p.id) ?? 0, clients: productClients(p.id).map((c) => c.name).join(", ") }; }).filter((x) => x.n > 0 || x.rq > 0);
   const since30 = new Date(Date.now() - 30 * 86400_000).toISOString();
   const crm = listCrmLinks().reduce((acc, l) => { const st = crmStats(l.client_id, since30); return { sales: acc.sales + st.sales, revenue: acc.revenue + st.revenue, cur: acc.cur || st.currency }; }, { sales: 0, revenue: 0, cur: "" });
 
@@ -165,10 +166,10 @@ export default function Home() {
               {broken.length > 0 && (
                 <div className="list flat">
                   {broken.map((b) => (
-                    <Link key={b.id} href={`/products/${b.id}?v=connect`} className="row">
+                    <Link key={b.id} href={`/products/${b.id}?v=${b.rq ? "requests" : "connect"}`} className="row">
                       <div className="row-main">
                         <div className="row-title"><Icon name="box" size={14} /> {b.name}</div>
-                        <div className="meta"><span className="tag bad">поломок: {b.n}</span>{b.clients && <span className="tag">{b.clients}</span>}</div>
+                        <div className="meta">{b.rq > 0 && <span className="tag warn">правок: {b.rq}</span>}{b.n > 0 && <span className="tag bad">поломок: {b.n}</span>}{b.clients && <span className="tag">{b.clients}</span>}</div>
                       </div>
                     </Link>
                   ))}
