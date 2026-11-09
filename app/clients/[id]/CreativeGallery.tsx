@@ -36,7 +36,7 @@ export default function CreativeGallery({ items }: { items: GalleryItem[] }) {
         {items.map((x, i) => (
           <button key={x.id} type="button" className={`cg-tile ${tone(x.verdicts)}`} onClick={() => { setOpen(i); setCard(0); }} title={x.name}>
             <span className="cg-thumb">
-              {x.img ? <img src={x.img} alt={x.name} loading="lazy" referrerPolicy="no-referrer" /> : <span className="cg-ph" />}
+              <Thumb srcs={[x.img, ...x.cards]} />
               {x.kind === "video" && <span className="cg-badge">▶</span>}
               {x.cards.length > 1 && <span className="cg-badge">{x.cards.length}</span>}
             </span>
@@ -88,4 +88,12 @@ export default function CreativeGallery({ items }: { items: GalleryItem[] }) {
       )}
     </>
   );
+}
+
+// Картинка Meta може протухнути (посилання CDN живе обмежений час) — пробуємо наступну, інакше акуратна заглушка
+function Thumb({ srcs }: { srcs: (string | null | undefined)[] }) {
+  const list = srcs.filter((x): x is string => !!x);
+  const [i, setI] = useState(0);
+  if (i >= list.length) return <span className="cg-ph"><span>нема прев\u2019ю</span></span>;
+  return <img src={list[i]} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setI(i + 1)} />;
 }
