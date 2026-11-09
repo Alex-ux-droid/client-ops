@@ -2594,3 +2594,9 @@ button.kp-car-btn:hover { background: #fff; color: #1c1e21; }
 .cl-sub { color: var(--muted); font-size: 0.875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-meta { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem; font-size: 0.8125rem; color: var(--muted); min-width: 0; }
 .cl-meta .tag { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+
+/* Плитки-кнопки (Головне по рекламі тощо): довгі рядки не розпирають картку на телефоні */
+button.pop-card { grid-template-columns: minmax(0, 1fr); }
+button.pop-card > * { min-width: 0; max-width: 100%; }
+button.pop-card.mx-main ul { min-width: 0; }
+button.pop-card .qt-more { font-size: 0.8125rem; }
