@@ -2,10 +2,8 @@ import Link from "next/link";
 import LogoMark from "@/components/LogoMark";
 import { logoMap } from "@/lib/repo/logos";
 import { money } from "@/lib/config";
-import { fmtDate } from "@/lib/dates";
-import { STAGE_LABEL, STATUS_LABEL, STATUS_TAG } from "@/lib/labels";
+import { STATUS_LABEL } from "@/lib/labels";
 import { clientFlags, listClients } from "@/lib/repo/clients";
-import { mainMetricBrief } from "@/lib/repo/metrics";
 
 const FILTERS = [
   { k: "work", label: "В роботі" },
@@ -45,24 +43,16 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         {clients.length ? clients.map((c) => {
           const flags = clientFlags(c);
           return (
-            <Link key={c.id} href={`/clients/${c.id}`} className="row">
-              <LogoMark kind="client" id={c.id} name={c.name} src={logos.get(c.id)} size={40} />
+            <Link key={c.id} href={`/clients/${c.id}`} className="row cl-app">
+              <LogoMark kind="client" id={c.id} name={c.name} src={logos.get(c.id)} size={52} />
               <div className="row-main">
                 <div className="row-title">{c.name}</div>
-                <div className="row-sub">{[c.niche, c.offer].filter(Boolean).join(" · ")}</div>
-                <div className="meta">
-                  {c.kind === "partner" && <span className="tag accent">партнерство</span>}
+                <div className="cl-sub">{(c.niche || c.offer || "").split(/[·.\n]/)[0].trim() || "—"}</div>
+                <div className="cl-meta">
+                  <span>{c.kind === "partner" ? `партнерство · ${c.share_percent || "?"}%` : c.revenue_model === "profit_share" ? `частка ${c.share_percent || "?"}%` : c.fee_monthly ? `${money(c.fee_monthly)}/міс` : STATUS_LABEL[c.status]}</span>
                   {c.deleted_at && <span className="tag bad">у кошику</span>}
-                  {(() => { const ns = mainMetricBrief(c.id); return ns ? <span className={`tag ${ns.tone}`} title={ns.title}>★ {ns.text}</span> : null; })()}
-                  <span className={`tag ${STATUS_TAG[c.status]}`}>{STATUS_LABEL[c.status]}{c.status === "lead" ? ` · ${STAGE_LABEL[c.stage]}` : ""}</span>
-                  {flags.map((fl) => <span key={fl.text} className={`tag ${fl.level}`} title={fl.reason}>{fl.text}</span>)}
-                  {c.next_step && <span className="mono" style={{ color: "var(--link)" }}>→ {c.next_step}</span>}
+                  {flags.length > 0 && <span className={`tag ${flags[0].level}`} title={flags.map((f) => `${f.text}${f.reason ? ` — ${f.reason}` : ""}`).join("\n")}>{flags[0].text}{flags.length > 1 ? ` +${flags.length - 1}` : ""}</span>}
                 </div>
-              </div>
-              <div style={{ textAlign: "right", flex: "none" }}>
-                <div className="mono" style={{ color: "var(--text)" }}>{c.revenue_model === "profit_share" ? `частка ${c.share_percent || "?"}%` : c.revenue_model === "mixed" ? `${c.fee_monthly ? `${money(c.fee_monthly)}/міс + ` : ""}${c.share_percent || "?"}%` : c.fee_monthly ? `${money(c.fee_monthly)}/міс` : "—"}</div>
-                <div className="mono">{c.open_tasks} задач</div>
-                <div className="mono">{c.last_work ? fmtDate(c.last_work) : "—"}</div>
               </div>
             </Link>
           );

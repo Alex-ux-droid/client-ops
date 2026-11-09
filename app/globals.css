@@ -2587,3 +2587,10 @@ button.kp-car-btn:hover { background: #fff; color: #1c1e21; }
 .pb-nums { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .pb-nums label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8125rem; color: var(--muted); width: 9rem; }
 .pb-new { border-top: 1px solid var(--line); padding-top: 0.5rem; }
+
+/* Список клієнтів як в App Store: лого, назва, один рядок опису, одна мітка */
+.cl-app { align-items: center; }
+.cl-app .row-title { font-size: 1.0625rem; }
+.cl-sub { color: var(--muted); font-size: 0.875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-meta { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem; font-size: 0.8125rem; color: var(--muted); min-width: 0; }
+.cl-meta .tag { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
