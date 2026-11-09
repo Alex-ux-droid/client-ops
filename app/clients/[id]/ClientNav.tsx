@@ -16,7 +16,7 @@ export default function ClientNav({ id, name, status, statusTag, sections, logo 
   const groups = [...new Set(visible.map((s) => s.group))];
   return (
     <aside className="client-side" aria-label={`Клієнт ${name}`}>
-      <Link href="/clients" className="client-back" title="Усі клієнти"><Icon name="back" size={18} /> <span className="lbl">Усі клієнти</span></Link>
+      <div className="side-top"><Link href="/clients" className="client-back" title="Усі клієнти"><Icon name="back" size={18} /> <span className="lbl">Усі клієнти</span></Link><SideToggle /></div>
       <Link href={`/clients/${id}`} className="client-name" title={name}>
         {logo ? <img className="client-initial client-logo" src={logo} alt="" /> : <i className="client-initial">{name.replace(/^Тест:\s*/, "").trim().slice(0, 1).toUpperCase()}</i>}
         <b>{name}</b>
@@ -45,7 +45,6 @@ export default function ClientNav({ id, name, status, statusTag, sections, logo 
           ))}
         </details>
       )}
-      <div className="side-foot"><SideToggle /></div>
     </aside>
   );
 }

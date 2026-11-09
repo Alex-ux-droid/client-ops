@@ -120,7 +120,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
   return (
     <div className="shell">
       <aside className="side">
-        <Link href="/" className="brand">Client Ops</Link>
+        <div className="side-top"><Link href="/" className="brand">Client Ops</Link><SideToggle /></div>
         <button className="side-search" onClick={() => setSearch(true)}>
           <span className="inline"><Icon name="search" size={16} /> <span className="lbl">Пошук</span></span><kbd>Ctrl K</kbd>
         </button>
@@ -129,7 +129,6 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
         </div>
         {links}
         <div className="side-foot">
-          <SideToggle />
           <form action={logout}><button className="ghost small side-logout">Вийти</button></form>
         </div>
       </aside>
