@@ -10,6 +10,9 @@ import {
   type Product, type ProductKind, type ProductStatus,
 } from "./repo/products";
 import { lines } from "./repo/strategy";
+import { getClient } from "./repo/clients";
+import { getService } from "./repo/services";
+import { isServiceType, serviceDef } from "./services";
 import { getSetting, setSetting } from "./repo/settings";
 import { getApiKey, setEnvVar } from "./secrets";
 
@@ -81,16 +84,47 @@ const orgShort = () => {
   return (Object.keys(ORG_FIELDS) as (keyof typeof ORG_FIELDS)[]).filter((k) => o[k]).map((k) => `${ORG_FIELDS[k].label}: ${o[k].replace(/\s+/g, " ").slice(0, 400)}`).join("\n");
 };
 
+// Послуга клієнта: хто клієнт і що вже записано в анкеті послуги — щоб Claude знав, для кого і навіщо
+function serviceCtx(p: Product): string {
+  if (!p.client_id || !p.service_type) return "";
+  const c = getClient(p.client_id);
+  if (!c) return "";
+  const sv = isServiceType(p.service_type) ? getService(c.id, p.service_type) : undefined;
+  const def = isServiceType(p.service_type) ? serviceDef(p.service_type) : undefined;
+  const facts = sv && def ? def.fields.filter((f) => sv.details[f.key]).map((f) => `${f.label}: ${sv.details[f.key].replace(/\s+/g, " ").slice(0, 300)}`) : [];
+  return [
+    `Клієнт: ${c.name}${c.niche ? ` — ${c.niche}` : ""}${c.city ? `, ${c.city}` : ""}`,
+    c.offer && `Що продає: ${c.offer.replace(/\s+/g, " ").slice(0, 300)}`,
+    c.needs && `Потреби клієнта: ${c.needs.replace(/\s+/g, " ").slice(0, 300)}`,
+    def && `Послуга: ${def.label}${sv?.tool_name ? ` · ${sv.tool_name}` : ""}`,
+    ...facts,
+  ].filter(Boolean).join("\n");
+}
+const DEV_FOCUS = `Мета запису — розвиток, а не «послугу здали»: зафіксувати, що зроблено, які фічі й інтеграції (API, CRM, пікселі, форми, боти), що можна продати клієнту далі і що саме дасть йому більше заявок / продажів / економії часу. У розділі «Ідеї» — конкретні наступні доробки з користю для бізнесу клієнта (1 рядок = ідея → навіщо), без води.`;
+
 // Промпт у Claude Code: працюємо над існуючим продуктом (весь паспорт) або описуємо новий
 export function productPrompt(productId: number | null): string {
   const p = productId ? getProduct(productId) : undefined;
   const org = orgShort();
+  // Послуга клієнта без паспорта — одразу просимо повну витяжку
+  if (p && p.client_id && !hasPassport(p.id)) return `Я Саша: роблю клієнтам сайти, CRM, автоматизації і веду кожну систему клієнта в Client Ops як продукт, щоб вона розвивалась. Ти — в чаті / репозиторії, де ми робимо «${p.name}».
+
+<client>
+${serviceCtx(p)}
+</client>
+
+${DEV_FOCUS}
+
+Подивись код, структуру, історію комітів і все, що ми робили в цьому чаті. Нічого не змінюй. Видай повну витяжку СТРОГО в такому блоці (тільки факти з коду і нашої роботи, без вигадок, без паролів/токенів — замість них «[ключ у сховищі]»; порожні розділи пропусти):
+
+${EXTRACT_TEMPLATE.replace("Продукт: назва програми", `Продукт: ${p.name}`).replace("Тип: програма / набір / послуга\n", "")}`;
   if (!p) return `Я Саша: будую для клієнтів системи (CRM, боти заявок, телефонія, реклама) через AI і веду всі свої продукти в системі Client Ops. Зараз ти в репозиторії програми, яку я хочу внести як продукт.
 ${org ? `\nПро нас:\n${org}\n` : ""}
 Подивись код, README, історію комітів і що ми робили в цьому чаті. Нічого не змінюй. Видай паспорт продукту СТРОГО в такому блоці (тільки факти з коду і нашої роботи, без вигадок, без паролів/токенів — замість них «[ключ у сховищі]»; порожні розділи пропусти). Особливо важливо: що ламалось і як виправили, юридичні моменти, доступи, платежі — щоб наступного разу не наступати на ті самі граблі.
 
 ${EXTRACT_TEMPLATE}`;
-  return `Я Саша: веду свої продукти в системі Client Ops. Працюємо над продуктом «${p.name}». Нижче — його паспорт з моєї системи. Спирайся на нього: не ламай те, що працює, враховуй, що вже ламалось і які були юридичні/технічні нюанси. Відповідай українською, по суті.
+  const sc = serviceCtx(p);
+  return `Я Саша: веду свої продукти в системі Client Ops. Працюємо над продуктом «${p.name}».${sc ? `\n\n<client>\n${sc}\n</client>\n${DEV_FOCUS}` : ""} Нижче — його паспорт з моєї системи. Спирайся на нього: не ламай те, що працює, враховуй, що вже ламалось і які були юридичні/технічні нюанси. Відповідай українською, по суті.
 ${org ? `\n<org>\n${org}\n</org>\n` : ""}
 <product>
 ${productMd(p)}
@@ -123,6 +157,8 @@ export const updateTemplate = (name: string, ver: number, since: string) => `${U
 - …
 Наступні кроки:
 - …
+Ідеї, як розвивати далі (ідея → навіщо):
+- …
 [/CLIENT-OPS]`;
 
 // Промпт «Оновлення N»: Claude Code бачить, на чому ми зупинились, і віддає тільки нове
@@ -135,8 +171,9 @@ export function updatePrompt(productId: number): string {
   const tl = productTimeline(productId).slice(-5);
   const since = (last?.created_at ?? tl.at(-1)?.created_at ?? "").slice(0, 10);
   const open = listPItems(productId, "plan").filter((x) => !x.done).map((x) => x.title);
+  const sc = serviceCtx(p);
   return `Продукт «${p.name}» уже записаний у моїй системі Client Ops. Мені потрібне ОНОВЛЕННЯ ${ver} — тільки те, що зроблено ПІСЛЯ того, на чому ми зупинились. Не повторюй старе.
-
+${sc ? `\n<client>\n${sc}\n</client>\n${DEV_FOCUS}\n` : ""}
 На чому зупинились у моїй системі:
 ${last ? `- Останнє оновлення: «${last.title}» (${since})${last.body ? `
 ${last.body.replace(/\*\*/g, "").split("\n").filter(Boolean).slice(0, 6).map((x) => `  ${x}`).join("\n")}` : ""}` : `- Стартовий паспорт від ${since || "—"}`}
@@ -220,6 +257,7 @@ export function applyProductOps(raw: Ops, productId: number | null, isUpdate = f
     links: P.links || undefined, pros: P.pros || undefined, cons: P.cons || undefined, next_step: P.next_step || undefined,
   };
   let id = productId && getProduct(productId) ? productId : 0;
+  if (id && getProduct(id)?.client_id) patch.name = undefined; // назва послуги клієнта («Сайт · Клієнт») лишається
   if (!id && patch.name) id = listProducts().find((p) => p.name.toLowerCase() === patch.name!.toLowerCase())?.id ?? 0;
   if (id) { updateProduct(id, patch); sum.push("Паспорт оновлено"); }
   else { id = addProduct({ ...patch, name: patch.name || "Новий продукт" }); sum.push(`Новий продукт «${patch.name || "Новий продукт"}»`); }
