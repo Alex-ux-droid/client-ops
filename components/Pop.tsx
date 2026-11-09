@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 
 export default function Pop({ trigger, title, sub, children, className = "pop-trigger", wide, closeOnSubmit }: {
   trigger: React.ReactNode; title?: React.ReactNode; sub?: React.ReactNode; children: React.ReactNode; className?: string; wide?: boolean;
-  /** закрити після відправки форми всередині (дані збережуться і сторінка оновиться сама) */ closeOnSubmit?: boolean;
+  /** закрити після відправки форми або кліку по посиланню всередині (дані збережуться і сторінка оновиться сама) */ closeOnSubmit?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -29,7 +29,8 @@ export default function Pop({ trigger, title, sub, children, className = "pop-tr
               <div style={{ minWidth: 0 }}>{title && <h3>{title}</h3>}{sub && <div className="mono">{sub}</div>}</div>
               <button type="button" className="ghost small" onClick={() => setOpen(false)} aria-label="Закрити">✕</button>
             </div>
-            <div className="pop-body" onSubmit={closeOnSubmit ? (e) => { e.stopPropagation(); setTimeout(() => setOpen(false), 350); } : undefined}>{children}</div>
+            <div className="pop-body" onSubmit={closeOnSubmit ? (e) => { e.stopPropagation(); setTimeout(() => setOpen(false), 350); } : undefined}
+              onClick={closeOnSubmit ? (e) => { if ((e.target as HTMLElement).closest("a[href]")) setOpen(false); } : undefined}>{children}</div>
           </div>
         </div>,
         document.body,

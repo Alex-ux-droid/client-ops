@@ -2,6 +2,7 @@ import LogoMark from "@/components/LogoMark";
 import { logoSrc } from "@/lib/repo/logos";
 import Link from "next/link";
 import Pop from "@/components/Pop";
+import Icon from "@/components/Icon";
 import TabsScroll from "./TabsScroll";
 import { notFound, redirect } from "next/navigation";
 import { restoreClientAction, saveNextStep } from "@/app/actions";
@@ -47,6 +48,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const shown = tabs.filter((t) => !t.hidden || t.k === tab), more = tabs.filter((t) => t.hidden && t.k !== tab);
   const service = services.find((s) => s.type === tab);
   const flags = clientFlags(c);
+  const today = kyivDay(0);
   const ns = mainMetricBrief(id);
   const payments = listPayments({ clientId: id });
   const paidTotal = payments.filter((p) => p.paid_at).reduce((s, p) => s + p.amount, 0);
@@ -79,9 +81,10 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             {subtitle && <div className="hub-sub">{subtitle}</div>}
             <div className="meta">
               <span className={`tag ${STATUS_TAG[c.status]}`}>{STATUS_LABEL[c.status]}{c.status === "lead" ? ` · ${STAGE_LABEL[c.stage]}` : ""}</span>
-              {services.filter((s) => s.status === "active").map((s) => <Link key={s.type} href={`/clients/${id}?tab=${s.type}`} className="tag accent">{SERVICES[s.type as ServiceType].short}</Link>)}
+              {services.filter((s) => s.status === "active").map((s) => <Link key={s.type} href={`/clients/${id}?tab=${s.type}`} className="tag accent hub-svc">{SERVICES[s.type as ServiceType].short}</Link>)}
               {ns && <span className={`tag ${ns.tone === "bad" ? "bad" : ns.tone === "ok" ? "ok" : ""} ns-tag`} title={ns.title}>★ {ns.text}</span>}
-              {flags.map((f) => <span key={f.text} className={`tag ${f.level}`} title={f.reason}>{f.text}</span>)}
+              {flags.map((f, i) => <span key={f.text} className={`tag ${f.level}${i >= 2 ? " hub-more" : ""}`} title={f.reason}>{f.text}</span>)}
+              {flags.length > 2 && <span className="tag phone-only" title={flags.slice(2).map((f) => f.text).join("\n")}>+{flags.length - 2}</span>}
             </div>
             </div>
           </div>
@@ -99,13 +102,20 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             <button className="small">Повернути</button>
           </form>
         )}
-        <form action={saveNextStep} className="next-step">
-          <input type="hidden" name="id" value={id} />
-          <span>Наступний крок</span>
-          <input name="next_step" defaultValue={c.next_step} placeholder="Що робимо далі з цим клієнтом?" aria-label="Наступний крок" />
-          <input name="next_step_at" type="date" defaultValue={c.next_step_at ?? ""} aria-label="До якої дати" title="До якої дати" className="ns-date" />
-          <button className="ghost small">Ок</button>
-        </form>
+        <Pop className="pop-card ns-pill" title="Наступний крок" closeOnSubmit trigger={
+          <>
+            <span className="ns-pill-k">Далі</span>
+            <span className="ns-pill-t">{c.next_step || "що робимо далі з клієнтом? — натисни"}</span>
+            {c.next_step_at && <span className={`tag ${c.next_step_at < today ? "bad" : ""}`}>до {c.next_step_at.slice(8, 10)}.{c.next_step_at.slice(5, 7)}</span>}
+          </>
+        }>
+          <form action={saveNextStep} className="stack" style={{ gap: "0.5rem" }}>
+            <input type="hidden" name="id" value={id} />
+            <textarea name="next_step" defaultValue={c.next_step} rows={3} placeholder="Що робимо далі з цим клієнтом?" aria-label="Наступний крок" />
+            <label className="mono">До якої дати <input name="next_step_at" type="date" defaultValue={c.next_step_at ?? ""} /></label>
+            <div><button className="small">Зберегти</button></div>
+          </form>
+        </Pop>
 
       </div>
       )}
@@ -117,12 +127,19 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
             {t.k === "setup" ? "Налаштування" : t.svc ? SERVICES[t.k as ServiceType].short : t.label}{t.badge ? <b>{t.badge}</b> : null}
           </Link>
         ))}
-        {more.length > 0 && (
-          <Pop className="pop-trigger pop-inline tab-add" title="Додати розділ" trigger={<>+ Розділ</>}>
-            <p className="mono" style={{ marginTop: 0 }}>Розділи без даних сховані. Відкриєш — розділ лишиться в меню цього клієнта.</p>
-            <div className="rd-areas">{more.map((m) => <Link key={m.k} href={`/clients/${id}?tab=${m.k}&add=1`} scroll={false}>{m.label}</Link>)}</div>
-          </Pop>
-        )}
+        <Pop className="pop-trigger pop-inline tab-all" title="Розділи клієнта" closeOnSubmit trigger={<Icon name="grid" size={18} />}>
+          <div className="sec-grid">
+            {shown.map((t) => (
+              <Link key={t.k} href={t.k === "overview" ? `/clients/${id}` : `/clients/${id}?tab=${t.k}`} scroll={false} className={t.k === tab ? "on" : ""}>
+                <Icon name={t.ico} size={20} /><span>{t.k === "setup" ? "Налаштування" : t.label}</span>{t.badge ? <b>{t.badge}</b> : null}
+              </Link>
+            ))}
+          </div>
+          {more.length > 0 && <>
+            <div className="mono" style={{ margin: "0.75rem 0 0.5rem" }}>Сховані (ще без даних) — відкриєш, і розділ лишиться в меню:</div>
+            <div className="sec-grid dim">{more.map((m) => <Link key={m.k} href={`/clients/${id}?tab=${m.k}&add=1`} scroll={false}><Icon name={m.ico} size={20} /><span>{m.label}</span></Link>)}</div>
+          </>}
+        </Pop>
       </nav>
       <TabsScroll tab={tab} />
       {tab !== "overview" && <h1 className="desk-only section-title">{tabs.find((t) => t.k === tab)?.label}</h1>}
