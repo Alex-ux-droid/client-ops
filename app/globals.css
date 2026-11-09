@@ -96,7 +96,7 @@ h3 { font-size: 1rem; }
   }
   .side .brand { padding: 0 0.5rem 1.25rem; }
   .shell { padding-left: 15rem; }
-  .main { padding: 2rem 2.5rem 4rem; }
+  .main { padding: 2rem clamp(1.5rem, 2.5vw, 3.5rem) 4rem; max-width: none; } /* на компʼютері — уся ширина вікна */
 }
 .side-search {
   display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); border-color: var(--line-strong); color: var(--muted);
@@ -479,11 +479,9 @@ b.bad { color: var(--bad); font-weight: 500; }
 /* Великі монітори: усе пропорційно більше і ширше */
 @media (min-width: 1600px) {
   html { font-size: 17px; }
-  .main { max-width: 96rem; }
 }
 @media (min-width: 2200px) {
   html { font-size: 19px; }
-  .main { max-width: 110rem; }
 }
 
 /* ---------- Картка клієнта: послуги, папки ---------- */
@@ -1968,7 +1966,7 @@ button.pop-card:hover { background: var(--bg-raise); border-color: var(--line-st
 button.pop-card.dv-focus { border-color: var(--accent); background: var(--accent-soft); }
 
 /* Плитка-список з попапом (components/ListPop.tsx) */
-.qt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.625rem; }
+.qt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.625rem; }
 button.pop-card.qt { gap: 0.3rem; padding: 0.875rem 1rem; min-width: 0; }
 .qt-h { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
 .qt-n { font-size: 0.8125rem; color: var(--muted); background: var(--bg-input); border: 1px solid var(--line); border-radius: 999px; padding: 0 0.5rem; }
