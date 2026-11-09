@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { capOn } from "@/lib/agent/caps";
 import { importExtract, partPrompt } from "@/lib/strategy";
 import { createTask } from "@/lib/repo/tasks";
+import { addPathItem, deletePathItem, getPathItem, isPathStage, PATH_STAGES, PATH_STATUS, saveBoard, updatePathItem, type Board, type PathStage, type PathStatus } from "@/lib/repo/strategyPath";
 import { addHypothesis, deleteHypothesis, getHypothesis, HYP_STATUS, updateHypothesis, type HypStatus } from "@/lib/repo/hypotheses";
 import { addItem, addPart, getStrategy, deleteItem, deletePart, getItem, getPart, HORIZONS, saveStrategy, updateItem, updatePart, type PartKind, type PartStatus, type SItemKind } from "@/lib/repo/strategy";
 
@@ -86,4 +87,44 @@ export async function hypothesisAction(fd: FormData) {
     }
   }
   re(cid);
+}
+
+// ---- Шлях: дірки → червоні → жовті → зелені
+export async function pathAction(fd: FormData) {
+  await requireUser();
+  const cid = Number(fd.get("client_id"));
+  const op = str(fd, "op");
+  if (op === "add") {
+    const stage = str(fd, "stage");
+    // кілька рядків за раз — кожен окремим пунктом
+    if (isPathStage(stage)) for (const t of str(fd, "title").split("\n").map((x) => x.replace(/^\s*[-*•]\s*/, "").trim()).filter(Boolean)) addPathItem(cid, { stage, title: t });
+    return re(cid);
+  }
+  const it = getPathItem(Number(fd.get("id")));
+  if (!it || it.client_id !== cid) return;
+  if (op === "toggle") updatePathItem(it.id, { status: it.status === "done" ? "open" : "done" });
+  else if (op === "status" && str(fd, "status") in PATH_STATUS) updatePathItem(it.id, { status: str(fd, "status") as PathStatus });
+  else if (op === "move" && isPathStage(str(fd, "stage"))) updatePathItem(it.id, { stage: str(fd, "stage") as PathStage });
+  else if (op === "edit") updatePathItem(it.id, { ...(str(fd, "title") ? { title: str(fd, "title") } : {}), body: str(fd, "body") });
+  else if (op === "delete") deletePathItem(it.id);
+  else if (op === "task" && !it.task_id) {
+    const tid = createTask({ title: it.title, client_id: cid, details: [`Стратегія → Шлях → ${PATH_STAGES[it.stage].label}`, it.body].filter(Boolean).join("\n\n"), due_date: null, priority: it.stage === "holes" || it.stage === "red" ? "high" : undefined });
+    updatePathItem(it.id, { task_id: tid, status: it.status === "open" ? "doing" : it.status });
+  }
+  re(cid);
+}
+
+// ---- Дошка-детектив: зберігаємо весь стан одним JSON (з обмеженнями, щоб не роздути базу)
+export async function saveBoardAction(clientId: number, b: Board): Promise<{ ok: boolean; at?: string }> {
+  await requireUser();
+  const num = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) ? Math.round(v) : d);
+  const nodes = (Array.isArray(b?.nodes) ? b.nodes : []).slice(0, 600).map((n) => ({
+    id: String(n.id).slice(0, 40), x: num(n.x), y: num(n.y), w: Math.min(900, Math.max(80, num(n.w, 200))),
+    text: String(n.text ?? "").slice(0, 3000), color: String(n.color ?? "yellow").slice(0, 20), kind: n.kind === "title" ? "title" as const : "note" as const,
+  }));
+  const ids = new Set(nodes.map((n) => n.id));
+  const edges = (Array.isArray(b?.edges) ? b.edges : []).slice(0, 1500).filter((e) => ids.has(String(e.from)) && ids.has(String(e.to)))
+    .map((e) => ({ id: String(e.id).slice(0, 40), from: String(e.from), to: String(e.to), label: String(e.label ?? "").slice(0, 200) }));
+  saveBoard(clientId, { nodes, edges });
+  return { ok: true, at: new Date().toISOString() };
 }

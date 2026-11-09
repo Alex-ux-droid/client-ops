@@ -13,6 +13,10 @@ import { fmtDate } from "@/lib/dates";
 import { listLabForClient } from "@/lib/repo/lab";
 import { getStrategy, HORIZONS, planConflict, KNOW_CATS, lines, listItems, listParts, PART_KINDS, PART_STATUS, type Part, type SItem } from "@/lib/repo/strategy";
 import Hypotheses from "./Hypotheses";
+import Path from "./Path";
+import Board from "./Board";
+import { boardCount, getBoard } from "@/lib/repo/strategyPath";
+import { getClient } from "@/lib/repo/clients";
 import { crmAlerts } from "@/lib/repo/crmAlerts";
 import { getClientMemory } from "@/lib/repo/clientMemory";
 import { addItemAction, itemAction, savePartAction, saveSummaryAction } from "./actions";
@@ -34,6 +38,7 @@ export default function StrategyTab({ clientId, sv, p }: { clientId: number; sv?
   const part = sv === "part" ? parts.find((x) => x.id === Number(p)) : undefined;
   const v = part ? "systems" : VIEWS.find((x) => x.k === sv)?.k ?? "overview";
   const hid = <input type="hidden" name="client_id" value={clientId} />;
+  if (sv === "board") return <Board clientId={clientId} name={getClient(clientId)?.name ?? ""} initial={getBoard(clientId)} back={base} />;
   return (
     <section className="st stack">
       <div className="st-head">
@@ -93,6 +98,12 @@ function Overview({ clientId, parts, base, hid }: { clientId: number; parts: Par
   return (
     <div className="stack" style={{ gap: "1rem" }}>
       <Conflict clientId={clientId} />
+      <Path clientId={clientId} />
+      <Link href={`${base}&sv=board`} className="dk-open">
+        <span className="dk-open-ico"><Icon name="layers" size={22} /></span>
+        <span><b>Дошка</b><span className="mono">{boardCount(clientId) ? `${boardCount(clientId)} стікерів — відкрити` : "як Miro / детектив: стікери, нитки між ними, вільна карта думок"}</span></span>
+        <span className="dk-open-go">Відкрити →</span>
+      </Link>
       <div className="st-sum3">
         {field("focus", "Головне зараз", "1–2 речі, на яких фокус", "flag", true)}
         {field("where_now", "Де ми зараз", "що вже є і що болить", "compass")}

@@ -145,6 +145,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "strategy_get", description: "Стратегія клієнта (вкладка «Стратегія» в картці): конспект (де ми / куди йдемо / фокус), частини екосистеми з part_id (що будуємо, що надаємо, сервіси), план тиждень/місяць/далі з item_id, висновки. Перед планом по клієнту — дивись сюди.", input_schema: obj({ client_id: int("ID клієнта"), part_id: int("Деталі однієї частини: склад, плюси/мінуси, знання, рішення, хроніка") }, ["client_id"]) },
   { name: "strategy_update", description: "Оновити конспект стратегії клієнта: where_now (де ми), goal (куди йдемо: місяці/роки), focus (головне зараз), insights (висновки/патерни — ПОВНИЙ текст пунктами). Передавай тільки те, що міняєш.", input_schema: obj({ client_id: int("ID клієнта"), where_now: str("Де ми зараз"), goal: str("Куди йдемо"), focus: str("Головне зараз"), insights: str("Висновки повністю") }, ["client_id"]) },
   { name: "strategy_part", description: "Частина екосистеми клієнта. action add | update | delete. kind: build (будуємо: CRM, сайт, бот) | service (надаємо: реклама, навчання) | tool (сервіси й інтеграції). status: plan|building|live|improving|paused. stack/pros/cons — по рядку, ПОВНИЙ перелік. Не створюй частини, про які Саша не казав.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["add", "update", "delete"] }, part_id: int("Для update/delete"), title: str("Назва"), kind: { type: "string", enum: ["build", "service", "tool"] }, status: { type: "string", enum: ["plan", "building", "live", "improving", "paused"] }, summary: str("Що це, 1–2 речення"), stack: str("З чого складається, по рядку"), pros: str("Плюси, по рядку"), cons: str("Мінуси/ризики, по рядку"), next_step: str("Наступний крок") }, ["client_id", "action"]) },
+  { name: "strategy_path", description: "Шлях клієнта у Стратегії — 4 етапи по черзі: holes (дірки — що протікає, латаємо першим) → red (червоні проблеми) → yellow (жовті) → green (зелене: підкручуємо, вдосконалюємо). action list | add | status | move | delete | to_task. Додавай тільки зі слів Саші або явних фактів (переписка, цифри).", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["list", "add", "status", "move", "delete", "to_task"] }, path_id: int("Для status/move/delete/to_task"), stage: { type: "string", enum: ["holes", "red", "yellow", "green"] }, title: str("Що саме (для add)"), body: str("Деталі"), status: { type: "string", enum: ["open", "doing", "done"] } }, ["client_id", "action"]) },
   { name: "strategy_item", description: "Запис у стратегії клієнта. action add | update | delete | done | to_task. kind: plan (крок плану, horizon week|month|later) | log (хроніка: що зроблено) | knowledge (cat fix|integration|lesson) | decision | idea. part_id — привʼязка до частини. to_task — зробити з кроку задачу.", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["add", "update", "delete", "done", "to_task"] }, item_id: int("Для update/delete/done/to_task"), kind: { type: "string", enum: ["plan", "log", "knowledge", "decision", "idea"] }, title: str("Заголовок"), body: str("Деталі"), horizon: { type: "string", enum: ["week", "month", "later", "done"] }, cat: { type: "string", enum: ["fix", "integration", "lesson"] }, part_id: int("ID частини"), owner: str("Для рішення: хто відповідає"), review_date: str("Для рішення: переглянути до YYYY-MM-DD"), other_client_ok: { type: "boolean", description: "Тільки якщо система сказала, що текст про іншого клієнта, а Саша підтвердив, що писати сюди" } }, ["client_id", "action"]) },
   { name: "hypotheses", description: "Гіпотези клієнта (Стратегія → Гіпотези). action list | add (statement «Якщо …, то …», action, metric_id з client_metrics, expected, deadline YYYY-MM-DD) | update (hypothesis_id + поля) | close (hypothesis_id, status confirmed|rejected, result, to_insights — дописати у Висновки) | delete. Одна гіпотеза = одна зміна + метрика + дата.", input_schema: obj({ action: { type: "string", enum: ["list", "add", "update", "close", "delete"] }, client_id: int("ID клієнта"), hypothesis_id: int("ID гіпотези"), statement: str("Якщо …, то …"), action_text: str("Що робимо"), metric_id: int("ID метрики"), expected: str("Що очікуємо"), deadline: str("YYYY-MM-DD"), status: { type: "string", enum: ["idea", "running", "confirmed", "rejected"] }, result: str("Результат"), to_insights: { type: "boolean" } }, ["action", "client_id"]) },
   { name: "strategy_import", description: "Розкласти витяжку з іншого чату / Claude Code (мітка [CLIENT-OPS:СТРАТЕГІЯ]) по стратегії клієнта: частина, хроніка, знання, рішення, план, висновки. text — уся витяжка як є.", input_schema: obj({ client_id: int("ID клієнта"), text: str("Текст витяжки"), other_client_ok: { type: "boolean", description: "Тільки після підтвердження Саші, що витяжку про іншого клієнта писати сюди" } }, ["client_id", "text"]) },
@@ -778,6 +779,33 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
       return { ok: true };
     }
 
+    case "strategy_path": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      need(getClientRow(cid), "Клієнта нема");
+      const r = await import("../repo/strategyPath");
+      const href = `/clients/${cid}?tab=strategy`;
+      if (input.action === "list") return { path: r.pathSnapshot(cid) || "Шлях порожній" };
+      if (input.action === "add") {
+        const st = s(input.stage);
+        if (!r.isPathStage(st)) return { error: "stage: holes | red | yellow | green" };
+        const pid = r.addPathItem(cid, { stage: st, title: need(s(input.title), "title обовʼязковий"), body: s(input.body) });
+        act("client", `Шлях · ${r.PATH_STAGES[st].label}: ${s(input.title)}`, href);
+        return { ok: true, path_id: pid };
+      }
+      const it = need(r.getPathItem(need(id(input.path_id), "path_id обовʼязковий")), "Пункту нема");
+      if (it.client_id !== cid) throw new Error("Пункт іншого клієнта");
+      if (input.action === "delete") { r.deletePathItem(it.id); return { ok: true }; }
+      if (input.action === "status") { const v = s(input.status); if (!(v in r.PATH_STATUS)) return { error: "status: open | doing | done" }; r.updatePathItem(it.id, { status: v as "open" | "doing" | "done" }); act("client", `Шлях: ${it.title} → ${r.PATH_STATUS[v as "open"]}`, href); return { ok: true }; }
+      if (input.action === "move") { const st = s(input.stage); if (!r.isPathStage(st)) return { error: "stage: holes | red | yellow | green" }; r.updatePathItem(it.id, { stage: st }); return { ok: true }; }
+      if (input.action === "to_task") {
+        if (it.task_id) return { ok: true, task_id: it.task_id };
+        const { createTask } = await import("../repo/tasks");
+        const tid = createTask({ title: it.title, client_id: cid, details: [`Стратегія → Шлях → ${r.PATH_STAGES[it.stage].label}`, it.body].filter(Boolean).join("\n\n"), due_date: null, priority: it.stage === "holes" || it.stage === "red" ? "high" : undefined });
+        r.updatePathItem(it.id, { task_id: tid, status: it.status === "open" ? "doing" : it.status });
+        return { ok: true, task_id: tid };
+      }
+      return { error: "Невідома дія" };
+    }
     case "strategy_item": {
       const cid = need(id(input.client_id), "client_id обов'язковий");
       need(getClientRow(cid), "Клієнта нема");
