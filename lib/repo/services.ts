@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { isServiceType, type ServiceType, type ToolCategory } from "../services";
+import { serviceDef, isServiceType, type ServiceType, type ToolCategory } from "../services";
 
 export type Tool = { id: number; category: ToolCategory; name: string; url: string; notes: string };
 export type ClientService = {
@@ -28,7 +28,11 @@ export function findToolByName(category: ToolCategory, name: string): Tool | und
 // ---- Послуги клієнта
 type Row = Omit<ClientService, "details"> & { details_json: string };
 const SELECT = `SELECT s.*, t.name AS tool_name, t.url AS tool_url FROM client_services s LEFT JOIN tools t ON t.id = s.tool_id`;
-const map = ({ details_json, ...r }: Row): ClientService => ({ ...r, details: JSON.parse(details_json) as Record<string, string> });
+// Послуга без вибору інструмента (сайти — завжди Claude Code): старий вибір з довідника ігноруємо
+const map = ({ details_json, ...r }: Row): ClientService => {
+  const fixed = isServiceType(r.type) ? serviceDef(r.type).builtWith : undefined;
+  return { ...r, ...(fixed ? { tool_name: fixed, tool_url: null } : {}), details: JSON.parse(details_json) as Record<string, string> } as ClientService;
+};
 
 export function listServices(clientId: number): ClientService[] {
   return (db().prepare(`${SELECT} WHERE s.client_id = ? ORDER BY s.id`).all(clientId) as Row[])

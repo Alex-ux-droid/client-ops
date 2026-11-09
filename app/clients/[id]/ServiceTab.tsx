@@ -33,6 +33,7 @@ export default function ServiceTab({ clientId, service, edit, saved, mv, err, cm
   const folder = def.folder ? listFolders(clientId).find((f) => f.kind === def.folder) : undefined;
   const links = [
     type === "website" && service.details.url && { href: service.details.url, label: "Відкрити сайт" },
+    type === "website" && service.details.repo && { href: service.details.repo, label: "GitHub" },
     service.details.admin_url && { href: service.details.admin_url, label: "Адмінка" },
     type === "crm" && service.details.url && { href: service.details.url, label: "Відкрити CRM" },
     folder?.url && { href: folder.url, label: `Папка «${folder.title}»` },
@@ -160,6 +161,7 @@ function ServiceView({ service, type, clientId, saved }: { service: ClientServic
   };
   const facts = [
     def.tool && service.tool_name && { label: def.tool.label, value: <b>{service.tool_name}</b> },
+    def.builtWith && { label: "Робимо в", value: <b>{def.builtWith}</b> },
     service.started_at && { label: "Працюємо з", value: fmtDate(service.started_at) },
     ...def.fields.filter((f) => f.type !== "textarea" && d[f.key]).map((f) => ({ label: f.label, value: show(f) })),
   ].filter(Boolean) as { label: string; value: React.ReactNode }[];
