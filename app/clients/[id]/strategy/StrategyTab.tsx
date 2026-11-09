@@ -81,11 +81,21 @@ function Overview({ clientId, base, hid }: { clientId: number; parts: Part[]; ba
   return (
     <div className="stack" style={{ gap: "1rem" }}>
       <Conflict clientId={clientId} />
-      <Pop className="pop-card ns-pill" title="Куди йдемо" closeOnSubmit trigger={<><span className="ns-pill-k">Ціль</span><span className="ns-pill-t">{s.goal || "куди йдемо за 3–6 міс — у цифрах (натисни)"}</span></>}>
-        <form action={saveSummaryAction} className="stack" style={{ gap: "0.5rem" }}>
+      <Pop className="pop-card gl-card" title="Куди йдемо" wide closeOnSubmit trigger={
+        <>
+          <span className="gl-ico"><Icon name="flag" size={18} /></span>
+          <span className="gl-body">
+            <span className="gl-k">Куди йдемо</span>
+            {s.goal ? <span className="gl-t">{s.goal}</span> : <span className="gl-t gl-empty">Ціль на 3–6 місяців у цифрах — натисни, щоб записати</span>}
+          </span>
+          <span className="gl-edit">Змінити</span>
+        </>
+      }>
+        <form action={saveSummaryAction} className="gl-form">
           {hid}
-          <VoiceTextarea name="goal" defaultValue={s.goal} placeholder="напр.: 40 заявок/тиждень по 3 $, 8 продажів на місяць" style={{ minHeight: "6rem" }} />
-          <div><SubmitButton className="small">Зберегти</SubmitButton></div>
+          <label className="mono" htmlFor="gl-goal">Куди йдемо і як зрозуміємо, що дійшли: цифри, строк, що має з'явитись</label>
+          <VoiceTextarea id="gl-goal" name="goal" defaultValue={s.goal} placeholder={"напр.:\n• 14–20 заявок на день по 3 $\n• 8 продажів на місяць до березня\n• своя CRM замість сторонньої"} />
+          <div className="inline"><SubmitButton>Зберегти</SubmitButton><span className="mono">кожна думка з нового рядка — так легше читати</span></div>
         </form>
       </Pop>
       <Path clientId={clientId} />
