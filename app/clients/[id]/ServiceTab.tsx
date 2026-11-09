@@ -12,6 +12,12 @@ import FormsView from "./campaigns/FormsView";
 import Pop from "@/components/Pop";
 import Icon from "@/components/Icon";
 import VoiceTextarea from "@/components/VoiceTextarea";
+import { hasPassport, listPItems, nextUpdateVer, productUpdates, serviceProduct } from "@/lib/repo/products";
+import { ProductImport, ProductPrompt } from "@/app/products/ProductClient";
+import { startServiceDevAction } from "@/app/products/actions";
+
+// Послуги, які ми «будуємо» — у них свій паспорт розвитку (промпт → витяжка → оновлення → ідеї)
+const DEV_TYPES = new Set(["website", "crm", "automation", "telephony"]);
 
 const STATUS = [
   { v: "active", label: "Ведемо зараз" },
@@ -58,6 +64,8 @@ export default function ServiceTab({ clientId, service, edit, saved, mv, err, cm
       {/* Без привʼязаного кабінету конструктор кампаній теж працює */}
       {type === "meta_ads" && !live && (mv === "campaigns" ? <CampaignsView clientId={clientId} cmp={cmp} sel={sel} err={err} /> : mv === "forms" ? <FormsView clientId={clientId} form={form} />
         : <div className="card kp-promo"><div><b>Конструктор кампаній</b><span className="mono">Готуєш кампанію тут — групи, таргетинг, оголошення з креативом і текстами від Джері — і копіюєш у Ads Manager.</span></div><Link href={`/clients/${clientId}?tab=meta_ads&mv=campaigns`} className="btn small">Відкрити →</Link></div>)}
+
+      {DEV_TYPES.has(type) && <ServiceDev clientId={clientId} type={type} label={def.label} />}
 
       {showForm && (
         <>
@@ -194,6 +202,53 @@ function ServiceView({ service, type, clientId, saved }: { service: ClientServic
           <Link href={`/clients/${clientId}?tab=${type}&edit=1`} className="h-link" scroll={false}>Додати</Link>
         </div>
       )}
+    </div>
+  );
+}
+
+// Розвиток послуги: промпт у чат Claude, де робимо систему клієнта → витяжка назад → хронологія, фічі, ідеї
+function ServiceDev({ clientId, type, label }: { clientId: number; type: ServiceType; label: string }) {
+  const p = serviceProduct(clientId, type);
+  if (!p) return (
+    <form action={startServiceDevAction} className="card kp-promo">
+      <input type="hidden" name="client_id" value={clientId} />
+      <input type="hidden" name="type" value={type} />
+      <div><b>Розвиток · {label}</b><span className="mono">Промпт у чат Claude, де робиш цю систему → повна витяжка (що зроблено, фічі, інтеграції, ідеї) → вставляєш сюди. Далі — оновлення, і все копиться.</span></div>
+      <SubmitButton className="small">Почати вести розвиток</SubmitButton>
+    </form>
+  );
+  const passport = hasPassport(p.id);
+  const last = productUpdates(p.id).at(-1);
+  const stopped = last?.body.match(/Де зупинились:\*\*\s*([^\n]+)/)?.[1];
+  const ideas = listPItems(p.id, "idea", 50).filter((x) => !x.done);
+  const feats = p.features.split("\n").map((x) => x.replace(/^[-•]\s*/, "").trim()).filter(Boolean);
+  return (
+    <div className="card stack sd-card">
+      <div className="sd-head">
+        <b>Розвиток · {label}</b>
+        <span className="mono">{passport ? (last ? `${last.title.split(" — ")[0]} · ${last.created_at.slice(0, 10)}` : "Паспорт є") : "Ще нема витяжки"}</span>
+        <span className="grow" />
+        <Link href={`/products/${p.id}`} className="btn ghost small">Паспорт ↗</Link>
+      </div>
+      {passport ? (
+        <>
+          {p.summary && <p className="sd-sum">{p.summary}</p>}
+          {(stopped || p.next_step) && <div className="mono">{stopped ? `Де зупинились: ${stopped}` : `Далі: ${p.next_step}`}</div>}
+          <div className="qt-grid">
+            <Pop className="pop-card qt" title={`Фічі · ${p.name}`} trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="layers" /></span><b>Що зроблено</b></span><span className="qt-n">{feats.length}</span></span><span className="qt-l">{feats.slice(0, 2).join(" · ") || "—"}</span></>}>
+              <ul className="sd-list">{feats.map((f) => <li key={f}>{f}</li>)}</ul>
+            </Pop>
+            <Pop className="pop-card qt" title={`Ідеї розвитку · ${p.name}`} trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="sparkles" /></span><b>Ідеї розвитку</b></span><span className="qt-n">{ideas.length}</span></span><span className="qt-l">{ideas.slice(0, 2).map((x) => x.title).join(" · ") || "—"}</span></>}>
+              <ul className="sd-list">{ideas.map((x) => <li key={x.id}>{x.title}</li>)}</ul>
+            </Pop>
+          </div>
+        </>
+      ) : <div className="mono">1) Скопіюй промпт → встав у чат Claude, де робиш цю систему клієнту. 2) Його відповідь (блок [CLIENT-OPS:ПРОДУКТ]) встав сюди → «Розкласти».</div>}
+      <div className="inline" style={{ flexWrap: "wrap" }}>
+        {passport ? <ProductPrompt productId={p.id} mode="update" label={`Промпт: оновлення ${nextUpdateVer(p.id)}`} primary /> : <ProductPrompt productId={p.id} label="Промпт: повна витяжка" primary />}
+        {passport && <ProductPrompt productId={p.id} label="Повний промпт" />}
+        <ProductImport productId={p.id} compact />
+      </div>
     </div>
   );
 }

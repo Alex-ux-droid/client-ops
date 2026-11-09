@@ -10,7 +10,7 @@ export const P_KNOW = { fix: "Зламалось → виправили", integr
 export const P_ITEM_KINDS = ["log", "knowledge", "decision", "idea", "plan", "update"] as const;
 export type PItemKind = (typeof P_ITEM_KINDS)[number];
 
-export type Product = { id: number; name: string; kind: ProductKind; status: ProductStatus; summary: string; how: string; features: string; stack: string; pros: string; cons: string; next_step: string; links: string; kit_md: string; last_event_at: string | null; position: number; created_at: string; updated_at: string };
+export type Product = { id: number; name: string; kind: ProductKind; status: ProductStatus; summary: string; how: string; features: string; stack: string; pros: string; cons: string; next_step: string; links: string; kit_md: string; last_event_at: string | null; client_id: number | null; service_type: string | null; position: number; created_at: string; updated_at: string };
 export type PItem = { id: number; product_id: number; kind: PItemKind; cat: string; title: string; body: string; done: number; source: string; created_at: string; ver: number | null };
 export const PF = ["name", "kind", "status", "summary", "how", "features", "stack", "pros", "cons", "next_step", "links", "kit_md"] as const;
 export type ProductPatch = Partial<Pick<Product, (typeof PF)[number]>>;
@@ -58,6 +58,17 @@ export function updatePItem(id: number, p: Partial<Pick<PItem, "title" | "body" 
   if (keys.length) db().prepare(`UPDATE product_items SET ${keys.map((k) => `${k} = @${k}`).join(", ")} WHERE id = @id`).run({ ...p, id });
 }
 export const deletePItem = (id: number) => db().prepare("DELETE FROM product_items WHERE id = ?").run(id);
+
+// Послуга клієнта (сайт, CRM…) = свій продукт-паспорт розвитку
+export const serviceProduct = (clientId: number, type: string) => db().prepare("SELECT * FROM products WHERE client_id = ? AND service_type = ? ORDER BY id LIMIT 1").get(clientId, type) as Product | undefined;
+export function createServiceProduct(clientId: number, type: string, name: string, note: string): number {
+  const cur = serviceProduct(clientId, type);
+  if (cur) return cur.id;
+  const id = addProduct({ name, kind: "app", status: "building" });
+  db().prepare("UPDATE products SET client_id = ?, service_type = ? WHERE id = ?").run(clientId, type, id);
+  setProductClient(id, clientId, true, note);
+  return id;
+}
 
 // Які клієнти користуються продуктом
 export const productClients = (productId: number) => db().prepare("SELECT pc.client_id, pc.note, c.name FROM product_clients pc JOIN clients c ON c.id = pc.client_id WHERE pc.product_id = ? ORDER BY c.name").all(productId) as { client_id: number; note: string; name: string }[];

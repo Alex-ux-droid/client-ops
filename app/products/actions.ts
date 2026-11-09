@@ -10,6 +10,9 @@ import {
   type PItemKind, type ProductPatch,
 } from "@/lib/repo/products";
 import { setSetting } from "@/lib/repo/settings";
+import { createServiceProduct } from "@/lib/repo/products";
+import { getClient } from "@/lib/repo/clients";
+import { isServiceType, serviceDef } from "@/lib/services";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const re = (id?: number) => { revalidatePath("/products"); if (id) revalidatePath(`/products/${id}`); };
@@ -96,4 +99,17 @@ export async function orgItemAction(fd: FormData) {
   if (op === "move" && id) updateOrgItem(id, { horizon: str(fd, "horizon") });
   if (op === "delete" && id) deleteOrgItem(id);
   revalidatePath("/kb");
+}
+
+// Послуга клієнта (сайт, CRM…) → паспорт розвитку як продукт; одразу можна копіювати промпт
+export async function startServiceDevAction(fd: FormData) {
+  await requireUser();
+  const clientId = Number(fd.get("client_id")), type = str(fd, "type");
+  if (!clientId || !isServiceType(type)) return;
+  const c = getClient(clientId);
+  if (!c) return;
+  const label = serviceDef(type).label;
+  const id = createServiceProduct(clientId, type, `${label} · ${c.name}`, label);
+  re(id);
+  revalidatePath(`/clients/${clientId}`);
 }
