@@ -1,5 +1,6 @@
 // Стратегія клієнта: контекст для Джері і для Claude Code (промпт частини), імпорт витяжки [CLIENT-OPS:СТРАТЕГІЯ].
 // Витяжку розбирає модель у JSON-операції (яка частина, що оновити, план, знання, рішення, висновки) — і система застосовує.
+import { pathSnapshot } from "./repo/strategyPath";
 import { otherClientIn } from "./repo/clientMemory";
 import Anthropic from "@anthropic-ai/sdk";
 import { agentConfig } from "./agent/config";
@@ -22,8 +23,10 @@ export function strategySnapshot(clientId: number, full = false): string {
   const s = getStrategy(clientId);
   const parts = listParts(clientId);
   const plan = listItems(clientId, { kind: "plan" }).filter((i) => i.horizon !== "done");
-  if (!s.where_now && !s.goal && !parts.length && !plan.length) return "";
+  const path = pathSnapshot(clientId);
+  if (!s.where_now && !s.goal && !parts.length && !plan.length && !path) return "";
   const out: string[] = [];
+  if (path) out.push(path);
   if (s.where_now || s.goal || s.focus) out.push([s.where_now && `Де ми зараз: ${s.where_now}`, s.goal && `Куди йдемо: ${s.goal}`, s.focus && `Головне зараз: ${s.focus}`].filter(Boolean).join("\n"));
   if (parts.length) out.push(`Екосистема клієнта:\n${parts.map(partLine).join("\n")}`);
   const byH = (h: string) => plan.filter((i) => i.horizon === h);
