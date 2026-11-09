@@ -73,51 +73,27 @@ function Conflict({ clientId }: { clientId: number }) {
   return msg ? <div className="mx-warn"><Icon name="alert" size={15} /><span>{msg}</span></div> : null;
 }
 
-function Overview({ clientId, parts, base, hid }: { clientId: number; parts: Part[]; base: string; hid: React.ReactNode }) {
+// Огляд Стратегії — тільки головне: куди йдемо (Я), шлях до цього (дірки → червоні → жовті → зелені) і дошка.
+// Решта (екосистема, план, хроніка, знання, висновки) — у підвкладках зверху.
+function Overview({ clientId, base, hid }: { clientId: number; parts: Part[]; base: string; hid: React.ReactNode }) {
   const s = getStrategy(clientId);
-  const plan = listItems(clientId, { kind: "plan" });
-  const week = plan.filter((i) => i.horizon === "week"), month = plan.filter((i) => i.horizon === "month");
-  const log = listItems(clientId, { kind: "log", limit: 20 });
-  const empty = !s.where_now && !s.goal && !parts.length;
-  // Поле конспекту: на екрані 3 рядки, клік — повністю і правка тут же
-  const field = (k: "focus" | "where_now" | "goal", label: string, hint: string, ico: string, hl = false) => (
-    <Pop key={k} className={`pop-card ov-tile${hl ? " dv-focus" : ""}`} title={label} trigger={
-      <>
-        <span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name={ico} /></span><b>{label}</b></span></span>
-        {s[k] ? <span className="pv-s l4" style={{ color: "var(--text)" }}>{s[k]}</span> : <span className="qt-l mono">{hint}</span>}
-      </>
-    }>
-      {s[k] && <p style={{ whiteSpace: "pre-wrap", marginTop: 0 }}>{s[k]}</p>}
-      <form action={saveSummaryAction} className="stack" style={{ gap: "0.5rem" }}>
-        {hid}
-        <VoiceTextarea name={k} defaultValue={s[k]} placeholder={hint} style={{ minHeight: "6rem" }} />
-        <div><SubmitButton className="small">Зберегти</SubmitButton></div>
-      </form>
-    </Pop>
-  );
+  const n = boardCount(clientId);
   return (
     <div className="stack" style={{ gap: "1rem" }}>
       <Conflict clientId={clientId} />
+      <Pop className="pop-card ns-pill" title="Куди йдемо" closeOnSubmit trigger={<><span className="ns-pill-k">Ціль</span><span className="ns-pill-t">{s.goal || "куди йдемо за 3–6 міс — у цифрах (натисни)"}</span></>}>
+        <form action={saveSummaryAction} className="stack" style={{ gap: "0.5rem" }}>
+          {hid}
+          <VoiceTextarea name="goal" defaultValue={s.goal} placeholder="напр.: 40 заявок/тиждень по 3 $, 8 продажів на місяць" style={{ minHeight: "6rem" }} />
+          <div><SubmitButton className="small">Зберегти</SubmitButton></div>
+        </form>
+      </Pop>
       <Path clientId={clientId} />
       <Link href={`${base}&sv=board`} className="dk-open">
         <span className="dk-open-ico"><Icon name="layers" size={22} /></span>
-        <span><b>Дошка</b><span className="mono">{boardCount(clientId) ? `${boardCount(clientId)} стікерів — відкрити` : "як Miro / детектив: стікери, нитки між ними, вільна карта думок"}</span></span>
+        <span><b>Дошка</b><span className="mono">{n ? `${n} стікерів — відкрити` : "як Miro / детектив: стікери, нитки між ними, вільна карта думок"}</span></span>
         <span className="dk-open-go">Відкрити →</span>
       </Link>
-      <div className="st-sum3">
-        {field("focus", "Головне зараз", "1–2 речі, на яких фокус", "flag", true)}
-        {field("where_now", "Де ми зараз", "що вже є і що болить", "compass")}
-        {field("goal", "Куди йдемо (3–6 міс)", "ціль у цифрах", "sparkles")}
-      </div>
-      {empty && <ImportBox clientId={clientId} />}
-      <div className="qt-grid">
-        <ListPop title="Цей тиждень" ico="flag" tone="accent" items={week.map((i) => `${i.title}${partName(parts, i.part_id) ? ` · ${partName(parts, i.part_id)}` : ""}`)} empty="порожньо — додай у «План»" />
-        <ListPop title="Цей місяць" ico="clock" items={month.map((i) => `${i.title}${partName(parts, i.part_id) ? ` · ${partName(parts, i.part_id)}` : ""}`)} empty="порожньо" />
-        <ListPop title="Останнє зроблене" ico="check" tone="good" items={log.map((i) => `${fmtDate(i.created_at)} · ${i.title}`)} empty="ще нічого" />
-        {s.insights && <ListPop title="Висновки" ico="sparkles" items={lines(s.insights)} />}
-      </div>
-      <div className="mx-main-head"><b>Екосистема</b><Link href={`${base}&sv=systems`}>усі частини →</Link></div>
-      {parts.length ? <div className="st-parts">{parts.map((p) => <PartCard key={p.id} p={p} base={base} />)}</div> : <p className="mono">Ще нема частин. Додай у «Екосистема» або вкинь витяжку — частина створиться сама.</p>}
     </div>
   );
 }
