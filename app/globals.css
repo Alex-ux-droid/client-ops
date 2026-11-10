@@ -2754,3 +2754,20 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
 .spl-cl.stack { align-items: stretch; }
 .spl-cl-edit summary { cursor: pointer; }
 .spl-cl-edit[open] { flex-basis: 100%; }
+
+/* Діагностика реклами */
+.dg.dg-bad { border-color: rgba(207, 63, 63, 0.4); }
+.dg-leak { font-size: 1.125rem; font-weight: 600; line-height: 1.4; }
+.dg-stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr)); gap: 0.5rem; }
+.dg-pill { display: flex; flex-direction: column; gap: 0.125rem; padding: 0.5rem 0.75rem; border-radius: 10px; border-left: 4px solid var(--dim); background: rgba(17, 24, 39, 0.04); font-size: 0.8125rem; color: var(--muted); }
+.dg-pill b { font-size: 0.875rem; color: var(--text); }
+.dg-pill span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dg-pill.ok { border-left-color: var(--ok); } .dg-pill.warn { border-left-color: var(--warn); } .dg-pill.bad { border-left-color: var(--bad); background: rgba(207, 63, 63, 0.06); }
+.dg-verdict { margin: 0; color: var(--muted); line-height: 1.5; }
+.dg-actions { margin: 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.dg-actions li { display: flex; flex-direction: column; gap: 0.25rem; }
+.dg-a-h { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.dg-how { font-size: 0.875rem; line-height: 1.45; }
+.dg-actions form { margin-top: 0.125rem; }
+.dg-st-holes { background: var(--hole); color: #fff; } .dg-st-red { background: var(--bad); color: #fff; } .dg-st-yellow { background: var(--warn); color: #fff; } .dg-st-green { background: var(--ok); color: #fff; }
+.dg-facts { white-space: pre-wrap; font-size: 0.8125rem; line-height: 1.5; margin: 0; }

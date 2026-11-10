@@ -17,6 +17,7 @@ import {
   type Breakdown, type MetaAd, type MetaAdset,
 } from "@/lib/repo/meta";
 import CreativeGallery, { type GalleryItem } from "./CreativeGallery";
+import MetaDiag from "./MetaDiag";
 import { CopyText } from "@/app/startups/[id]/CopyText";
 import { changeAction, reportLinkAction } from "@/app/creatives/actions";
 import { reportExpires, reportToken } from "@/lib/clientReport";
@@ -151,6 +152,8 @@ function Overview({ clientId, m, base, mp }: { clientId: number; m: Fmt; base: s
         {per === "30" && <div><b>{t?.reach ? fmtN(t.reach) : "—"}</b><span>охоплення</span></div>}
         {per === "30" && <div><b>{t ? (freqOf(t.impressions, t.reach)?.toFixed(1) ?? "—") : "—"}</b><span>частота</span></div>}
       </div>
+
+      <MetaDiag clientId={clientId} />
 
       {top.length > 0 && (
         <Pop className="pop-card mx-main" title="Головне по рекламі" trigger={
