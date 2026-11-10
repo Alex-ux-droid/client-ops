@@ -37,6 +37,7 @@ export async function housekeepingTick(now = new Date()): Promise<void> {
   if (getSetting("housekeep.day") === day) return;
   setSetting("housekeep.day", day);
   try { purgeTrash(); } catch (e) { logError("trash", e); }
+  try { (await import("./sitePulse")).purgeSiteEvents(); } catch (e) { logError("site-purge", e); }
   // Раз на місяць (з 2-го числа, після нічного бекапу) — перевірка відновлення
   const month = day.slice(0, 7);
   if (Number(day.slice(8)) >= 2 && getSetting("backup.verify_month") !== month && process.env.NODE_ENV === "production") {

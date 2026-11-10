@@ -15,6 +15,7 @@ import VoiceTextarea from "@/components/VoiceTextarea";
 import { hasPassport, listPItems, nextUpdateVer, productUpdates, serviceProduct } from "@/lib/repo/products";
 import { ProductImport, ProductPrompt } from "@/app/products/ProductClient";
 import { startServiceDevAction } from "@/app/products/actions";
+import SitePulseCard from "@/components/SitePulseCard";
 
 // Послуги, які ми «будуємо» — у них свій паспорт розвитку (промпт → витяжка → оновлення → ідеї)
 const DEV_TYPES = new Set(["website", "crm", "automation", "telephony"]);
@@ -67,6 +68,7 @@ export default function ServiceTab({ clientId, service, edit, saved, mv, err, cm
         : <div className="card kp-promo"><div><b>Конструктор кампаній</b><span className="mono">Готуєш кампанію тут — групи, таргетинг, оголошення з креативом і текстами від Джері — і копіюєш у Ads Manager.</span></div><Link href={`/clients/${clientId}?tab=meta_ads&mv=campaigns`} className="btn small">Відкрити →</Link></div>)}
 
       {DEV_TYPES.has(type) && <ServiceDev clientId={clientId} type={type} label={def.label} />}
+      {type === "website" && (() => { const sp = serviceProduct(clientId, "website"); return sp ? <SitePulseCard productId={sp.id} /> : null; })()}
 
       {showForm && (
         <>
