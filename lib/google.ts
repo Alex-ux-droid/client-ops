@@ -94,7 +94,13 @@ async function accessToken(): Promise<string> {
   const t = await tokenRequest({ refresh_token: env("GOOGLE_REFRESH_TOKEN"), grant_type: "refresh_token" });
   if (!t.access_token) {
     // invalid_grant: токен відкликано або минув (тестовий режим Google — 7 днів)
+    const was = getSetting("google.error") ?? "";
     setSetting("google.error", t.error === "invalid_grant" ? "Доступ Google закінчився — натисни «Перепідключити»." : (t.error_description || t.error || "Помилка Google"));
+    // Один раз у Telegram — щоб Саша дізнався одразу, а не з журналу (бекап і фото на Диск стоять, поки не перепідключить)
+    if (!was && t.error === "invalid_grant") void import("./telegram").then(async ({ tg, tgOwner }) => {
+      const owner = tgOwner();
+      if (owner) await tg("sendMessage", { chat_id: owner, text: "🔑 Доступ до Google закінчився — бекап бази і фото з Telegram на Диск стоять.\nНалаштування → Конектори → Google → «Перепідключити» (1 хв).\nЩоб не злітало кожні 7 днів: Google Cloud → OAuth consent screen → «Publish app» (перевести в Production)." });
+    }).catch(() => {});
     throw new GoogleReconnectError("Доступ до Google закінчився. Налаштування → Google → Перепідключити.");
   }
   setSetting("google.error", "");
