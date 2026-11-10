@@ -152,7 +152,7 @@ export function sitePrompt(productId: number, host: string): string {
 7. Перевір: відкрий сайт, поклікай — у вкладці Network мають іти запити на /api/pulse зі статусом 204; у логах функції — відповідь моєї системи {"ok":true}. Перевір на телефоні (мобільна версія).
    Наприкінці нагадай мені: «Додай у Cloudflare секрет SITE_PULSE_KEY і передеплой».
 8. Закоміть і запуш, як заведено в цьому репо.
-
+${p.clarity_id ? `\n9. ${claritySteps(p.clarity_id)}\n` : ""}
 Наприкінці видай оновлення СТРОГО в такому блоці (тільки факти, без ключів):
 
 [CLIENT-OPS:ОНОВЛЕННЯ]
@@ -163,6 +163,39 @@ export function sitePrompt(productId: number, host: string): string {
 Що змінилось у складі (стек, модулі, API, база):
 - Скрипт пульсу: … (де лежить файл)
 - Які кнопки отримали data-track: …
+Де зупинились (стан прямо зараз):
+- …
+[/CLIENT-OPS]`;
+}
+
+// ---- Microsoft Clarity: теплові карти і записи сесій (ID проєкту — публічний)
+export const clarityUrl = (id: string, view: "heatmaps" | "recordings" | "dashboard" = "heatmaps") => `https://clarity.microsoft.com/projects/view/${id}/${view}`;
+const claritySteps = (id: string) => `ТЕПЛОВА КАРТА (Microsoft Clarity, ID проєкту ${id}):
+- Додай офіційний тег Clarity у <head> на ВСІХ сторінках (асинхронно, не гальмує сайт):
+  (function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","${id}");
+- Якщо вже є тег Clarity з іншим ID — заміни, не дублюй.
+- Приватність: на всі форми і поля вводу додай атрибут data-clarity-mask="true" (імена, телефони, пошти не мають потрапити в записи).
+- Якщо на сайті є пульс Client Ops (скрипт з джерелом source) — передай джерело в Clarity: clarity("set","source", source), щоб фільтрувати карти за рекламою.
+- Якщо сайт односторінковий (SPA) — Clarity сам ловить зміни маршруту, нічого не треба.
+- Перевір: у Network є запити на clarity.ms; у кабінеті Clarity через 1–2 год зʼявляться перші сесії.`;
+
+export function clarityPrompt(productId: number): string {
+  const p = getProduct(productId);
+  if (!p) return "";
+  if (!p.clarity_id) return "Спершу впиши ID проєкту Clarity у «Пульс сайту».";
+  return `Це сайт «${p.name}» (${productCode(p.id)}). Постав на нього Microsoft Clarity. Нічого іншого на сайті не міняй і не ламай.
+
+${claritySteps(p.clarity_id)}
+
+Закоміть і запуш, як заведено в цьому репо. Наприкінці видай оновлення СТРОГО в такому блоці:
+
+[CLIENT-OPS:ОНОВЛЕННЯ]
+Продукт: ${p.name}
+Коротко: підключено Microsoft Clarity (теплові карти і записи сесій)
+Що зробили:
+- [дата] …
+Що змінилось у складі (стек, модулі, API, база):
+- Microsoft Clarity, ID ${p.clarity_id}: … (де стоїть тег)
 Де зупинились (стан прямо зараз):
 - …
 [/CLIENT-OPS]`;

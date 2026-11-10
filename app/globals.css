@@ -2750,3 +2750,7 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
 .spl-kpis span { font-size: 0.8125rem; color: var(--muted); }
 .spl-kpis .bad b { color: var(--bad); }
 .sp-key { padding: 0.25rem 0.5rem; border-radius: 8px; background: rgba(17, 24, 39, 0.06); font-size: 0.875rem; overflow-wrap: anywhere; }
+.spl-cl { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding-top: 0.75rem; border-top: 1px solid var(--line); }
+.spl-cl.stack { align-items: stretch; }
+.spl-cl-edit summary { cursor: pointer; }
+.spl-cl-edit[open] { flex-basis: 100%; }
