@@ -23,8 +23,9 @@ export async function saveProductAction(fd: FormData) {
   const id = Number(fd.get("product_id")) || 0;
   if (id && fd.get("delete") === "1") { deleteProduct(id); re(); redirect("/products"); }
   const p: ProductPatch = {};
-  for (const k of ["name", "kind", "status", "summary", "how", "features", "stack", "links", "pros", "cons", "next_step", "kit_md", "chat_url", "repo_url", "prod_url"] as const) if (fd.has(k)) (p as Record<string, string>)[k] = str(fd, k);
-  if (id) { updateProduct(id, p); re(id); return; }
+  for (const k of ["name", "kind", "status", "summary", "how", "features", "stack", "links", "pros", "cons", "next_step", "kit_md", "chat_url", "repo_url", "prod_url", "clarity_id"] as const) if (fd.has(k)) (p as Record<string, string>)[k] = str(fd, k);
+  if (p.clarity_id != null) p.clarity_id = (p.clarity_id.match(/projects\/view\/([a-z0-9]+)/i)?.[1] ?? p.clarity_id).replace(/[^a-z0-9]/gi, "").slice(0, 20);
+  if (id) { updateProduct(id, p); re(id); revalidatePath("/clients", "layout"); return; }
   if (!p.name) return;
   const nid = addProduct({ ...p, name: p.name });
   re(nid);
@@ -68,8 +69,9 @@ export async function productImportAction(productId: number | null, text: string
   return r;
 }
 
-export async function productPromptAction(productId: number | null, mode: "full" | "update" | "fix" | "requests" | "site" = "full"): Promise<string> {
+export async function productPromptAction(productId: number | null, mode: "full" | "update" | "fix" | "requests" | "site" | "clarity" = "full"): Promise<string> {
   await requireUser();
+  if (productId && mode === "clarity") { const { clarityPrompt } = await import("@/lib/sitePulse"); return clarityPrompt(productId); }
   if (productId && mode === "site") {
     const h = await headers();
     const { sitePrompt } = await import("@/lib/sitePulse");

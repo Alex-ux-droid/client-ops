@@ -10,9 +10,9 @@ export const P_KNOW = { fix: "Зламалось → виправили", integr
 export const P_ITEM_KINDS = ["log", "knowledge", "decision", "idea", "plan", "update"] as const;
 export type PItemKind = (typeof P_ITEM_KINDS)[number];
 
-export type Product = { id: number; name: string; kind: ProductKind; status: ProductStatus; summary: string; how: string; features: string; stack: string; pros: string; cons: string; next_step: string; links: string; kit_md: string; last_event_at: string | null; chat_url: string; repo_url: string; prod_url: string; client_id: number | null; service_type: string | null; position: number; created_at: string; updated_at: string };
+export type Product = { id: number; name: string; kind: ProductKind; status: ProductStatus; summary: string; how: string; features: string; stack: string; pros: string; cons: string; next_step: string; links: string; kit_md: string; last_event_at: string | null; chat_url: string; repo_url: string; prod_url: string; clarity_id: string; client_id: number | null; service_type: string | null; position: number; created_at: string; updated_at: string };
 export type PItem = { id: number; product_id: number; kind: PItemKind; cat: string; title: string; body: string; done: number; source: string; created_at: string; ver: number | null };
-export const PF = ["name", "kind", "status", "summary", "how", "features", "stack", "pros", "cons", "next_step", "links", "kit_md", "chat_url", "repo_url", "prod_url"] as const;
+export const PF = ["name", "kind", "status", "summary", "how", "features", "stack", "pros", "cons", "next_step", "links", "kit_md", "chat_url", "repo_url", "prod_url", "clarity_id"] as const;
 export type ProductPatch = Partial<Pick<Product, (typeof PF)[number]>>;
 
 export const listProducts = () => db().prepare("SELECT * FROM products ORDER BY position, status = 'paused', name").all() as Product[];

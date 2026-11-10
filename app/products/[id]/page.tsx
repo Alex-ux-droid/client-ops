@@ -332,6 +332,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
             <label>Чат Claude Code<input name="chat_url" defaultValue={p!.chat_url} placeholder="https://claude.ai/code/session_…" inputMode="url" autoCapitalize="off" /></label>
             <label>GitHub-репо<input name="repo_url" defaultValue={p!.repo_url} placeholder="https://github.com/…" inputMode="url" autoCapitalize="off" /></label>
             <label>Сайт / застосунок<input name="prod_url" defaultValue={p!.prod_url} placeholder="https://…" inputMode="url" autoCapitalize="off" /></label>
+            <label>Microsoft Clarity (Project ID)<input name="clarity_id" defaultValue={p!.clarity_id} placeholder="напр. abcd1234ef" autoCapitalize="off" /></label>
           </div>
           <div><SubmitButton className="small">Зберегти</SubmitButton></div>
         </form>
