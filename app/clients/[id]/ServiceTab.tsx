@@ -153,7 +153,8 @@ const STATUS_TAG: Record<string, string> = { active: "ok", paused: "warn", done:
 // Перегляд послуги: ключові факти плиткою, довгі тексти — блоками
 function ServiceView({ service, type, clientId, saved }: { service: ClientService; type: ServiceType; clientId: number; saved: boolean }) {
   const def = serviceDef(type);
-  const d = service.details;
+  // «undefined»/«null» від старих збережень = порожньо
+  const d = Object.fromEntries(Object.entries(service.details).map(([k, v]) => [k, /^(undefined|null)$/i.test(String(v ?? "").trim()) ? "" : v])) as Record<string, string>;
   const show = (f: (typeof def.fields)[number]) => {
     const v = d[f.key];
     if (f.type === "url") return <a href={v} target="_blank" rel="noreferrer" className="h-link">{v.replace(/^https?:\/\//, "").replace(/\/$/, "")} ↗</a>;
