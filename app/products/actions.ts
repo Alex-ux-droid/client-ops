@@ -1,6 +1,7 @@
 "use server";
 // Продукти і розвиток організації: збереження, записи, витяжки, промпти, секрет звʼязку
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { capOn } from "@/lib/agent/caps";
@@ -67,8 +68,13 @@ export async function productImportAction(productId: number | null, text: string
   return r;
 }
 
-export async function productPromptAction(productId: number | null, mode: "full" | "update" | "fix" | "requests" = "full"): Promise<string> {
+export async function productPromptAction(productId: number | null, mode: "full" | "update" | "fix" | "requests" | "site" = "full"): Promise<string> {
   await requireUser();
+  if (productId && mode === "site") {
+    const h = await headers();
+    const { sitePrompt } = await import("@/lib/sitePulse");
+    return sitePrompt(productId, `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host") ?? ""}`);
+  }
   if (productId && mode === "requests") return requestPrompt(productId);
   if (productId && mode === "fix") return fixPrompt(productId);
   return mode === "update" && productId ? updatePrompt(productId) : productPrompt(productId);

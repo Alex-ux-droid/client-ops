@@ -20,6 +20,8 @@ import { getSetting } from "@/lib/repo/settings";
 import { lines } from "@/lib/repo/strategy";
 import { requestAction, productOwnerAction, issuesDoneAction, productClientAction, productItemAction, productSecretAction, saveProductAction } from "../actions";
 import { CopyBig, ProductImport, ProductPrompt } from "../ProductClient";
+import SitePulseCard from "@/components/SitePulseCard";
+import { sitePulse } from "@/lib/sitePulse";
 
 export const dynamic = "force-dynamic";
 
@@ -148,6 +150,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
           )}
           {kn.length > 0 && <Link href={`${base}?v=knowledge`} className="card qt qt-link"><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="book" /></span><b>Що знаємо</b></span><span className="qt-n">{listPItems(id, "knowledge").length}</span></span>{kn.slice(0, 2).map((k) => <span key={k.id} className="qt-l">{k.title}</span>)}<span className="qt-more">відкрити →</span></Link>}
         </div>
+        {(p!.service_type === "website" || sitePulse(id, 30).last) && <SitePulseCard productId={id} />}
         <div className="card stack" style={{ gap: "0.75rem" }}>
           <div className="mx-main-head"><b>Хронологія{tlAll.length > 6 ? ` · останні 6 з ${tlAll.length}` : ""}</b><Link href={`${base}?v=log`}>уся і план →</Link></div>
           <Timeline items={tlAll.slice(-6)} empty="Ще порожньо. Встав витяжку з Claude Code — етапи стануть блоками." />

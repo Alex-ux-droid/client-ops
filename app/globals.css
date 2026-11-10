@@ -2742,3 +2742,11 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
 .pj-rc { font-variant-numeric: tabular-nums; }
 .pj-req-t { margin: 0; white-space: pre-wrap; line-height: 1.5; }
 .pj-req-tile { border-color: var(--warn); }
+
+/* Пульс сайту */
+.spl-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(9.5rem, 100%), 1fr)); gap: 0.625rem; }
+.spl-kpis > div { display: flex; flex-direction: column; gap: 0.125rem; padding: 0.625rem 0.75rem; border-radius: 10px; background: rgba(17, 24, 39, 0.04); }
+.spl-kpis b { font-size: 1.375rem; font-variant-numeric: tabular-nums; }
+.spl-kpis span { font-size: 0.8125rem; color: var(--muted); }
+.spl-kpis .bad b { color: var(--bad); }
+.sp-key { padding: 0.25rem 0.5rem; border-radius: 8px; background: rgba(17, 24, 39, 0.06); font-size: 0.875rem; overflow-wrap: anywhere; }

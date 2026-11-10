@@ -11,6 +11,7 @@ import {
 } from "./repo/products";
 import { lines } from "./repo/strategy";
 import { getClient } from "./repo/clients";
+import { sitePulseText } from "./sitePulse";
 import { getService } from "./repo/services";
 import { isServiceType, serviceDef } from "./services";
 import { getSetting, setSetting } from "./repo/settings";
@@ -78,6 +79,7 @@ export function productMd(p: Product, full = true): string {
     log.length ? `Хронологія (по порядку):\n${productTimeline(p.id).slice(full ? -40 : -6).map((l) => `- ${l.created_at.slice(0, 10)}: ${l.title}${full && l.body ? ` — ${l.body.replace(/\*\*/g, "").replace(/\s+/g, " ").slice(0, 200)}` : ""}`).join("\n")}` : "",
     (() => { const u = productUpdates(p.id); return u.length ? `Оновлення (${u.length}): ${u.slice(-5).map((x) => `${x.title} (${x.created_at.slice(0, 10)})`).join("; ")}${u.at(-1)?.body.match(/Де зупинились:\*\*\s*([^\n]+)/)?.[1] ? `\nДе зупинились: ${u.at(-1)!.body.match(/Де зупинились:\*\*\s*([^\n]+)/)![1]}` : ""}` : ""; })(),
     p.next_step && `Наступний крок: ${p.next_step}`,
+    sitePulseText(p.id),
   ].filter(Boolean).join("\n\n");
 }
 
