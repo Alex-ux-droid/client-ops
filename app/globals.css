@@ -1010,7 +1010,7 @@ a.folder[href]:hover { border-color: var(--accent); background: var(--bg-hover);
 .tm-title:hover, .tm-title:focus { border-color: var(--line-strong); background: var(--bg-input); }
 .tm-x { flex: none; }
 .tm-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
-.tm-meta select, .tm-meta input[type="date"] { width: auto; padding: 0.375rem 0.625rem; font-size: 0.875rem; }
+.tm-meta select, .tm-meta input[type="date"], .tm-meta input[type="time"] { width: auto; padding: 0.375rem 0.625rem; font-size: 0.875rem; }
 .tm-meta select { padding-right: 2.25rem; }
 .tm-details > :first-child { margin-top: 0; }
 .tm-seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 10px; overflow: hidden; }

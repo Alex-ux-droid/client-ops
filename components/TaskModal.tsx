@@ -150,6 +150,7 @@ export default function TaskModal() {
                 {PRIO.map((p) => <option key={p.k} value={p.k}>{p.l}</option>)}
               </select>
               <input type="date" value={t!.due_date ?? ""} onChange={(e) => run(() => taskPatch(id, { due_date: e.target.value || null }))} aria-label="Дедлайн" />
+              {t!.due_date && <input type="time" className="tm-time" defaultValue={t!.due_time ?? ""} key={`tm${t!.due_time ?? ""}`} onBlur={(e) => { if ((e.target.value || null) !== (t!.due_time ?? null)) run(() => taskPatch(id, { due_time: e.target.value || null })); }} aria-label="Час" title="Час (необовʼязково): тоді подія в календарі на цей час з нагадуваннями за 2 і 1 год" />}
               {t!.client_id && <Link href={`/clients/${t!.client_id}`} className="tag" onClick={close}>{t!.client_name}</Link>}
             </div>
 
@@ -308,7 +309,7 @@ export default function TaskModal() {
             <div className="tm-foot">
               {!done && !closing && <button type="button" onClick={() => setClosing(true)}>✓ Закрити зі звітом</button>}
               {d.calendar === "ok" ? (
-                <button type="button" className="ghost" disabled={busy} title={t!.due_date ? "Подія на день дедлайну з нагадуванням напередодні" : "Спершу постав дедлайн"}
+                <button type="button" className="ghost" disabled={busy} title={!t!.due_date ? "Спершу постав дедлайн" : t!.due_time ? `Подія о ${t!.due_time}, нагадування за 2 год і 1 год` : "Подія на день дедлайну з нагадуванням напередодні (постав час — буде подія на час)"}
                   onClick={() => run(async () => { const r = await taskCalendarAction(id); setCalMsg(r.ok ? "Є в Google Календарі ✓" : r.error ?? "Не вдалось"); })}>
                   📅 {t!.gcal_event_id ? "Оновити в календарі" : "В Google Календар"}
                 </button>
