@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { refreshTaskEvent, removeTaskEvent, taskToCalendar } from "@/lib/taskCalendar";
+import { normTime, refreshTaskEvent, removeTaskEvent, taskToCalendar } from "@/lib/taskCalendar";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { ymd } from "@/lib/dates";
@@ -479,7 +479,7 @@ export async function analyzeMetaAction(fd: FormData) {
 }
 
 // ---- Вікно задачі (викликається з клієнта напряму, без форм)
-export async function taskPatch(id: number, input: { title?: string; details?: string; due_date?: string | null; priority?: string; status?: string; reason?: string }) {
+export async function taskPatch(id: number, input: { title?: string; details?: string; due_date?: string | null; due_time?: string | null; priority?: string; status?: string; reason?: string }) {
   await requireUser();
   if (!getTask(id)) return;
   if (input.status === "done") autoLogDone(id, (input.reason ?? "").slice(0, 300));
@@ -487,10 +487,11 @@ export async function taskPatch(id: number, input: { title?: string; details?: s
   if (input.title !== undefined && input.title.trim()) patch.title = input.title.trim().slice(0, 300);
   if (input.details !== undefined) patch.details = input.details.slice(0, 20000);
   if (input.due_date !== undefined) patch.due_date = input.due_date && /^\d{4}-\d{2}-\d{2}$/.test(input.due_date) ? input.due_date : null;
+  if (input.due_time !== undefined) patch.due_time = normTime(input.due_time);
   if (input.priority && ["high", "normal", "low"].includes(input.priority)) patch.priority = input.priority as TaskPriority;
   updateTask(id, patch);
   if (input.status && ["todo", "doing", "done"].includes(input.status)) setTaskStatus(id, input.status as TaskStatus);
-  if (patch.title || patch.due_date !== undefined || input.status) await refreshTaskEvent(id, await baseUrl());
+  if (patch.title || patch.due_date !== undefined || patch.due_time !== undefined || input.status) await refreshTaskEvent(id, await baseUrl());
   revalidatePath("/", "layout");
 }
 

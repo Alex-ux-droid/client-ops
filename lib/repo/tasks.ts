@@ -11,6 +11,7 @@ export type Task = {
   details: string;
   status: TaskStatus;
   due_date: string | null;
+  due_time: string | null;
   remind_at: string | null;
   done_at: string | null;
   created_at: string;
@@ -52,11 +53,11 @@ export function getTask(id: number): TaskRow | undefined {
   return db().prepare(`${SELECT} WHERE t.id = ?`).get(id) as TaskRow | undefined;
 }
 
-export function createTask(input: { title: string; client_id?: number | null; details?: string; due_date?: string | null; remind_at?: string | null; priority?: TaskPriority; startup_id?: number | null; milestone_id?: number | null }): number {
+export function createTask(input: { title: string; client_id?: number | null; details?: string; due_date?: string | null; due_time?: string | null; remind_at?: string | null; priority?: TaskPriority; startup_id?: number | null; milestone_id?: number | null }): number {
   return Number(db().prepare(`
-    INSERT INTO tasks (title, client_id, details, due_date, remind_at, priority, startup_id, milestone_id)
-    VALUES (@title, @client_id, @details, @due_date, @remind_at, @priority, @startup_id, @milestone_id)
-  `).run({ client_id: null, details: "", due_date: null, remind_at: null, priority: "normal", startup_id: null, milestone_id: null, ...input }).lastInsertRowid);
+    INSERT INTO tasks (title, client_id, details, due_date, due_time, remind_at, priority, startup_id, milestone_id)
+    VALUES (@title, @client_id, @details, @due_date, @due_time, @remind_at, @priority, @startup_id, @milestone_id)
+  `).run({ client_id: null, details: "", due_date: null, due_time: null, remind_at: null, priority: "normal", startup_id: null, milestone_id: null, ...input }).lastInsertRowid);
 }
 
 // Задачі стартапу (відкриті першими), за бажанням — одного етапу
@@ -73,8 +74,8 @@ export function setTaskStatus(id: number, status: TaskStatus): void {
   if (status === "done") db().prepare("UPDATE strategy_items SET horizon = 'done', done_at = datetime('now') WHERE task_id = ? AND kind = 'plan' AND horizon != 'done'").run(id);
 }
 
-export function updateTask(id: number, input: Partial<Pick<Task, "title" | "details" | "due_date" | "remind_at" | "client_id" | "priority">>): void {
-  const keys = (["title", "details", "due_date", "remind_at", "client_id", "priority"] as const).filter((k) => input[k] !== undefined);
+export function updateTask(id: number, input: Partial<Pick<Task, "title" | "details" | "due_date" | "due_time" | "remind_at" | "client_id" | "priority">>): void {
+  const keys = (["title", "details", "due_date", "due_time", "remind_at", "client_id", "priority"] as const).filter((k) => input[k] !== undefined);
   if (!keys.length) return;
   db().prepare(`UPDATE tasks SET ${keys.map((k) => `${k} = @${k}`).join(", ")} WHERE id = @id`).run({ ...input, id });
 }

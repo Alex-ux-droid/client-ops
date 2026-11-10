@@ -112,7 +112,7 @@ async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
   const token = await accessToken();
   const r = await fetch(url, { ...init, headers: { ...(init.headers ?? {}), authorization: `Bearer ${token}` } });
   if (r.status === 401) { g.__gtoken = undefined; throw new GoogleReconnectError("Google відхилив доступ — перепідключи."); }
-  if (!r.ok) throw new Error(`Google ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  if (!r.ok) throw new Error(`Google ${r.status}: ${(await r.text()).slice(0, 1200)}`);
   return (await r.json()) as T;
 }
 
@@ -301,21 +301,41 @@ export async function fileMeta(id: string): Promise<{ name: string; mimeType: st
 export const calendarAllowed = () => googleConnected() && (getSetting("google.scopes") ?? "").includes(CALENDAR_SCOPE);
 const CAL = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 
-export type CalendarEvent = { summary: string; description: string; date: string; reminderMinutes?: number };
+export type CalendarEvent = { summary: string; description: string; date: string; time?: string | null; reminders?: number[] };
 
-// Подія на весь день (дедлайн задачі) з нагадуванням. Повертає id події.
+// Чому Google сказав 403 — щоб Саша знав, що саме натиснути
+export function calendarDenied(body: string): string {
+  if (/SERVICE_DISABLED|accessNotConfigured|has not been used|is disabled/i.test(body)) {
+    const proj = body.match(/project[= ](\d{6,})/i)?.[1];
+    const link = `https://console.cloud.google.com/apis/library/calendar-json.googleapis.com${proj ? `?project=${proj}` : ""}`;
+    return `Google Calendar API вимкнений у твоєму проєкті Google Cloud. Увімкни: ${link} → «Enable», зачекай 2–3 хв і спробуй ще раз (перепідключати не треба).`;
+  }
+  if (/insufficient|SCOPE|PERMISSION_DENIED/i.test(body)) return "Google не дав доступ до Календаря: при підключенні не стояла галочка календаря. Налаштування → Конектори → Google → «Перепідключити» і на екрані Google постав УСІ галочки (зокрема «календар»).";
+  return `Google відмовив у доступі до Календаря: ${body.replace(/\s+/g, " ").slice(0, 200)}`;
+}
+
+// Подія: з часом (time HH:MM, Київ, 1 год, нагадування reminders хв до) або на весь день (нагадування о 9:00 напередодні). Повертає id події.
 export async function calendarUpsert(ev: CalendarEvent, eventId?: string | null): Promise<string> {
   if (!googleConnected()) throw new GoogleReconnectError("Google не підключено");
-  const end = new Date(`${ev.date}T00:00:00Z`);
-  end.setUTCDate(end.getUTCDate() + 1);
-  const body = JSON.stringify({
-    summary: ev.summary,
-    description: ev.description,
-    start: { date: ev.date },
-    end: { date: end.toISOString().slice(0, 10) },
+  if (!calendarAllowed()) throw new GoogleReconnectError("Google підключено без доступу до Календаря. Налаштування → Конектори → Google → «Перепідключити» і постав галочку календаря.");
+  const tz = "Europe/Kyiv";
+  let when: Record<string, unknown>;
+  if (ev.time && /^\d{2}:\d{2}$/.test(ev.time)) {
+    const [h, m] = ev.time.split(":").map(Number);
+    const endMin = Math.min(h * 60 + m + 60, 23 * 60 + 59);
+    const hm = (x: number) => `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`;
+    when = {
+      start: { dateTime: `${ev.date}T${ev.time}:00`, timeZone: tz },
+      end: { dateTime: `${ev.date}T${hm(endMin)}:00`, timeZone: tz },
+      reminders: { useDefault: false, overrides: (ev.reminders?.length ? ev.reminders : [120, 60]).slice(0, 5).map((minutes) => ({ method: "popup", minutes })) },
+    };
+  } else {
+    const end = new Date(`${ev.date}T00:00:00Z`);
+    end.setUTCDate(end.getUTCDate() + 1);
     // для подій на весь день нагадування рахується від початку дня: 15 год до = 9:00 напередодні
-    reminders: { useDefault: false, overrides: [{ method: "popup", minutes: ev.reminderMinutes ?? 15 * 60 }] },
-  });
+    when = { start: { date: ev.date }, end: { date: end.toISOString().slice(0, 10) }, reminders: { useDefault: false, overrides: [{ method: "popup", minutes: ev.reminders?.[0] ?? 15 * 60 }] } };
+  }
+  const body = JSON.stringify({ summary: ev.summary, description: ev.description, ...when });
   try {
     const r = await api<{ id: string }>(eventId ? `${CAL}/${eventId}` : CAL, { method: eventId ? "PUT" : "POST", headers: { "content-type": "application/json" }, body });
     return r.id;
@@ -323,7 +343,7 @@ export async function calendarUpsert(ev: CalendarEvent, eventId?: string | null)
     const msg = e instanceof Error ? e.message : "";
     // подію видалили в календарі вручну — створюємо заново
     if (eventId && /Google (404|410)/.test(msg)) return calendarUpsert(ev, null);
-    if (/Google 403/.test(msg)) throw new GoogleReconnectError("Нема доступу до Календаря. Перепідключи Google (Налаштування → Конектори → Google) і перевір, що Google Calendar API увімкнений у Google Cloud.");
+    if (/Google 403/.test(msg)) throw new GoogleReconnectError(calendarDenied(msg));
     throw e;
   }
 }
