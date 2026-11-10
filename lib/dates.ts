@@ -17,7 +17,8 @@ export function endOfWeek(from: Date = new Date()): string {
 }
 
 export function fmtDate(s: string | null): string {
-  if (!s) return "—";
+  // не дата (порожньо, «undefined», сміття з імпорту) — прочерк, а не «undefined..»
+  if (!s || !/^\d{4}-\d{2}-\d{2}/.test(s)) return "—";
   const [y, m, d] = s.slice(0, 10).split("-");
   return `${d}.${m}.${y.slice(2)}`;
 }
