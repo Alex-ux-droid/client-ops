@@ -193,6 +193,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "org_update", description: "Переписати розділи розвитку організації (передавай тільки те, що міняєш, повним текстом): who, positioning, services, approach, direction, focus.", input_schema: obj({ who: str("Хто ми і для кого"), positioning: str("Позиціонування"), services: str("Що надаємо, по рядку"), approach: str("Наш підхід"), direction: str("Куди рухаємось"), focus: str("Головне зараз") }) },
   { name: "org_item", description: "Запис у розвиток організації. action add | move | delete. kind: plan (horizon now|next|later|done) | decision | lesson | idea. move — змінити horizon.", input_schema: obj({ action: { type: "string", enum: ["add", "move", "delete"] }, item_id: int("Для move/delete"), kind: { type: "string", enum: ["plan", "decision", "lesson", "idea"] }, horizon: { type: "string", enum: ["now", "next", "later", "done"] }, title: str("Коротко"), body: str("Деталі"), product_id: int("Привʼязка до продукту") }, ["action"]) },
   { name: "crm_sales", description: "Продажі клієнта з його CRM (усі джерела, не тільки реклама; тільки читання): ліди, продажі, сума, середній чек, конверсія лід→продаж, швидкість першого контакту, ліди без контакту, джерела, менеджери, причини відмов; «реклама → продажі» по кожному оголошенню Meta за весь час (витрати, ліди, продажі, ціна продажу, ROAS); точка нуль (до нас); останні угоди. Оптимізуй рекламу під продажі, а не під дешеві ліди.", input_schema: obj({ client_id: int("ID клієнта"), days: int("Період у днях, за замовчуванням 30") }, ["client_id"]) },
+  { name: "meta_diagnose", description: "Діагностика реклами клієнта «де губляться ліди»: get — останній розбір (і факти); run — новий розбір моделлю (≈1–3 цента, до хвилини); facts — тільки факти по кроках воронки без ШІ. Використовуй ПЕРШИМ на питання «чому мало лідів / що з рекламою».", input_schema: obj({ client_id: int("ID клієнта"), action: { type: "string", enum: ["get", "run", "facts"] } }, ["client_id"]) },
   { name: "meta_ads", description: "Живі цифри Meta Ads клієнта (оновлюються самі кожні 2 год, тільки читання): підсумок за N днів і попередні N днів (витрати, покази, кліки, ліди, ціна ліда, CTR), по днях, кампанії з бюджетами і статусами, топ креативів за 30 днів (відео: хук/утримання; покупки і ROAS, якщо є піксель; ціна ліда 7д проти попередніх 7 — вигорання), групи з фазою навчання і таргетингом, відхилені оголошення, 12 місяців по місяцях, тривоги. Змінювати рекламу ти не можеш — тільки радити.", input_schema: obj({ client_id: int("ID клієнта"), days: int("Період у днях, за замовчуванням 7") }, ["client_id"]) },
   { name: "meta_accounts", description: "Усі рекламні кабінети Meta, які бачить система: id, назва, валюта, статус (активний/закритий/борг), до якого клієнта привʼязаний.", input_schema: obj({}) },
   { name: "meta_link", description: "Привʼязати рекламний кабінет Meta до клієнта (або відвʼязати: client_id = 0) і одразу підтягнути цифри. Закриті кабінети не привʼязуй. Якщо не впевнений, який кабінет чий, — спитай Сашу, не вгадуй.", input_schema: obj({ account_id: str("ID кабінету, напр. act_123…"), client_id: int("ID клієнта; 0 — відвʼязати") }, ["account_id", "client_id"]) },
@@ -1230,6 +1231,19 @@ export async function runTool(name: string, input: Input, ctx: Ctx): Promise<unk
         baseline,
         note: "Продажі рахуються за моментом переходу в «Продано»; конверсія — з лідів, створених у періоді. Цикл продажу квартир довгий — свіжі ліди ще не встигли купити.",
       };
+    }
+
+    case "meta_diagnose": {
+      const cid = need(id(input.client_id), "client_id обов'язковий");
+      need(getClientRow(cid), "Клієнта нема");
+      const dg = await import("../metaDiagnose");
+      const a = s(input.action) || "get";
+      if (a === "facts") { const f = dg.diagFacts(cid); return f.hasData ? { facts: f.text, rules: f.stages } : { error: "Нема витрат за 14 днів у привʼязаних кабінетах" }; }
+      if (a === "get") { const d = dg.getDiag(cid); if (d && Date.now() - Date.parse(d.at) < 24 * 3600_000) return { diagnosis: dg.diagText(d), facts: d.facts }; }
+      const r = await dg.runDiagnosis(cid);
+      if (!r.ok) return { error: r.error };
+      act("client", "Діагностика реклами", `/clients/${cid}?tab=meta_ads`);
+      return { diagnosis: dg.diagText(r.diag), facts: r.diag.facts };
     }
 
     case "meta_ads": {

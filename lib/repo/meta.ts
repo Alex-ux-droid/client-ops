@@ -53,6 +53,9 @@ export function saveSync(accountId: string, data: {
 }): void {
   // Автоісторія: кампанію запустили / поставили на паузу в Meta → запис в Історію клієнта з позначкою «авто»
   const before = new Map((db().prepare("SELECT campaign_id, status FROM meta_campaigns WHERE account_id = ?").all(accountId) as { campaign_id: string; status: string }[]).map((r) => [r.campaign_id, r.status]));
+  // Журнал змін реклами сам: нові оголошення і зміни бюджету (щоб діагностика бачила «до» і «після»)
+  const adsBefore = new Set((db().prepare("SELECT ad_id FROM meta_ads WHERE account_id = ?").all(accountId) as { ad_id: string }[]).map((r) => r.ad_id));
+  const budBefore = new Map((db().prepare("SELECT campaign_id id, name, daily_budget b FROM meta_campaigns WHERE account_id = ? UNION ALL SELECT adset_id, name, daily_budget FROM meta_adsets WHERE account_id = ?").all(accountId, accountId) as { id: string; name: string; b: number | null }[]).map((r) => [r.id, r.b ?? 0]));
   const clientId = (db().prepare("SELECT client_id FROM meta_accounts WHERE account_id = ?").get(accountId) as { client_id: number | null } | undefined)?.client_id ?? null;
   const tx = db().transaction(() => {
     const c = db().prepare(`INSERT INTO meta_campaigns (campaign_id, account_id, name, status, objective, daily_budget, lifetime_budget, updated_at)
@@ -65,6 +68,14 @@ export function saveSync(accountId: string, data: {
       if (clientId && was && was !== x.status && (x.status === "ACTIVE" || was === "ACTIVE")) {
         addWork({ client_id: clientId, done_at: day(0), what: `Кампанія «${x.name}» ${x.status === "ACTIVE" ? "запущена" : x.status === "PAUSED" ? "на паузі" : `→ ${x.status}`}`, result: "авто: зміна в Meta" });
       }
+    }
+    if (clientId) {
+      const log = db().prepare("INSERT INTO ad_changes (client_id, what, why, expect, at) VALUES (?, ?, 'авто: зміна в Meta', '', date('now'))");
+      const seen = new Set((db().prepare("SELECT what FROM ad_changes WHERE client_id = ? AND at >= date('now', '-2 days')").all(clientId) as { what: string }[]).map((r) => r.what));
+      const put = (what: string) => { if (!seen.has(what)) { log.run(clientId, what); seen.add(what); } };
+      if (adsBefore.size) for (const x of data.ads) if (!adsBefore.has(x.ad_id)) put(`Новий креатив у рекламі: «${x.name || x.ad_id}»`);
+      const bud = [...data.campaigns.map((x) => ({ id: x.campaign_id, name: x.name, b: x.daily_budget ?? 0, k: "кампанії" })), ...(data.adsets ?? []).map((x) => ({ id: x.adset_id, name: x.name, b: x.daily_budget ?? 0, k: "групи" }))];
+      for (const x of bud) { const was = budBefore.get(x.id); if (was && x.b && Math.abs(was - x.b) >= 0.01) put(`Бюджет ${x.k} «${x.name}»: ${was} → ${x.b} на день`); }
     }
     db().prepare("DELETE FROM meta_daily WHERE account_id = ? AND date >= ?").run(accountId, data.since);
     const d = db().prepare(`INSERT OR REPLACE INTO meta_daily (account_id, campaign_id, date, spend, impressions, clicks, leads)
