@@ -5,7 +5,7 @@ import { ai } from "./ai";
 import { autoOn } from "./agent/caps";
 import { db } from "./db";
 import { logError } from "./log";
-import { addConfirm, tidyConfirms, type ConfirmKind } from "./repo/confirm";
+import { addConfirm, CONFIRM_UA, getConfirm, setConfirmStatus, tidyConfirms, type ConfirmItem, type ConfirmKind } from "./repo/confirm";
 import { createTask, getTask, listTasks, updateTask } from "./repo/tasks";
 import { getSetting, setSetting } from "./repo/settings";
 import { getApiKey } from "./secrets";
@@ -93,6 +93,42 @@ export async function confirmTick(now = new Date()): Promise<void> {
       if (msgs.length >= 3 && quiet) await scanClient(id);
     } catch (e) { logError("confirm-queue", e); }
   }
+  try { await sendConfirmsToTg(); } catch (e) { logError("confirm-tg", e); }
+}
+
+// Нові пропозиції → Саші в Telegram кнопками ✓/✕ (cf:<id>:y|n → confirmCallback). Відправлені — до settings confirm.tg_last.
+export async function sendConfirmsToTg(): Promise<void> {
+  if (!autoOn("confirm_tg")) return;
+  const { tg, tgOwner } = await import("./telegram");
+  const owner = tgOwner();
+  if (!owner) return;
+  if (getSetting("confirm.tg_last") == null) { // перший запуск — не засипаємо старою чергою, тільки нове з цього моменту
+    const max = (db().prepare("SELECT MAX(id) m FROM confirm_queue").get() as { m: number | null }).m ?? 0;
+    setSetting("confirm.tg_last", String(max));
+    return;
+  }
+  const last = Number(getSetting("confirm.tg_last") || 0);
+  const rows = db().prepare("SELECT q.*, c.name client_name FROM confirm_queue q JOIN clients c ON c.id = q.client_id WHERE q.status = 'new' AND q.id > ? ORDER BY q.id LIMIT 6").all(last) as ConfirmItem[];
+  for (const q of rows) {
+    setSetting("confirm.tg_last", String(q.id));
+    const text = `☑️ ${q.client_name} · ${CONFIRM_UA[q.kind] ?? q.kind}\n${q.title}${q.evidence ? `\n— ${q.evidence.replace(/\s+/g, " ").slice(0, 300)}` : ""}`;
+    await tg("sendMessage", { chat_id: owner, text, reply_markup: { inline_keyboard: [[{ text: "✓ Так", callback_data: `cf:${q.id}:y` }, { text: "✕ Ні", callback_data: `cf:${q.id}:n` }]] } }).catch((e) => logError("confirm-tg", e));
+  }
+}
+
+export async function confirmCallback(q: { id: string; data?: string; from?: { id: number }; message?: { chat: { id: number }; message_id: number; text?: string } }): Promise<void> {
+  const { tg, tgOwner } = await import("./telegram");
+  const owner = q.from?.id === tgOwner();
+  const [, id, ans] = (q.data ?? "").split(":");
+  const item = owner ? getConfirm(Number(id)) : undefined;
+  let note = "Вже розібрано";
+  if (item && item.status === "new") {
+    if (ans === "y") { const { applyConfirm } = await import("./taskLog"); applyConfirm(item); }
+    setConfirmStatus(item.id, ans === "y" ? "ok" : "skip");
+    note = ans === "y" ? "✓ Зроблено" : "✕ Відкинуто";
+  }
+  await tg("answerCallbackQuery", { callback_query_id: q.id, text: owner ? note : "Не для тебе" }).catch(() => {});
+  if (owner && q.message) await tg("editMessageText", { chat_id: q.message.chat.id, message_id: q.message.message_id, text: `${q.message.text ?? ""}\n\n${note}`.slice(0, 4000) }).catch(() => {});
 }
 
 // Раз на день (housekeeping): дублі геть, старше 3 днів — знято; прохання клієнтів — в одну задачу на клієнта

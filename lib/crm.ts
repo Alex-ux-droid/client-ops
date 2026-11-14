@@ -153,7 +153,8 @@ export function crmStats(clientId: number, sinceIso: string, untilIso = new Date
   const leads = all.filter((l) => inP(l.created_at));
   const sold = all.filter((l) => inP(l.won_at));
   const rev = (xs: CrmLead[]) => xs.reduce((a, l) => a + (l.deal_amount ?? 0), 0);
-  const speeds = (xs: CrmLead[]) => xs.filter((l) => l.first_contact_at).map((l) => (Date.parse(l.first_contact_at!) - Date.parse(l.created_at)) / 60000).filter((x) => x >= 0);
+  // Швидкість контакту — тільки живі ліди: ≤ 7 днів від заявки (архів, завантажений в CRM імпортом, дає «13 днів» і псує медіану — аудит 14.11)
+  const speeds = (xs: CrmLead[]) => xs.filter((l) => l.first_contact_at).map((l) => (Date.parse(l.first_contact_at!) - Date.parse(l.created_at)) / 60000).filter((x) => x >= 0 && x <= 7 * 1440);
   const group = <K extends string>(xs: CrmLead[], key: (l: CrmLead) => K) => { const m = new Map<K, CrmLead[]>(); for (const l of xs) m.set(key(l), [...(m.get(key(l)) ?? []), l]); return m; };
   const srcKeys = new Set([...leads, ...sold].map((l) => l.source || "other"));
   const skip = notManagers(clientId), mgr = (l: CrmLead) => managerOf(l, skip);

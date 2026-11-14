@@ -22,15 +22,17 @@ export default function MetaDiag({ clientId }: { clientId: number }) {
       </div>
       {d && <div className="dg-leak">{d.leak}</div>}
       <div className="dg-stages">{(d?.stages.length ? d.stages : f.stages).map((s) => <Pill key={s.key} s={s} />)}</div>
-      {d && d.verdict && <p className="dg-verdict">{d.verdict}</p>}
+      {d && d.verdict && d.verdict.length <= 220 && <p className="dg-verdict">{d.verdict}</p>}
       {d && d.actions.length > 0 && (
         <ol className="dg-actions">
           {d.actions.map((a, i) => (
             <li key={i}>
               <div className="dg-a-h"><b>{a.title}</b><span className={`tag dg-st-${a.stage}`}>{PATH_STAGES[a.stage ?? "red"].label}</span></div>
               <span className="mono">{a.why}</span>
-              {a.how && <span className="dg-how">{a.how}</span>}
-              <form action={diagToPathAction}><input type="hidden" name="client_id" value={clientId} /><input type="hidden" name="i" value={i} /><button className="ghost small">→ у Шлях стратегії</button></form>
+              <div className="inline" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+                {a.how && <Pop className="pop-trigger pop-inline" title={a.title} trigger={<span className="h-link mono">як зробити →</span>}><p className="dg-how">{a.how}</p></Pop>}
+                <form action={diagToPathAction}><input type="hidden" name="client_id" value={clientId} /><input type="hidden" name="i" value={i} /><button className="ghost small">→ у Шлях стратегії</button></form>
+              </div>
             </li>
           ))}
         </ol>

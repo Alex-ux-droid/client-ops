@@ -31,7 +31,7 @@ type TgMsg = {
 export type TgUpdate = {
   update_id: number; message?: TgMsg; edited_message?: TgMsg;
   my_chat_member?: { chat: TgChatRaw; from?: TgUser; new_chat_member: { status: string } };
-  callback_query?: { id: string; data?: string; from?: TgUser & { last_name?: string; username?: string }; message?: { chat: { id: number }; message_id: number } };
+  callback_query?: { id: string; data?: string; from?: TgUser & { last_name?: string; username?: string }; message?: { chat: { id: number }; message_id: number; text?: string } };
 };
 
 export async function tg<T = unknown>(method: string, body: Record<string, unknown> = {}): Promise<T> {
@@ -207,6 +207,10 @@ export async function handleUpdate(u: TgUpdate): Promise<void> {
   if (u.callback_query?.data?.startsWith("lg:")) {
     const { loginCallback } = await import("./loginConfirm");
     return loginCallback(u.callback_query);
+  }
+  if (u.callback_query?.data?.startsWith("cf:")) {
+    const { confirmCallback } = await import("./confirmQueue");
+    return confirmCallback(u.callback_query);
   }
   if (u.callback_query) {
     const { leadCallback } = await import("./metaLeads");
