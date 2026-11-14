@@ -253,7 +253,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
   function Connect() {
     const url = `${host}/api/app/${id}`;
     const once = getSetting(`app.secret_once.${id}`) || "";
-    const ev = productEvents(id, 25), cnt = productEventCounts(id, 7);
+    const ev = productEvents(id, 80).filter((e) => !/^app\.(usage|health|insight)$/.test(e.event)).slice(0, 15), cnt = productEventCounts(id, 7);
     const iss = productIssues(id);
     const found = listPItems(id, "idea").filter((x) => x.source === "app" && !x.done);
     const total = iss.errors.length + iss.feedback.length + found.length;
@@ -283,7 +283,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
           <div className="inline" style={{ flexWrap: "wrap" }}><span className="mono" style={{ overflowWrap: "anywhere" }}>{url}</span><CopyText text={url} label="Копіювати адресу" /></div>
           {once ? (
             <div className="inline" style={{ flexWrap: "wrap" }}>
-              <span className="mono" style={{ overflowWrap: "anywhere" }}>Секрет: {once}</span><CopyText text={once} label="Копіювати секрет" />
+              <span className="mono" title="Секрет не показується на екрані — тільки копіювання">Секрет: ••••••{once.slice(-4)}</span><CopyText text={once} label="Копіювати секрет" />
               <form action={productSecretAction}>{hid}<input type="hidden" name="op" value="hide" /><button className="ghost small">Вставив у програму — сховати</button></form>
             </div>
           ) : <form action={productSecretAction} className="inline">{hid}<span className="mono">Секрет {appSecret(id) ? "збережено (показується один раз)" : "ще нема"}.</span><button className="ghost small">{appSecret(id) ? "Новий секрет" : "Створити секрет"}</button></form>}
@@ -291,6 +291,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
         </div>
         <div className="card stack" style={{ gap: "0.375rem" }}>
           <b>Події{cnt.length ? ` · 7 днів: ${cnt.map((c) => `${c.event} ${c.n}`).join(", ")}` : ""}</b>
+          <div className="mono">Щоденні usage / health / insight — лише лічильником вище; нижче — помилки, відгуки, релізи.</div>
           {ev.length ? ev.map((e) => <div key={e.event_id} className="mono">{fmtDate(e.received_at)} {e.received_at.slice(11, 16)} · {e.event} · {e.summary}</div>) : <p className="mono">Подій ще не було.</p>}
         </div>
       </div>

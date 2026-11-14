@@ -2771,3 +2771,11 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
 .dg-actions form { margin-top: 0.125rem; }
 .dg-st-holes { background: var(--hole); color: #fff; } .dg-st-red { background: var(--bad); color: #fff; } .dg-st-yellow { background: var(--warn); color: #fff; } .dg-st-green { background: var(--ok); color: #fff; }
 .dg-facts { white-space: pre-wrap; font-size: 0.8125rem; line-height: 1.5; margin: 0; }
+/* Центр: «Зараз важливо» — топ-3 пункти, що горять (аудит 14.11) */
+.dash-now { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0.375rem; max-width: 100%; }
+.dash-now-h { font-size: 0.8125rem; color: var(--muted); }
+.dash-now-i { display: inline-flex; align-items: center; gap: 0.375rem; max-width: 26rem; padding: 0.3rem 0.75rem; border-radius: 999px; background: var(--bg-raise); border: 1px solid var(--line); color: var(--text); font-size: 0.875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none; }
+.dash-now-i b { flex: none; display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 50%; background: var(--accent); color: var(--bg-raise); font-size: 0.75rem; }
+.dash-now-i.bad { border-color: var(--bad); }
+.dash-now-i.bad b { background: var(--bad); }
+@media (max-width: 720px) { .dash-now { justify-content: flex-start; } }

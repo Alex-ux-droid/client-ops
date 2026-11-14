@@ -60,6 +60,15 @@ export default function Home() {
   const since30 = new Date(Date.now() - 30 * 86400_000).toISOString();
   const crm = listCrmLinks().reduce((acc, l) => { const st = crmStats(l.client_id, since30); return { sales: acc.sales + st.sales, revenue: acc.revenue + st.revenue, cur: acc.cur || st.currency }; }, { sales: 0, revenue: 0, cur: "" });
 
+  // «Зараз важливо» — топ-3 з того, що горить: поломки продуктів → борги → червоні тривоги клієнтів → прострочене → Підтверди
+  const now3: { t: string; href: string; bad?: boolean; why: string }[] = [
+    ...broken.filter((b) => b.n > 0).map((b) => ({ t: `${b.name}: ${pl(b.n, ["помилка", "помилки", "помилок"])}`, href: `/products/${b.id}?v=connect`, bad: true, why: "Поломка в нашому продукті — «Промпт: виправити» на вкладці Звʼязок" })),
+    ...debts.slice(0, 2).map((d) => ({ t: `${d.client_name}: борг ${money(d.amount)} · ${d.days} дн.`, href: `/clients/${d.client_id}?tab=money`, bad: true, why: "Прострочена оплата" })),
+    ...attention.flatMap((x) => x.flags.filter((f) => f.level === "bad").slice(0, 1).map((f) => ({ t: `${x.c.name}: ${f.text}`, href: `/clients/${x.c.id}`, bad: true, why: f.reason ?? f.text }))),
+    ...(t.overdue ? [{ t: `${pl(t.overdue, ["задача", "задачі", "задач"])} прострочено`, href: "/tasks?view=overdue", why: "Прострочені задачі" }] : []),
+    ...(confirms.length ? [{ t: `Підтверди: ${confirms.length}`, href: "#confirm", why: "Джері знайшов у переписці — ✓ або ✕" }] : []),
+  ].slice(0, 3);
+
   // Одне речення про головне
   const brief = [
     t.overdue ? `${t.overdue} прострочено` : null,
@@ -76,7 +85,12 @@ export default function Home() {
           <h1>{greeting(now.getHours())}, Саша</h1>
         </div>
         <div className="dash-right">
-          <div className="dash-brief">{brief}</div>
+          {now3.length ? (
+            <div className="dash-now" aria-label="Зараз важливо">
+              <span className="dash-now-h">Зараз важливо</span>
+              {now3.map((x, i) => <Link key={i} href={x.href} className={`dash-now-i${x.bad ? " bad" : ""}`} title={x.why}><b>{i + 1}</b> {x.t}</Link>)}
+            </div>
+          ) : <div className="dash-brief">{brief} · усе чисто</div>}
           {rv.due ? <Link href="/review" className="dash-focus dash-review" title="Тижневий рев'ю не закритий"><Icon name="flag" size={15} /> Рев&apos;ю тижня {weekLabel(rv.week)} — закрий тиждень</Link>
             : orgFocus && <Link href="/kb" className="dash-focus" title="Розвиток → Головне зараз"><Icon name="compass" size={15} /> {orgFocus}</Link>}
         </div>
@@ -191,7 +205,7 @@ export default function Home() {
                 </div>
               )}
               {confirms.length > 0 && (
-                <div className="cf-list">
+                <div id="confirm" className="cf-list">
                   <div className="cf-h" title="Джері звірив задачі з перепискою груп. ✓ — система зробить, ✕ — відкинути"><Icon name="check" size={14} /> Підтверди <span className="muted">{confirms.length}</span></div>
                   {confirms.slice(0, 6).map((q) => (
                     <div key={q.id} className="cf-row">

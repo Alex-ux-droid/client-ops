@@ -5,7 +5,8 @@ import { ai } from "./ai";
 import { autoOn } from "./agent/caps";
 import { db } from "./db";
 import { logError } from "./log";
-import { addConfirm, type ConfirmKind } from "./repo/confirm";
+import { addConfirm, tidyConfirms, type ConfirmKind } from "./repo/confirm";
+import { createTask, getTask, listTasks, updateTask } from "./repo/tasks";
 import { getSetting, setSetting } from "./repo/settings";
 import { getApiKey } from "./secrets";
 
@@ -91,5 +92,17 @@ export async function confirmTick(now = new Date()): Promise<void> {
       const quiet = msgs.length && Date.now() - Date.parse(msgs.at(-1)!.sent_at.replace(" ", "T") + "+02:00") > 20 * 60_000;
       if (msgs.length >= 3 && quiet) await scanClient(id);
     } catch (e) { logError("confirm-queue", e); }
+  }
+}
+
+// Раз на день (housekeeping): дублі геть, старше 3 днів — знято; прохання клієнтів — в одну задачу на клієнта
+export function tidyConfirmQueue(): void {
+  const r = tidyConfirms();
+  const T = "Розібрати прохання клієнта з переписки";
+  for (const a of r.asks) {
+    const list = a.titles.map((t) => `- [ ] ${t}`).join("\n");
+    const open = listTasks("all", a.client_id).find((t) => t.title === T && t.status !== "done");
+    if (open) { const t = getTask(open.id); updateTask(open.id, { details: `${t?.details ?? ""}\n${list}`.trim().slice(0, 20000) }); }
+    else createTask({ title: T, client_id: a.client_id, details: `Висіли в «Підтверди» понад 3 дні — перевір, що з цього треба зробити.\n\n${list}` });
   }
 }
