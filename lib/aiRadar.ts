@@ -16,7 +16,7 @@ export const RADAR_REPOS_DEFAULT = "anthropics/skills\nanthropics/claude-code\na
 export const radarRepos = () => (getSetting("radar.repos") ?? RADAR_REPOS_DEFAULT).split("\n").map((x) => x.trim()).filter((x) => /^[\w.-]+\/[\w.-]+$/.test(x));
 export const radarSources = () => getSetting("radar.sources") || RADAR_SOURCES_DEFAULT;
 export const creativeTools = () => getSetting("creative.tools") ?? "";
-const EVERY_DAYS = 3;
+const EVERY_DAYS = 7; // аудит 14.11: радар — 30% витрат API, раз на тиждень достатньо
 // Ідентифікатор процесу: якщо сервер перезапустився посеред прогону — позначка «шукає» більше не дійсна
 // (globalThis — бо модуль може бути завантажений кількома бандлами Next в одному процесі)
 const g = globalThis as unknown as { __radarBoot?: string };
@@ -197,7 +197,7 @@ async function notifyRadar(added: number) {
   if (owner) await tg("sendMessage", { chat_id: owner, text: `🛰 AI-радар: ${added} нового\n${top.map((x) => `${"★".repeat(x.score)} ${RADAR_AREAS[x.area as RadarArea]?.label ?? ""}: ${x.title}`).join("\n")}\n\nРозвиток → Радар` }).catch(() => {});
 }
 
-// Раз на 3 дні (після 9:00 за Києвом) + карта ринку раз на 30 днів
+// Раз на тиждень (після 9:00 за Києвом) + карта ринку раз на 30 днів
 export async function radarTick(): Promise<void> {
   if (!autoOn("ai_radar")) return;
   const hour = Number(new Date().toLocaleString("en-US", { timeZone: "Europe/Kyiv", hour: "numeric", hour12: false }));

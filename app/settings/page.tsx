@@ -1,3 +1,4 @@
+import { topViews } from "@/lib/repo/pageViews";
 import Anthropic from "@anthropic-ai/sdk";
 import Link from "next/link";
 import SubmitButton from "@/components/SubmitButton";
@@ -774,6 +775,7 @@ function Usage() {
         {u.byClient.length > 0 && <p className="mono">По клієнтах (чат Джері в картці, черга Підтверди): {u.byClient.map((c) => `${c.name} — ${usd(c.cost)}`).join(" · ")}</p>}
         {u.byModel.length > 0 && <p className="mono">Моделі: {u.byModel.map((m) => `${m.model} — ${usd(m.cost)} (${m.n})`).join(" · ")}</p>}
       </div>
+      <Views />
       <form action={saveUsageLimitAction} className="card stack" style={{ gap: "0.5rem" }}>
         <b>Ліміт на місяць</b>
         <span className="mono">На 80% і 100% — повідомлення тобі в Telegram. Нічого не вимикається само.</span>
@@ -781,6 +783,21 @@ function Usage() {
       </form>
       <p className="mono">Оцінка за прайсом Anthropic (жовтень 2026): Opus 5.5 — 4 / 20 $, Sonnet 5.5 — 2 / 10 $, Haiku 5.5 — 0.1 / 0.5 $, Fable 5.1 — 10 / 50 $ за 1 млн токенів (вхід / вихід), пошук в інтернеті — 1 цент. Точний рахунок — у platform.claude.com.</p>
     </section>
+  );
+}
+
+// Що Саша реально відкриває — щоб прибирати те, чим не користується
+function Views() {
+  const v = topViews(14);
+  return (
+    <div className="card stack" style={{ gap: "0.375rem" }}>
+      <b>Що відкриваєш (14 днів)</b>
+      {v.length ? (
+        <div className="table-wrap"><table><thead><tr><th>Розділ</th><th className="num">Разів</th><th className="num">Днів</th></tr></thead>
+          <tbody>{v.slice(0, 40).map((x) => <tr key={x.path}><td className="mono">{x.path}</td><td className="num">{x.n}</td><td className="num">{x.days}</td></tr>)}</tbody>
+        </table></div>
+      ) : <p className="mono">Рахується з цього оновлення — зазирни через кілька днів.</p>}
+    </div>
   );
 }
 
