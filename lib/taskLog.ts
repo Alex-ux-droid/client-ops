@@ -4,6 +4,7 @@ import { createTask, getTask, setTaskStatus, taskItems } from "./repo/tasks";
 import { addWork } from "./repo/worklog";
 import { getClient, updateClient } from "./repo/clients";
 import { addItem as addStrategyItem } from "./repo/strategy";
+import { addRequest, clientProducts, reqCode } from "./repo/products";
 
 // Закрили задачу простою галочкою → запис в історію з позначкою «авто» (дублі addWork пропускає).
 // reason — коли закрили не всі пункти («закрито з N/M: …»). Викликати ДО setTaskStatus(done).
@@ -17,7 +18,13 @@ export function autoLogDone(id: number, reason = ""): void {
 
 export function applyConfirm(q: { client_id: number; kind: string; task_id: number | null; title: string; evidence: string }): void {
   if (q.kind === "task_done" && q.task_id) { autoLogDone(q.task_id, q.evidence ? `доказ: ${q.evidence}` : ""); setTaskStatus(q.task_id, "done"); }
-  else if (q.kind === "task_new") createTask({ client_id: q.client_id, title: q.title, details: q.evidence ? `## Звідки\n${q.evidence}` : "", due_date: ymd() });
+  else if (q.kind === "task_new") {
+    // Прохання клієнта, в якого рівно один наш продукт (напр. Аква Віта → Oselya CRM), — ще й правкою в продукт (аудит 14.11)
+    const ps = clientProducts(q.client_id);
+    let req = "";
+    if (ps.length === 1) req = reqCode(addRequest(ps[0].id, { text: `${q.title}${q.evidence ? `\n${q.evidence}` : ""}`, source: "jerry", author: "з переписки клієнта", client_id: q.client_id }));
+    createTask({ client_id: q.client_id, title: q.title, details: [q.evidence && `## Звідки\n${q.evidence}`, req && `Правка ${req} у проєкті «${ps[0].name}» — закриється з витяжкою оновлення.`].filter(Boolean).join("\n\n"), due_date: ymd() });
+  }
   else if (q.kind === "log") addWork({ client_id: q.client_id, what: q.title, result: q.evidence ? `з Telegram: ${q.evidence}` : "", done_at: ymd() });
   else if (q.kind === "next_step") {
     const c = getClient(q.client_id);
