@@ -208,6 +208,10 @@ export async function handleUpdate(u: TgUpdate): Promise<void> {
     const { loginCallback } = await import("./loginConfirm");
     return loginCallback(u.callback_query);
   }
+  if (u.callback_query?.data?.startsWith("pm:")) {
+    const { payCallback } = await import("./digest");
+    return payCallback(u.callback_query);
+  }
   if (u.callback_query?.data?.startsWith("cf:")) {
     const { confirmCallback } = await import("./confirmQueue");
     return confirmCallback(u.callback_query);

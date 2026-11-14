@@ -4,7 +4,7 @@ import { dueWeek, weekLabel } from "./repo/review";
 import { money } from "./config";
 import { logError } from "./log";
 import { kyivDay, listAccounts, metaAlerts } from "./repo/meta";
-import { listPayments } from "./repo/payments";
+import { listPayments, markPaid } from "./repo/payments";
 import { getSetting, setSetting } from "./repo/settings";
 import { listTasks, type TaskRow } from "./repo/tasks";
 import { appOrigin, tg, tgOwner, tgToken } from "./telegram";
@@ -64,9 +64,14 @@ export async function sendDigest(): Promise<void> {
   const owner = tgOwner();
   if (!tgToken() || !owner) throw new Error("Спершу підключи бота і прив'яжи свій Telegram");
   const origin = await appOrigin();
+  // Кнопка «💸 Оплатив: клієнт» на кожну оплату, що вже мала прийти (до 3) — гроші записуються в момент, не заходячи в систему (аудит 14.11)
+  const today = kyivDay(0);
+  const payBtns = listPayments({ open: true }).filter((p) => p.due_date <= today).slice(0, 3)
+    .map((p) => [{ text: `💸 Оплатив: ${p.client_name.replace(/^Тест:\s*/, "").slice(0, 24)} ${money(p.amount)}`, callback_data: `pm:${p.id}` }]);
+  const links = origin ? [[{ text: "Задачі", url: `${origin}/tasks` }, { text: "Реклама", url: `${origin}/ads` }]] : [];
   await tg("sendMessage", {
     chat_id: owner, text: buildDigest(), parse_mode: "HTML", disable_web_page_preview: true,
-    ...(origin ? { reply_markup: { inline_keyboard: [[{ text: "Задачі", url: `${origin}/tasks` }, { text: "Реклама", url: `${origin}/ads` }]] } } : {}),
+    ...(payBtns.length || links.length ? { reply_markup: { inline_keyboard: [...payBtns, ...links] } } : {}),
   });
   setSetting("tg.digest_last", kyivDay(0));
 }
@@ -79,4 +84,15 @@ export async function digestTick(): Promise<void> {
   // після 12:00 не надсилаємо «ранкове» (сервер міг лежати зранку)
   if (now.slice(11, 13) >= "12" && digestTime() < "12:00") { setSetting("tg.digest_last", now.slice(0, 10)); return; }
   try { await sendDigest(); } catch (e) { setSetting("tg.digest_last", now.slice(0, 10)); logError("digest", e); }
+}
+
+// Кнопка «💸 Оплатив» у зведенні → оплата відмічена сьогоднішнім днем
+export async function payCallback(q: { id: string; data?: string; from?: { id: number } }): Promise<void> {
+  const owner = q.from?.id === tgOwner();
+  const id = Number((q.data ?? "").split(":")[1]);
+  const p = owner ? listPayments({}).find((x) => x.id === id) : undefined;
+  let text = owner ? "Оплату не знайдено" : "Не для тебе";
+  if (p && !p.paid_at) { markPaid(p.id, true); text = `✓ Записав: ${p.client_name} ${money(p.amount)}`; }
+  else if (p) text = "Вже відмічено як оплачене";
+  await tg("answerCallbackQuery", { callback_query_id: q.id, text: text.slice(0, 190), show_alert: false }).catch(() => {});
 }
