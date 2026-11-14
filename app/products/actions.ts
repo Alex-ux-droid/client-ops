@@ -25,7 +25,11 @@ export async function saveProductAction(fd: FormData) {
   const p: ProductPatch = {};
   for (const k of ["name", "kind", "status", "summary", "how", "features", "stack", "links", "pros", "cons", "next_step", "kit_md", "chat_url", "repo_url", "prod_url", "clarity_id"] as const) if (fd.has(k)) (p as Record<string, string>)[k] = str(fd, k);
   if (p.clarity_id != null) p.clarity_id = (p.clarity_id.match(/projects\/view\/([a-z0-9]+)/i)?.[1] ?? p.clarity_id).replace(/[^a-z0-9]/gi, "").slice(0, 20);
-  if (id) { updateProduct(id, p); re(id); revalidatePath("/clients", "layout"); return; }
+  if (id) {
+    updateProduct(id, p); re(id); revalidatePath("/clients", "layout");
+    if (fd.get("ws") === "1") redirect(`/products/${id}?v=edit&saved=1`); // видно, що збереглось
+    return;
+  }
   if (!p.name) return;
   const nid = addProduct({ ...p, name: p.name });
   re(nid);
