@@ -67,7 +67,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
   );
 }
 
-// Що додали в систему — бачить і Джері (останні 8 у системному промпті)
+// Що додали в систему — бачить і Джері (останні 3 у системному промпті)
 function Updates() {
   const list = listChangelog();
   return (
@@ -87,16 +87,19 @@ function Updates() {
         <Link href="/journal?v=archive">Відправлені</Link>
         <Link href="/journal?v=updates" className="on">Оновлення</Link>
       </div>
+      {/* По днях, одним рядком на зміну; текст — по кліку (аудит 14.11: стрічка була 63k символів) */}
       <div className="upd-list">
-        {list.length ? list.map((e) => (
-          <article key={e.id} className="card upd">
-            <div className="upd-date">{new Date(e.created_at.replace(" ", "T") + "Z").toLocaleDateString("uk-UA", { timeZone: "Europe/Kyiv", day: "numeric", month: "long" })}</div>
-            <div>
-              <h3>{e.title}</h3>
-              <Pop title={e.title} trigger={<p className="pv-s l4" style={{ margin: 0 }}>{e.body}</p>}><p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{e.body}</p></Pop>
-            </div>
-          </article>
-        )) : <div className="empty">Оновлень ще нема.</div>}
+        {list.length ? [...new Map(list.map((e) => [new Date(e.created_at.replace(" ", "T") + "Z").toLocaleDateString("uk-UA", { timeZone: "Europe/Kyiv", day: "numeric", month: "long" }), 0])).keys()].map((day) => {
+          const items = list.filter((e) => new Date(e.created_at.replace(" ", "T") + "Z").toLocaleDateString("uk-UA", { timeZone: "Europe/Kyiv", day: "numeric", month: "long" }) === day);
+          return (
+            <section key={day} className="card upd-day">
+              <div className="upd-date">{day} · {items.length}</div>
+              {items.map((e) => (
+                <Pop key={e.id} className="pop-trigger pop-inline upd-row" title={e.title} trigger={<span>{e.title}</span>}><p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{e.body}</p></Pop>
+              ))}
+            </section>
+          );
+        }) : <div className="empty">Оновлень ще нема.</div>}
       </div>
     </>
   );

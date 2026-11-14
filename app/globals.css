@@ -2784,3 +2784,6 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
 .side-more summary { list-style: none; cursor: pointer; }
 .side-more summary::-webkit-details-marker { display: none; }
 .side-more[open] > summary { opacity: 0.8; }
+/* Журнал → Оновлення: день = картка, зміна = один рядок (текст у Pop) */
+.upd-day { display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+.upd-row { text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
