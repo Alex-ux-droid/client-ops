@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
 
 const VIEWS = [{ k: "overview", label: "Паспорт" }, { k: "requests", label: "Правки" }, { k: "log", label: "Хронологія і план" }, { k: "knowledge", label: "Знання" }, { k: "kit", label: "Набір" }, { k: "connect", label: "Звʼязок" }, { k: "edit", label: "Змінити" }] as const;
 
-export default async function ProductPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ v?: string }> }) {
+export default async function ProductPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ v?: string; saved?: string }> }) {
   const id = Number((await params).id);
   const p = getProduct(id);
   if (!p) notFound();
@@ -150,7 +150,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
           )}
           {kn.length > 0 && <Link href={`${base}?v=knowledge`} className="card qt qt-link"><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="book" /></span><b>Що знаємо</b></span><span className="qt-n">{listPItems(id, "knowledge").length}</span></span>{kn.slice(0, 2).map((k) => <span key={k.id} className="qt-l">{k.title}</span>)}<span className="qt-more">відкрити →</span></Link>}
         </div>
-        {(p!.service_type === "website" || sitePulse(id, 30).last) && <SitePulseCard productId={id} />}
+        {(p!.service_type === "website" || p!.clarity_id || sitePulse(id, 30).last) && <SitePulseCard productId={id} />}
         <div className="card stack" style={{ gap: "0.75rem" }}>
           <div className="mx-main-head"><b>Хронологія{tlAll.length > 6 ? ` · останні 6 з ${tlAll.length}` : ""}</b><Link href={`${base}?v=log`}>уся і план →</Link></div>
           <Timeline items={tlAll.slice(-6)} empty="Ще порожньо. Встав витяжку з Claude Code — етапи стануть блоками." />
@@ -326,7 +326,8 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
         </div>
         <form action={saveProductAction} className="card stack" style={{ gap: "0.5rem" }}>
           {hid}
-          <b>Робоче місце · {productCode(id)}</b>
+          <input type="hidden" name="ws" value="1" />
+          <b>Робоче місце · {productCode(id)}{sp.saved && <span className="tag ok" style={{ marginLeft: "0.5rem" }}>Збережено ✓</span>}</b>
           <div className="mono">Назви чат у Claude Code: «{chatTitle(p!)}». Посилання на чат — з адресного рядка claude.ai/code.</div>
           <div className="pj-ws">
             <label>Чат Claude Code<input name="chat_url" defaultValue={p!.chat_url} placeholder="https://claude.ai/code/session_…" inputMode="url" autoCapitalize="off" /></label>
