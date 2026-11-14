@@ -46,7 +46,7 @@
 - **Задачі**: `TaskModal.tsx` (глобально, `openTask(id)`), покрокові `lib/taskSteps.ts`, Google Календар `lib/taskCalendar.ts` (час `due_time`). Автоісторія `lib/taskLog.ts`. Черга «Підтверди» `lib/confirmQueue.ts` (+ кнопки в Telegram `cf:`).
 - **Реклама** `/ads`, Meta тільки читання `lib/meta.ts` (синк кожні 2 год, `syncExtras`), заявки з лід-форм `lib/metaLeads.ts`, бот заявок клієнта `lib/leadBot.ts`, звіт клієнту `/r/[token]`.
 - **Проєкти** `/products` (`lib/products.ts`, `lib/repo/products.ts`): код P-N, робоче місце, правки R-N, витяжки `[CLIENT-OPS:ПРОДУКТ/ОНОВЛЕННЯ]`, події програм `POST /api/app/[id]`, «Що виправити» = компактний `fixPrompt` (причини P0/P1/P2, без паспорта), пульс сайту `lib/sitePulse.ts` + Clarity.
-- **Telegram** `lib/telegram.ts`: вебхук `/api/telegram/webhook`, групи клієнтів мовчки пишуться в `tg_messages`, особисті від Саші → Джері; колбеки `lg:` вхід, `cf:` Підтверди, `ld:` заявки.
+- **Telegram** `lib/telegram.ts`: вебхук `/api/telegram/webhook`, групи клієнтів мовчки пишуться в `tg_messages`, особисті від Саші → Джері; колбеки `lg:` вхід, `cf:` Підтверди, `pm:` оплата зі зведення (`payCallback` у `lib/digest.ts`), `ld:` заявки.
 - **Google** `lib/google.ts`: Диск/Gmail/Календар без бібліотек; бекап `lib/backup.ts`. Тестовий режим OAuth → `invalid_grant` раз на ~7 днів (Саші — повідомлення в Telegram).
 - **Фон** `instrumentation.ts` (щохвилинний tick): зведення, бекап, синки, радар (раз на тиждень), housekeeping (кошик, пульс, чистка Підтверди). Кожна автоматика — тумблер у `AUTO`.
 - **Знання**: Розвиток `/kb` (план, інструкції, радар), Журнал `/journal` (`dev_log`, `logError`), Налаштування (Можливості, Витрати + «Що відкриваєш» `page_views`, Конектори).
