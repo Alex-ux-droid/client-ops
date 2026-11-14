@@ -42,7 +42,7 @@ export default async function SalesTab({ clientId, sp, err, pulled }: { clientId
       <div className="inline" style={{ flexWrap: "wrap" }}><span className="mono" style={{ overflowWrap: "anywhere" }}>{hook}</span><CopyText text={hook} label="Копіювати адресу" /></div>
       {once ? (
         <div className="inline" style={{ flexWrap: "wrap" }}>
-          <span className="mono" style={{ overflowWrap: "anywhere" }}>Секрет: {once}</span><CopyText text={once} label="Копіювати секрет" />
+          <span className="mono" title="Секрет не показується на екрані — тільки копіювання">Секрет: ••••••{once.slice(-4)}</span><CopyText text={once} label="Копіювати секрет" />
           <form action={crmSecretAction}>{hid}<input type="hidden" name="op" value="hide" /><button className="ghost small">Вставив у CRM — сховати</button></form>
         </div>
       ) : (

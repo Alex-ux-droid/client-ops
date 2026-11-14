@@ -378,22 +378,53 @@ export async function appWebhook(productId: number, raw: string, h: Headers): Pr
 }
 
 // Промпт «виправити»: свіжі помилки, відгуки і знахідки самоаудиту → одне завдання для Claude Code + витяжка-оновлення
+// «Виправити все це» — компактно: згруповано за причиною, P0/P1/P2, без паспорта (Claude Code бачить репо).
+// Причина аудиту 14.11: старий промпт був 33k символів, Claude не брав його цілком.
+type Cause = { key: string; title: string; n: number; last: string; ex: string[]; w: number };
+const keyOf = (t: string) => t.toLowerCase().replace(/https?:\/\/\S+|\S*\/\S*/g, "").replace(/["'«»`][^"'«»`]{0,80}["'«»`]/g, "").replace(/\d+/g, "#").replace(/[^a-zа-яіїєґ# ]+/gi, " ").trim().split(/\s+/).filter(Boolean).slice(0, 4).join(" ");
+// «cron meta-leads: job startup timeout» і «cron zadarma-ai: …» — одна причина: ключ = перше слово + суть після двокрапки
+const causeKey = (t: string) => {
+  const i = t.indexOf(":");
+  const after = i > 0 ? keyOf(t.slice(i + 1)) : "";
+  return after ? `${keyOf(t.slice(0, i)).split(" ")[0]}|${after}` : keyOf(t);
+};
+function causes(items: { text: string; n: number; last: string; w: number }[]): Cause[] {
+  const m = new Map<string, Cause>();
+  for (const it of items) {
+    const k = causeKey(it.text) || it.text.slice(0, 30);
+    const g = m.get(k);
+    const ex = it.text.replace(/\s+/g, " ").slice(0, 110);
+    if (g) { g.n += it.n; g.w = Math.max(g.w, it.w); if (it.last > g.last) g.last = it.last; if (g.ex.length < 3 && !g.ex.includes(ex)) g.ex.push(ex); }
+    else m.set(k, { key: k, title: ex, n: it.n, last: it.last, ex: [], w: it.w });
+  }
+  return [...m.values()].sort((a, b) => b.w - a.w || b.n - a.n);
+}
 export function fixPrompt(productId: number): string {
   const p = getProduct(productId);
   if (!p) return "";
   const { since, errors, feedback } = productIssues(productId);
-  const ideas = listPItems(productId, "idea").filter((x) => x.source === "app" && !x.done).slice(0, 25);
-  const ver = nextUpdateVer(productId);
-  const lst = (xs: { summary: string; n: number; last: string }[]) => xs.map((x) => `- ${x.summary}${x.n > 1 ? ` (×${x.n})` : ""} — останній раз ${x.last.slice(0, 16)}`).join("\n");
-  return `Продукт «${p.name}». Нижче — що програма сама повідомила в мою систему Client Ops${since ? ` після ${since.slice(0, 10)}` : ""}: помилки, відгуки користувачів і знахідки самоаудиту. Розбери і виправ по важливості. Не ламай те, що працює; на кожну помилку — знайди причину, а не гаси симптом.
-${errors.length ? `\nПомилки:\n${lst(errors)}\n` : ""}${feedback.length ? `\nВідгуки користувачів:\n${lst(feedback)}\n` : ""}${ideas.length ? `\nЗнахідки самоаудиту (незручності, повільні місця):\n${ideas.map((x) => `- ${x.title}${x.body ? ` — ${x.body.replace(/\*\*/g, "").replace(/\s+/g, " ").slice(0, 200)}` : ""}`).join("\n")}\n` : ""}
-<product>
-${productMd(p, false)}
-</product>
+  const ideas = listPItems(productId, "idea").filter((x) => x.source === "app" && !x.done);
+  const sev = (b: string) => (/Важливість:\*\*\s*high/i.test(b) ? 2 : /Важливість:\*\*\s*low/i.test(b) ? 0 : 1);
+  const all = causes([
+    ...errors.map((x) => ({ text: x.summary, n: x.n, last: x.last, w: /slow|повільн|rage|скасув/i.test(x.summary) ? 2 : 3 })),
+    ...feedback.map((x) => ({ text: `Відгук: ${x.summary}`, n: x.n, last: x.last, w: 2 })),
+    ...ideas.map((x) => ({ text: x.title, n: 1, last: x.created_at, w: sev(x.body) })),
+  ]);
+  const signals = errors.reduce((a, x) => a + x.n, 0) + feedback.reduce((a, x) => a + x.n, 0) + ideas.length;
+  const top = all.slice(0, 6);
+  const lvl = (c: Cause) => (c.w >= 3 ? "P0" : c.w === 2 ? "P1" : "P2");
+  const when = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)} ${d.slice(11, 16)}`.trim();
+  const lines = top.map((c) => `${lvl(c)} ${c.title}${c.n > 1 ? ` ×${c.n}` : ""} (останній ${when(c.last)})${c.ex.length ? `\n   схожі: ${c.ex.join("; ")}` : ""}`);
+  const rest = all.length - top.length;
+  return `${p.name} (${productCode(productId)}) · правки${since ? ` з ${since.slice(0, 10)}` : ""} · ${signals} сигналів → ${all.length} причин
+Код, історія і паспорт — у репо${p.repo_url ? ` ${p.repo_url}` : ""}. Не переказуй — знайди причину і виправ.
 
-Порядок: 1) що ламає роботу менеджерів або гроші; 2) часті помилки; 3) незручності. Що не варто робити — скажи чому. Після роботи видай оновлення СТРОГО в такому блоці (тільки факти, без ключів):
+${lines.join("\n") || "Нових сигналів нема."}${rest > 0 ? `\n(ще ${rest} дрібних — після цих)` : ""}
 
-${updateTemplate(p.name, ver, since.slice(0, 10))}`;
+Порядок: P0 → перевір → P1 одним заходом → P2. Що не варто робити — скажи чому.
+Наприкінці — блок оновлення (тільки факти, без ключів):
+
+${updateTemplate(p.name, nextUpdateVer(productId), since.slice(0, 10))}`;
 }
 
 // Що програма повідомила після останнього «Розібрано»: однакові згруповані з лічильником
