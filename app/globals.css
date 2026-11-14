@@ -2779,3 +2779,8 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
 .dash-now-i.bad { border-color: var(--bad); }
 .dash-now-i.bad b { background: var(--bad); }
 @media (max-width: 720px) { .dash-now { justify-content: flex-start; } }
+/* Клієнт: «Ще» і «+ Розділ» у лівій панелі (не .side-add — той для кнопки «Додати») */
+.side-more { display: block; }
+.side-more summary { list-style: none; cursor: pointer; }
+.side-more summary::-webkit-details-marker { display: none; }
+.side-more[open] > summary { opacity: 0.8; }

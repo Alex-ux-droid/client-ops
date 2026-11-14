@@ -15,7 +15,9 @@ import { listCompetitors } from "@/lib/repo/competitors";
 const competitorsCount = (id: number) => listCompetitors(id).length;
 
 // hidden — розділ без даних: не показуємо, поки Саша не ввімкне «+ Розділ» (settings client.tabs.<id>) або не відкриє його
-export type Section = { k: string; label: string; ico: string; group: string; badge?: number; svc?: boolean; hidden?: boolean };
+// more — другорядний розділ: на компʼютері під «Ще», на телефоні тільки в сітці «Розділи» (аудит 14.11: живуть 4–5 вкладок із 15)
+export type Section = { k: string; label: string; ico: string; group: string; badge?: number; svc?: boolean; hidden?: boolean; more?: boolean };
+const MAIN = new Set(["overview", "strategy", "sales", "telegram", "tasks"]);
 const has = (sql: string, id: number) => { try { return !!db().prepare(sql).get(id); } catch { return false; } };
 export const enabledTabs = (id: number) => (getSetting(`client.tabs.${id}`) ?? "").split(",").filter(Boolean);
 export function enableClientTab(id: number, k: string): void {
@@ -34,7 +36,7 @@ export function clientSections(c: ClientRow, services: ClientService[]): Section
   const on = enabledTabs(c.id);
   const hide = (k: string, hasData: boolean) => !hasData && !on.includes(k);
   const comp = competitorsCount(c.id), acc = accessCount(c.id);
-  return [
+  const list: Section[] = [
     { k: "overview", label: "Огляд", ico: "home", group: "" },
     { k: "strategy", label: "Стратегія", ico: "zap", group: "" },
     { k: "sales", label: "Продажі", ico: "wallet", group: "", hidden: hide("sales", !!getCrmLink(c.id)) },
@@ -53,4 +55,6 @@ export function clientSections(c: ClientRow, services: ClientService[]): Section
     { k: "playbooks", label: "Плейбуки", ico: "book", group: "Робота", badge: pbs, hidden: hide("playbooks", pbs > 0) },
     { k: "setup", label: "Налаштування клієнта", ico: "gear", group: "Налаштування" },
   ];
+  // Головне: Огляд, Стратегія, Продажі, послуги, Telegram, Задачі; решта — «Ще»
+  return list.map((x) => ({ ...x, more: !(MAIN.has(x.k) || x.svc) }));
 }

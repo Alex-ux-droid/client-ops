@@ -122,7 +122,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
 
       {/* На телефоні — вкладки; на компʼютері навігація в лівій панелі (ClientNav) */}
       <nav className="subnav hub-tabs phone-only">
-        {shown.map((t) => (
+        {shown.filter((t) => !t.more || t.k === tab).map((t) => (
           <Link key={t.k} href={`/clients/${id}?tab=${t.k}`} className={`${t.k === tab ? "on" : ""} ${t.svc ? "svc" : ""}`} scroll={false}>
             {t.k === "setup" ? "Налаштування" : t.svc ? SERVICES[t.k as ServiceType].short : t.label}{t.badge ? <b>{t.badge}</b> : null}
           </Link>

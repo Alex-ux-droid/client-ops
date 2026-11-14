@@ -20,7 +20,7 @@ import { tipsBlock } from "../repo/tips";
 
 // Останні оновлення системи — щоб Джері знав свої нові можливості і не тримався за старе з пам'яті
 function updatesBlock(): string {
-  const list = listChangelog(8);
+  const list = listChangelog(3);
   if (!list.length) return "";
   return `Останні оновлення системи (свіжіше за твою пам'ять — якщо пам'ять каже інакше, вір оновленням і виправ пам'ять через memory_rewrite; повний список — system_updates):\n${list.map((e) => `- ${e.created_at.slice(0, 10)} ${e.title}: ${e.body}`).join("\n")}`;
 }

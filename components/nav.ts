@@ -1,7 +1,7 @@
 export type Counts = { tasks: number; leads: number; debts: number; ideas: number; journal: number };
 
 // Пункти меню: бокова панель на компʼютері і сторінка /menu на телефоні
-// «Особисте» згорнуте за замовчуванням (розгортається, коли відкрита сторінка з нього)
+// Стартапи та Ідеї прибрані з меню після аудиту 14.11 (сторінки живі). collapsed — секція згорнута, поки не відкрита сторінка з неї
 export const SECTIONS: { title: string; collapsed?: boolean; items: { href: string; label: string; ico: string; count?: keyof Counts; bad?: boolean }[] }[] = [
   {
     title: "Робота",
@@ -16,17 +16,9 @@ export const SECTIONS: { title: string; collapsed?: boolean; items: { href: stri
     ],
   },
   {
-    title: "Особисте",
-    collapsed: true,
-    items: [
-      { href: "/startups", label: "Стартапи", ico: "rocket" },
-      { href: "/kb", label: "Розвиток", ico: "compass" },
-      { href: "/ideas", label: "Ідеї", ico: "bulb", count: "ideas" },
-    ],
-  },
-  {
     title: "Знання",
     items: [
+      { href: "/kb", label: "Розвиток", ico: "compass" },
       { href: "/journal", label: "Журнал системи", ico: "wrench", count: "journal" },
       { href: "/settings", label: "Налаштування", ico: "gear" },
     ],

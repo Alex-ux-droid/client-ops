@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { logout } from "@/app/login/actions";
+import ViewPing from "./ViewPing";
 import Chat from "./Chat";
 import CommandPalette from "./CommandPalette";
 import QuickAdd from "./QuickAdd";
@@ -178,6 +179,7 @@ export default function Shell({ counts, clients, children }: { counts: Counts; c
       {search && <CommandPalette onClose={() => setSearch(false)} />}
       {add && <QuickAdd clients={clients} onClose={() => setAdd(false)} />}
       <Suspense fallback={null}><TaskModal /></Suspense>
+      <Suspense fallback={null}><ViewPing /></Suspense>
       <ClientMessage />
       <JerryTip hidden={dock || search || add} />
       <SessionGuard />

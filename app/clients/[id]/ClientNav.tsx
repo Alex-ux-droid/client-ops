@@ -11,9 +11,18 @@ export default function ClientNav({ id, name, status, statusTag, sections, logo 
   const sp = useSearchParams();
   const path = usePathname();
   const tab = path.endsWith("/edit") ? "" : sp.get("tab") ?? "overview";
-  const visible = sections.filter((s) => !s.hidden || s.k === tab);
+  const shown = sections.filter((s) => !s.hidden || s.k === tab);
+  const visible = shown.filter((s) => !s.more);
+  const moreList = shown.filter((s) => s.more);
   const extra = sections.filter((s) => s.hidden && s.k !== tab);
   const groups = [...new Set(visible.map((s) => s.group))];
+  const link = (s: Section) => (
+    <Link key={s.k} href={s.k === "overview" ? `/clients/${id}` : `/clients/${id}?tab=${s.k}`} className={`side-link ${tab === s.k ? "on" : ""}`} scroll={false} title={s.label}>
+      <span className="ico"><Icon name={s.ico} /></span>
+      <span className="grow">{s.label}</span>
+      {s.badge ? <span className="count">{s.badge}</span> : null}
+    </Link>
+  );
   return (
     <aside className="client-side" aria-label={`Клієнт ${name}`}>
       <div className="side-top"><Link href="/clients" className="client-back" title="Усі клієнти"><Icon name="back" size={18} /> <span className="lbl">Усі клієнти</span></Link><SideToggle /></div>
@@ -26,17 +35,17 @@ export default function ClientNav({ id, name, status, statusTag, sections, logo 
       {groups.map((g) => (
         <div key={g || "main"} className="side-group">
           {g && <div className="side-title">{g}</div>}
-          {visible.filter((s) => s.group === g).map((s) => (
-            <Link key={s.k} href={s.k === "overview" ? `/clients/${id}` : `/clients/${id}?tab=${s.k}`} className={`side-link ${tab === s.k ? "on" : ""}`} scroll={false} title={s.label}>
-              <span className="ico"><Icon name={s.ico} /></span>
-              <span className="grow">{s.label}</span>
-              {s.badge ? <span className="count">{s.badge}</span> : null}
-            </Link>
-          ))}
+          {visible.filter((s) => s.group === g).map(link)}
         </div>
       ))}
+      {moreList.length > 0 && (
+        <details className="side-group side-more" open={moreList.some((s) => s.k === tab)}>
+          <summary className="side-link" title="Інші розділи клієнта"><span className="ico"><Icon name="grid" /></span><span className="grow">Ще</span><span className="count">{moreList.length}</span></summary>
+          {moreList.map(link)}
+        </details>
+      )}
       {extra.length > 0 && (
-        <details className="side-group side-add">
+        <details className="side-group side-more">
           <summary className="side-link" title="Розділи без даних сховані — увімкни потрібний"><span className="ico"><Icon name="plus" /></span><span className="grow">Розділ</span></summary>
           {extra.map((s) => (
             <Link key={s.k} href={`/clients/${id}?tab=${s.k}&add=1`} className="side-link" scroll={false} title={s.label}>
