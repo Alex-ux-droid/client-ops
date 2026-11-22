@@ -2930,3 +2930,4 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
 .ft-badge { position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--ft) 10%, var(--bg-raise)); }
 .ft-badge b { display: grid; place-items: end start; width: 3.25rem; height: 4rem; padding: 0.375rem; border-radius: 0.375rem 1rem 0.375rem 0.375rem; background: var(--ft); color: var(--bg-raise); font-size: 0.6875rem; letter-spacing: 0.02em; box-shadow: 0 6px 16px rgba(15, 23, 42, 0.14); }
 .ft img + .ft-badge { display: none; }
+.ov-clamp { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
