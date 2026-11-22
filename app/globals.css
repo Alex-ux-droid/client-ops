@@ -2996,3 +2996,4 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
 .ct-slide-row input[type="number"] { width: 100%; }
 .ct-slide-txt { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 0.375rem; min-width: 0; }
 @media (max-width: 760px) { .ct-slide-txt { grid-template-columns: minmax(0, 1fr); } }
+.ct-reel { height: 26rem; aspect-ratio: 9 / 16; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--bg); }

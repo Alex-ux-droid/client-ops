@@ -12,6 +12,7 @@ import { duePosts, getAsset, getPost, listAssets, updatePost, type Post } from "
 import { getClient } from "./repo/clients";
 import { getSocial } from "./repo/social";
 import { renderCarousel } from "./render/carousel";
+import { renderReel } from "./render/reel";
 import { PALETTE_DEFAULT, renderStoryFact, type Palette } from "./render/storyFact";
 
 export const MEDIA_DIR = path.join(process.cwd(), "data", "content-media");
@@ -24,9 +25,12 @@ export function postFromKey(key: string): number | null {
 // Файл слайда: 0 — обкладинка (<id>.jpg), далі <id>_<n>.jpg; посилання /m/<ключ>.jpg і /m/<ключ>_<n>.jpg
 export const mediaFile = (id: number, n = 0) => path.join(MEDIA_DIR, n ? `${id}_${n}.jpg` : `${id}.jpg`);
 export const mediaUrl = (origin: string, id: number, n = 0) => `${origin}/m/${mediaKey(id)}${n ? `_${n}` : ""}.jpg`;
+export const videoFile = (id: number) => path.join(MEDIA_DIR, `${id}.mp4`);
+export const videoUrl = (origin: string, id: number) => `${origin}/m/${mediaKey(id)}.mp4`;
 export type SlideSpec = { asset_id: number; title?: string; text?: string; pos?: number };
 export type StorySpec = { asset_id?: number; kicker?: string; fact?: string; sub?: string; cta?: string; slides?: SlideSpec[]; end_title?: string; end_text?: string; media_n?: number };
 export const isCarousel = (p: Pick<Post, "format" | "template_key">) => p.format === "carousel" || p.template_key.startsWith("carousel");
+export const isReel = (p: Pick<Post, "format" | "template_key">) => p.format === "reel" || p.template_key.startsWith("reel");
 export const slideCount = (p: Post) => (p.media_path ? (isCarousel(p) ? specOf(p).media_n ?? 1 : 1) : 0);
 export const specOf = (p: Post): StorySpec => { try { return JSON.parse(p.spec_json || "{}"); } catch { return {}; } };
 
@@ -44,6 +48,7 @@ export async function renderPost(id: number): Promise<string | null> {
   const p = getPost(id);
   if (!p) return "Поста нема";
   if (isCarousel(p)) return renderCarouselPost(p);
+  if (isReel(p)) return renderReelPost(p);
   if (p.template_key !== "story-fact") return "Поки збираються шаблони «Сторіс «Факт»» і «Карусель «Фішка»»";
   const s = specOf(p);
   if (!s.fact?.trim()) return "Впиши факт — головну фразу сторіс";
@@ -93,6 +98,33 @@ async function renderCarouselPost(p: Post): Promise<string | null> {
   return null;
 }
 
+// Reels: 3–5 кадрів з наїздом камери, рядок тексту на кожному, фінал з CTA; звук — свій трек з матеріалів або тиша
+async function renderReelPost(p: Post): Promise<string | null> {
+  const s = specOf(p) as StorySpec & { audio_id?: number };
+  const sl = [...(s.slides ?? [])].sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0));
+  if (sl.length < 2) return "Обери щонайменше 2 кадри (краще 3–5)";
+  const assets = sl.map((x) => getAsset(x.asset_id));
+  if (assets.some((a) => !a || a.client_id !== p.client_id || !a.mime.startsWith("image/"))) return "Один із кадрів не знайдено в матеріалах — обери ще раз";
+  const empty = sl.findIndex((x) => !x.title?.trim());
+  if (empty >= 0) return `Кадр ${empty + 1}: впиши рядок тексту (або «Джері, заповни тексти»)`;
+  const audioA = s.audio_id ? getAsset(s.audio_id) : null;
+  const files = await Promise.all(assets.map((a) => fileOf(a!.drive_id)));
+  const mp4 = await renderReel({
+    brand: brandOf(p.client_id), logo: await logoOf(p.client_id), pal: paletteOf(p.client_id),
+    shots: sl.map((x, i) => ({ image: files[i], plan: assets[i]!.kind === "plan", line: x.title!, kicker: i === 0 ? s.kicker : undefined })),
+    end: { title: s.end_title?.trim() || "Подивіться наживо", cta: s.cta },
+    audio: audioA && audioA.client_id === p.client_id && audioA.mime.startsWith("audio/") ? await fileOf(audioA.drive_id) : null,
+  });
+  fs.mkdirSync(MEDIA_DIR, { recursive: true });
+  fs.writeFileSync(videoFile(p.id), mp4);
+  // Обкладинка-прев'ю для дошки і Telegram — кадр 1,5 с
+  const { spawnSync } = await import("node:child_process");
+  const { FFMPEG } = await import("./render/reel");
+  spawnSync(/*turbopackIgnore: true*/ FFMPEG, ["-v", "error", "-y", "-ss", "1.5", "-i", videoFile(p.id), "-frames:v", "1", "-q:v", "3", mediaFile(p.id)]);
+  updatePost(p.id, p.client_id, { media_path: videoFile(p.id), media_at: new Date().toISOString(), status: p.status === "idea" ? "making" : p.status, publish_error: "" });
+  return null;
+}
+
 // ---- Апрув у Telegram: фото + ✓ / ✕ (cp:<id>:y|n)
 export async function sendForApproval(id: number, origin: string): Promise<string | null> {
   const p = getPost(id);
@@ -105,7 +137,10 @@ export async function sendForApproval(id: number, origin: string): Promise<strin
   const v = `?v=${Date.parse(p.media_at ?? "") || 0}`;
   const keyboard = { inline_keyboard: [[{ text: "✓ Публікувати", callback_data: `cp:${id}:y` }, { text: "✕ Ні", callback_data: `cp:${id}:n` }], [{ text: "Відкрити в системі", url: `${origin}/clients/${p.client_id}?tab=content&cv=posts` }]] };
   let r: { message_id: number };
-  if (isCarousel(p)) {
+  if (isReel(p)) {
+    const text = `📣 ${c?.name ?? ""} · Reels\n${p.topic}\n${when}${p.caption ? `\n\nПідпис:\n${p.caption}` : "\n\n⚠️ Підпису нема"}`;
+    r = await tg<{ message_id: number }>("sendVideo", { chat_id: owner, video: videoUrl(origin, id) + v, supports_streaming: true, caption: text.slice(0, 1000), reply_markup: keyboard });
+  } else if (isCarousel(p)) {
     const n = slideCount(p);
     await tg("sendMediaGroup", { chat_id: owner, media: Array.from({ length: Math.min(n, 10) }, (_, i) => ({ type: "photo", media: mediaUrl(origin, id, i) + v })) });
     const text = `📣 ${c?.name ?? ""} · карусель, ${n} слайдів\n${p.topic}\n${when}${p.caption ? `\n\nПідпис:\n${p.caption}` : "\n\n⚠️ Підпису нема"}`;
@@ -133,8 +168,8 @@ export async function approvalCallback(q: { id: string; data?: string; from?: { 
 }
 
 // ---- Публікація в Instagram (сторіс): контейнер → чекаємо FINISHED → media_publish
-async function waitReady(container: string): Promise<void> {
-  for (let i = 0; i < 20; i++) {
+async function waitReady(container: string, tries = 20): Promise<void> {
+  for (let i = 0; i < tries; i++) {
     const s = await metaGet<{ status_code?: string; status?: string }>(container, { fields: "status_code,status" });
     if (s.status_code === "FINISHED") return;
     if (s.status_code === "ERROR" || s.status_code === "EXPIRED") throw new Error(`Instagram не прийняв файл: ${s.status ?? s.status_code}`);
@@ -150,7 +185,11 @@ export async function publishPost(p: Post, origin: string): Promise<void> {
   const s = getSocial(p.client_id);
   if (!s?.ig_id) throw new Error("У клієнта не обрано Instagram (Контент → Налаштування)");
   let container: string;
-  if (isCarousel(p)) {
+  if (isReel(p)) {
+    // Reels: Instagram сам завантажує відео за посиланням і обробляє до кількох хвилин
+    container = (await metaPost<{ id: string }>(`${s.ig_id}/media`, { media_type: "REELS", video_url: videoUrl(origin, p.id), caption: p.caption.slice(0, 2200), share_to_feed: "true", thumb_offset: "1500" })).id;
+    await waitReady(container, 60);
+  } else if (isCarousel(p)) {
     // Карусель: контейнер на кожен слайд (is_carousel_item) → батьківський CAROUSEL з підписом → публікація
     const kids: string[] = [];
     for (let i = 0; i < Math.min(slideCount(p), 10); i++) {
@@ -167,8 +206,13 @@ export async function publishPost(p: Post, origin: string): Promise<void> {
 }
 
 // Щохвилини: заплановані й схвалені пости, час яких настав
+let publishing = false; // публікація Reels може йти кілька хвилин — наступні хвилинні тіки не дублюють
 export async function contentTick(): Promise<void> {
-  if (!autoOn("content_publish")) return;
+  if (!autoOn("content_publish") || publishing) return;
+  publishing = true;
+  try { await publishDue(); } finally { publishing = false; }
+}
+async function publishDue(): Promise<void> {
   const nowK = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Kyiv" }).slice(0, 16);
   const due = duePosts(nowK);
   if (!due.length) return;

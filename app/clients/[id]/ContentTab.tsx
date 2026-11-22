@@ -6,7 +6,7 @@ import FileThumb from "@/components/FileThumb";
 import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
 import { analyzeSocialAction, approvalAction, assetAction, refreshSocialAction, checkPublishAction, fillStoryAction, paletteAction, pillarAction, postAction, saveSocialAction, storySpecAction, syncAssetsAction, weekThemeAction } from "@/app/content/actions";
-import { isCarousel, mediaKey, paletteOf, slideCount, specOf } from "@/lib/contentPipeline";
+import { isCarousel, isReel, mediaKey, paletteOf, slideCount, specOf } from "@/lib/contentPipeline";
 import { getAnalysis, getSnapshot, stats, type Snapshot } from "@/lib/socialAnalysis";
 import { driveReadAll, googleConnected } from "@/lib/google";
 import { metaToken, metaTokenCheck } from "@/lib/meta";
@@ -243,9 +243,9 @@ function Plan({ clientId, s, pillars, cm, base }: { clientId: number; s?: Social
 }
 
 // ---------------- Редактор каруселі «Фішка»: кадри з матеріалів (перший — обкладинка) + тези → «Зібрати» → слайди → апрув
-const hasEditor = (p: Post) => p.template_key === "story-fact" || isCarousel(p);
+const hasEditor = (p: Post) => p.template_key === "story-fact" || isCarousel(p) || isReel(p);
 function PostEditor({ clientId, p }: { clientId: number; p: Post }) {
-  return isCarousel(p) ? <CarouselEditor clientId={clientId} p={p} /> : p.template_key === "story-fact" ? <StoryEditor clientId={clientId} p={p} /> : null;
+  return isCarousel(p) || isReel(p) ? <CarouselEditor clientId={clientId} p={p} /> : p.template_key === "story-fact" ? <StoryEditor clientId={clientId} p={p} /> : null;
 }
 function CarouselEditor({ clientId, p }: { clientId: number; p: Post }) {
   const spec = specOf(p);
@@ -255,42 +255,53 @@ function CarouselEditor({ clientId, p }: { clientId: number; p: Post }) {
   const picked = new Set(slides.map((x) => x.asset_id));
   const imgs = [...slides.map((x) => byId.get(x.asset_id)!), ...all.filter((a) => !picked.has(a.id))].slice(0, 120);
   const n = slideCount(p), v = Date.parse(p.media_at ?? "") || 0;
+  const reel = isReel(p);
+  const audio = reel ? listAssets(clientId).filter((a) => a.mime.startsWith("audio/")) : [];
+  const audioId = (spec as { audio_id?: number }).audio_id ?? 0;
   const hid = <><input type="hidden" name="client_id" value={clientId} /><input type="hidden" name="id" value={p.id} /></>;
   return (
     <div className="stack" style={{ gap: "0.75rem", marginBottom: "0.75rem" }}>
       {p.publish_error && <div className="mx-warn">{p.publish_error}</div>}
       <div className="ct-car-prev">
-        {n ? Array.from({ length: n }, (_, i) => <img key={i} src={`/m/${mediaKey(p.id)}${i ? `_${i}` : ""}.jpg?v=${v}`} alt={`Слайд ${i + 1}`} />)
+        {reel ? (p.media_path ? <video src={`/m/${mediaKey(p.id)}.mp4?v=${v}`} poster={`/m/${mediaKey(p.id)}.jpg?v=${v}`} controls playsInline preload="none" className="ct-reel" />
+          : <span className="mono">Тут буде Reels 9:16 після «Зібрати» (≈20–40 с): кадри з повільним наїздом камери, рядок тексту на кожному, фінал з CTA.</span>)
+        : n ? Array.from({ length: n }, (_, i) => <img key={i} src={`/m/${mediaKey(p.id)}${i ? `_${i}` : ""}.jpg?v=${v}`} alt={`Слайд ${i + 1}`} />)
           : <span className="mono">Тут будуть слайди 4:5 після «Зібрати»: обкладинка → слайд на кожен кадр → фінал із закликом.</span>}
       </div>
       <form action={storySpecAction} className="stack" style={{ gap: "0.5rem" }}>
         {hid}
-        <span className="mono">1. Кадри: познач 3–7 (перший за № — обкладинка). Тільки реальні рендери й планування.</span>
+        <span className="mono">{reel ? "1. Кадри: познач 2–5 (по 3 с кожен). Тільки реальні рендери й планування — їх лише рухаємо, нічого не домальовуємо." : "1. Кадри: познач 3–7 (перший за № — обкладинка). Тільки реальні рендери й планування."}</span>
         <div className="ct-pick">
           {imgs.length ? imgs.map((a) => (
             <label key={a.id} className="ct-pick-i" title={a.name}><input type="checkbox" name="slide_asset" value={a.id} defaultChecked={picked.has(a.id)} /><img src={`/api/content/thumb/${a.id}`} alt={a.name} loading="lazy" />{a.kind === "plan" && <span className="ct-pick-tag">план</span>}</label>
           )) : <span className="mono" style={{ gridColumn: "1 / -1" }}>Нема зображень — Матеріали → «Оновити з Диску».</span>}
         </div>
+        {reel ? <input name="kicker" defaultValue={spec.kicker} maxLength={40} placeholder="Кікер над першим рядком: 1–3 слова (необовʼязково)" aria-label="Кікер" /> : <>
         <span className="mono">2. Обкладинка</span>
         <input name="kicker" defaultValue={spec.kicker} maxLength={40} placeholder="Кікер: 2–4 слова, напр. «Що всередині»" aria-label="Кікер" />
         <input name="fact" defaultValue={spec.fact} maxLength={70} placeholder="Хук обкладинки до 50 символів" aria-label="Заголовок обкладинки" />
-        <input name="sub" defaultValue={spec.sub} maxLength={140} placeholder="Підзаголовок (необовʼязково)" aria-label="Підзаголовок" />
+        <input name="sub" defaultValue={spec.sub} maxLength={140} placeholder="Підзаголовок (необовʼязково)" aria-label="Підзаголовок" /></>}
         {slides.length > 0 && <>
-          <span className="mono">3. Слайди (№ — порядок; змінив кадри — «Зберегти», щоб зʼявились рядки)</span>
+          <span className="mono">{reel ? "2. Рядки (перший — хук; № — порядок; змінив кадри — «Зберегти»)" : "3. Слайди (№ — порядок; змінив кадри — «Зберегти», щоб зʼявились рядки)"}</span>
           {slides.map((x, i) => (
             <div key={x.asset_id} className="ct-slide-row">
               <img src={`/api/content/thumb/${x.asset_id}`} alt="" />
               <input type="number" name={`pos_${x.asset_id}`} defaultValue={i + 1} min={1} max={9} aria-label="Порядок" />
-              {i === 0 ? <span className="mono">обкладинка</span> : <div className="ct-slide-txt">
+              {reel ? <input name={`title_${x.asset_id}`} defaultValue={x.title} maxLength={80} placeholder={i === 0 ? "Хук до 38 символів" : "Рядок до 38 символів"} aria-label={`Рядок кадру ${i + 1}`} />
+              : i === 0 ? <span className="mono">обкладинка</span> : <div className="ct-slide-txt">
                 <input name={`title_${x.asset_id}`} defaultValue={x.title} maxLength={80} placeholder="Теза до 55 символів" aria-label={`Теза слайда ${i + 1}`} />
                 <input name={`text_${x.asset_id}`} defaultValue={x.text} maxLength={160} placeholder="Пояснення до 110 символів" aria-label={`Пояснення слайда ${i + 1}`} />
               </div>}
             </div>
           ))}
         </>}
-        <span className="mono">4. Фінальний слайд і підпис</span>
+        <span className="mono">{reel ? "3. Фінал, звук і підпис" : "4. Фінальний слайд і підпис"}</span>
         <input name="end_title" defaultValue={spec.end_title} maxLength={70} placeholder="Заголовок фіналу, напр. «Хочете побачити наживо?»" aria-label="Заголовок фіналу" />
-        <input name="end_text" defaultValue={spec.end_text} maxLength={160} placeholder="Текст фіналу" aria-label="Текст фіналу" />
+        {!reel && <input name="end_text" defaultValue={spec.end_text} maxLength={160} placeholder="Текст фіналу" aria-label="Текст фіналу" />}
+        {reel && <select name="audio_id" defaultValue={audioId} aria-label="Звук">
+          <option value={0}>{audio.length ? "Без звуку" : "Без звуку — поклади mp3 з ліцензією в папку матеріалів"}</option>
+          {audio.map((a) => <option key={a.id} value={a.id}>♪ {a.name}</option>)}
+        </select>}
         <input name="cta" defaultValue={spec.cta} maxLength={30} placeholder="Кнопка: напр. «Записатись на перегляд»" aria-label="CTA" />
         <textarea name="caption" defaultValue={p.caption} maxLength={2200} rows={4} placeholder="Підпис до поста в Instagram (хук, користь, «збережіть», CTA, хештеги)" aria-label="Підпис" />
         <div className="inline" style={{ flexWrap: "wrap" }}>
@@ -300,7 +311,7 @@ function CarouselEditor({ clientId, p }: { clientId: number; p: Post }) {
       </form>
       <div className="inline" style={{ flexWrap: "wrap" }}>
         <form action={fillStoryAction}>{hid}<SubmitButton className="ghost small" pendingText="Джері пише…">Джері, заповни тексти</SubmitButton></form>
-        {n > 0 && p.status !== "published" && <form action={approvalAction}>{hid}<SubmitButton className="small" pendingText="Надсилаю…">{p.status === "review" ? "Надіслати на ✓ ще раз" : "На апрув у Telegram"}</SubmitButton></form>}
+        {(reel ? !!p.media_path : n > 0) && p.status !== "published" && <form action={approvalAction}>{hid}<SubmitButton className="small" pendingText="Надсилаю…">{p.status === "review" ? "Надіслати на ✓ ще раз" : "На апрув у Telegram"}</SubmitButton></form>}
         {p.ig_media_id && <span className="tag ok">вийшло в Instagram</span>}
       </div>
     </div>
