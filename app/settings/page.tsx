@@ -841,6 +841,7 @@ function System() {
   const kv = (label: string, value: React.ReactNode) => <div><dt>{label}</dt><dd>{value}</dd></div>;
   return (
     <div className="stack" style={{ gap: 16 }}>
+      <Link href="/journal" className="card inline h-link" style={{ justifyContent: "space-between" }}><span><b>Журнал системи</b> <span className="mono">помилки, запити «доробити», оновлення — для Claude</span></span><span className="mono">відкрити</span></Link>
       <div className="grid2">
         <dl className="card kv">
           {kv("Версія", <span className="mono" style={{ color: "var(--text)" }}>{s.commit ?? "—"}</span>)}

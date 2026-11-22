@@ -2940,3 +2940,16 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
 .use-bar i { display: block; height: 100%; background: var(--accent); }
 .use-list { margin: 0; padding-left: 1.125rem; display: flex; flex-direction: column; gap: 0.25rem; color: var(--muted); font-size: 0.875rem; }
 .ads-free-box > summary { cursor: pointer; color: var(--muted); }
+/* Центр: «Пульс клієнтів» — цифри тиждень до тижня, погане червоним */
+.pulse { display: flex; flex-direction: column; padding: 0.25rem 1.125rem 0.5rem; }
+.pulse-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.25rem 0.75rem; align-items: end; padding: 0.625rem 0; border-top: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.pulse-row:first-child { border-top: 0; }
+.pulse-row:hover .pulse-name { text-decoration: underline; }
+.pulse-name { grid-column: 1 / -1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pulse-c { display: flex; flex-direction: column; font-size: 1.0625rem; font-weight: 600; line-height: 1.2; }
+.pulse-c small { white-space: nowrap; font-size: 0.75rem; font-weight: 400; color: var(--muted); }
+.pulse-c em { font-style: normal; font-size: 0.75rem; font-weight: 500; color: var(--muted); }
+.pulse-c.bad, .pulse-c.bad em { color: var(--bad); }
+.pulse-c.ok em { color: var(--ok); }
+.pulse-m { grid-column: 1 / -1; font-size: 0.8125rem; color: var(--muted); }
+.pulse-m.bad { color: var(--bad); } .pulse-m.ok { color: var(--ok); }
