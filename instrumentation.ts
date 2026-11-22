@@ -25,6 +25,7 @@ export async function register() {
   const { metricsTick } = await import("./lib/metricsTick");
   const { usageTick } = await import("./lib/usageAlert");
   const { housekeepingTick } = await import("./lib/housekeeping");
+  const { contentTick } = await import("./lib/contentPipeline");
   const tick = async () => {
     await digestTick().catch((e) => logError("digest", e));
     await backupTick().catch((e) => logError("backup", e));
@@ -40,6 +41,7 @@ export async function register() {
     await invoiceTick().catch((e) => logError("invoices", e));
     await confirmTick().catch((e) => logError("confirm-queue", e));
     await metricsTick().catch((e) => logError("metrics", e));
+    await contentTick().catch((e) => logError("content-publish", e));
     await usageTick().catch((e) => logError("usage", e));
     await housekeepingTick().catch((e) => logError("housekeeping", e));
   };

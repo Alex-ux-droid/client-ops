@@ -5,7 +5,8 @@ import EditBlock from "@/components/EditBlock";
 import FileThumb from "@/components/FileThumb";
 import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
-import { assetAction, pillarAction, postAction, saveSocialAction, syncAssetsAction, weekThemeAction } from "@/app/content/actions";
+import { approvalAction, assetAction, checkPublishAction, fillStoryAction, paletteAction, pillarAction, postAction, saveSocialAction, storySpecAction, syncAssetsAction, weekThemeAction } from "@/app/content/actions";
+import { mediaKey, paletteOf, specOf } from "@/lib/contentPipeline";
 import { driveReadAll, googleConnected } from "@/lib/google";
 import { metaToken, metaTokenCheck } from "@/lib/meta";
 import { listColors } from "@/lib/repo/brand";
@@ -158,8 +159,9 @@ function Plan({ clientId, s, pillars, cm, base }: { clientId: number; s?: Social
                   <div key={d} className={`ct-day${d.slice(0, 7) !== month ? " out" : ""}${d === today ? " today" : ""}${slots[String(i + 1)] ? " slot" : ""}`}>
                     <span className="ct-dn">{Number(d.slice(8))}</span>
                     {dp.map((p) => (
-                      <Pop key={p.id} className="pop-trigger pop-inline ct-cp" closeOnSubmit title={p.topic} trigger={<><Chip p={p} pillars={pillars} /><span className="ct-ct">{p.topic}</span></>}>
-                        <PostForm clientId={clientId} pillars={pillars} p={p} />
+                      <Pop key={p.id} className="pop-trigger pop-inline ct-cp" wide={p.template_key === "story-fact"} title={p.topic} trigger={<><Chip p={p} pillars={pillars} /><span className="ct-ct">{p.topic}</span></>}>
+                        {p.template_key === "story-fact" && <StoryEditor clientId={clientId} p={p} />}
+                        <details className="ct-more" open={p.template_key !== "story-fact"}><summary className="mono">Тема, формат, дата</summary><PostForm clientId={clientId} pillars={pillars} p={p} /></details>
                       </Pop>
                     ))}
                     <Pop className="pop-trigger pop-inline ct-add" closeOnSubmit title={`Пост на ${dayLabel(d)}`} trigger={<span aria-label={`Додати пост на ${d}`}>+</span>}>
@@ -171,6 +173,45 @@ function Plan({ clientId, s, pillars, cm, base }: { clientId: number; s?: Social
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------- Редактор сторіс «Факт»: рендер з матеріалів + 4 слоти → «Зібрати» → прев'ю → «На апрув» у Telegram
+function StoryEditor({ clientId, p }: { clientId: number; p: Post }) {
+  const spec = specOf(p);
+  const imgs = listAssets(clientId).filter((a) => a.mime.startsWith("image/") && (a.kind === "render" || a.kind === "photo" || a.kind === "plan")).slice(0, 80);
+  const hid = <><input type="hidden" name="client_id" value={clientId} /><input type="hidden" name="id" value={p.id} /></>;
+  return (
+    <div className="ct-story">
+      <div className="ct-story-prev">
+        {p.media_path ? <img src={`/m/${mediaKey(p.id)}.jpg?v=${Date.parse(p.media_at ?? "") || 0}`} alt="Готова сторіс" /> : <span className="mono">Тут буде готова сторіс після «Зібрати»</span>}
+      </div>
+      <div className="stack" style={{ gap: "0.625rem", minWidth: 0 }}>
+        {p.publish_error && <div className="mx-warn">{p.publish_error}</div>}
+        <form action={storySpecAction} className="stack" style={{ gap: "0.5rem" }}>
+          {hid}
+          <input name="kicker" defaultValue={spec.kicker} maxLength={40} placeholder="Кікер: 2–3 слова, напр. «SPA-зона»" aria-label="Кікер" />
+          <input name="fact" defaultValue={spec.fact} maxLength={70} placeholder="Факт: головна фраза до 40 символів" aria-label="Факт" />
+          <input name="sub" defaultValue={spec.sub} maxLength={140} placeholder="Підпис: пояснення до 90 символів" aria-label="Підпис" />
+          <input name="cta" defaultValue={spec.cta} maxLength={30} placeholder="CTA: напр. «Записатись на перегляд»" aria-label="CTA" />
+          <span className="mono">Рендер {spec.asset_id ? "" : "(обери один)"}</span>
+          <div className="ct-pick">
+            {imgs.length ? imgs.map((a) => (
+              <label key={a.id} className="ct-pick-i" title={a.name}><input type="radio" name="asset_id" value={a.id} defaultChecked={spec.asset_id === a.id} /><img src={`/api/content/thumb/${a.id}`} alt={a.name} loading="lazy" /></label>
+            )) : <span className="mono" style={{ gridColumn: "1 / -1" }}>Нема зображень — Матеріали → «Оновити з Диску».</span>}
+          </div>
+          <div className="inline" style={{ flexWrap: "wrap" }}>
+            <button name="op" value="render" className="small">Зібрати</button>
+            <button name="op" value="save" className="ghost small">Зберегти</button>
+          </div>
+        </form>
+        <div className="inline" style={{ flexWrap: "wrap" }}>
+          <form action={fillStoryAction}>{hid}<SubmitButton className="ghost small" pendingText="Джері пише…">Джері, заповни тексти</SubmitButton></form>
+          {p.media_path && p.status !== "published" && <form action={approvalAction}>{hid}<SubmitButton className="small" pendingText="Надсилаю…">{p.status === "review" ? "Надіслати на ✓ ще раз" : "На апрув у Telegram"}</SubmitButton></form>}
+          {p.ig_media_id && <span className="tag ok">вийшло в Instagram</span>}
+        </div>
       </div>
     </div>
   );
@@ -193,10 +234,11 @@ function Posts({ clientId, pillars, posts }: { clientId: number; pillars: Pillar
               </Pop>
             )}
             {list.map((p) => (
-              <Pop key={p.id} className="pop-card ct-card" closeOnSubmit title={p.topic} trigger={
+              <Pop key={p.id} className="pop-card ct-card" wide={p.template_key === "story-fact"} title={p.topic} trigger={
                 <><Chip p={p} pillars={pillars} /><span className="grow"><b>{p.topic}</b><span className="mono">{FORMATS[p.format]}{p.scheduled_at ? ` · ${dayLabel(p.scheduled_at.slice(0, 10))}` : ""}</span></span></>
               }>
-                <PostForm clientId={clientId} pillars={pillars} p={p} />
+                {p.template_key === "story-fact" && <StoryEditor clientId={clientId} p={p} />}
+                <details className="ct-more"><summary className="mono">Тема, формат, дата</summary><PostForm clientId={clientId} pillars={pillars} p={p} /></details>
                 <div className="ct-status">
                   {(Object.keys(POST_STATUS) as (keyof typeof POST_STATUS)[]).map((k) => (
                     <form key={k} action={postAction}><input type="hidden" name="client_id" value={clientId} /><input type="hidden" name="id" value={p.id} /><input type="hidden" name="op" value="status" /><input type="hidden" name="status" value={k} /><button className={`small${k === p.status ? "" : " ghost"}`}>{POST_STATUS[k]}</button></form>
@@ -326,6 +368,8 @@ async function Settings({ clientId, s }: { clientId: number; s?: SocialProfile }
   const pages = check?.ok ? check.pages ?? [] : [];
   const hid = <input type="hidden" name="client_id" value={clientId} />;
   const cad = cadenceOf(s), slots = slotsOf(s);
+  const pal = paletteOf(clientId);
+  const check2 = (getSetting(`content.publish_check.${clientId}`) ?? "").split("|").slice(1).join("|");
   return (
     <div className="ct-settings">
       <section className="card stack" style={{ gap: "0.5rem" }}>
@@ -349,6 +393,20 @@ async function Settings({ clientId, s }: { clientId: number; s?: SocialProfile }
           <SubmitButton className="small">Зберегти</SubmitButton>
         </form>
         {s?.drive_folder_url && !s.drive_folder_id && <div className="mx-warn">Це не схоже на посилання на папку — скопіюй адресу відкритої папки з браузера.</div>}
+      </section>
+      <section className="card stack" style={{ gap: "0.5rem" }}>
+        <b>Публікація</b>
+        <span className="mono">Перевірка готує тестову сторіс в Instagram клієнта і нічого не публікує.</span>
+        <form action={checkPublishAction}>{hid}<SubmitButton className="small" pendingText="Перевіряю…">Перевірити доступ до публікації</SubmitButton></form>
+        {check2 && <div className={check2.startsWith("✓") ? "mono" : "mx-warn"}>{check2}</div>}
+      </section>
+      <section className="card stack" style={{ gap: "0.5rem" }}>
+        <b>Кольори шаблонів</b>
+        <span className="mono">Як у каталозі клієнта: основний (заголовки, кнопка), акцент (кікер, хвиля), фон панелі, текст.</span>
+        <form action={paletteAction} className="stack" style={{ gap: "0.5rem" }}>{hid}
+          <div className="ct-cadence">{(["dark", "accent", "paper", "ink"] as const).map((k) => <label key={k} className="ct-lbl">{{ dark: "Основний", accent: "Акцент", paper: "Фон", ink: "Текст" }[k]}<input type="color" name={k} defaultValue={pal[k]} /></label>)}</div>
+          <div><SubmitButton className="small">Зберегти</SubmitButton></div>
+        </form>
       </section>
       <section className="card stack" style={{ gap: "0.5rem" }}>
         <b>Апрув</b>

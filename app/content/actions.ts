@@ -84,7 +84,7 @@ export async function postAction(fd: FormData) {
     pillar_id: Number(fd.get("pillar_id")) || null,
     topic: s(fd, "topic").slice(0, 300),
     hook: s(fd, "hook").slice(0, 300),
-    template_key: s(fd, "template_key").slice(0, 60),
+    template_key: s(fd, "template_key").slice(0, 60) || (s(fd, "format") === "story" ? "story-fact" : ""),
     note: s(fd, "note").slice(0, 2000),
     scheduled_at: /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date} ${/^\d{2}:\d{2}$/.test(time) ? time : "18:30"}` : null,
   };
@@ -100,4 +100,71 @@ export async function moveAsksAction(fd: FormData) {
   const { moveAsksToRequests } = await import("@/lib/taskLog");
   if (cid) moveAsksToRequests(cid);
   revalidatePath("/", "layout");
+}
+
+// ---- Автопостинг: слоти шаблону, збірка, апрув, перевірка доступу, палітра
+async function origin(): Promise<string> {
+  const { headers } = await import("next/headers");
+  const h = await headers();
+  return `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host") ?? ""}`;
+}
+export async function storySpecAction(fd: FormData) {
+  await requireUser();
+  const cid = cidOf(fd), id = Number(fd.get("id"));
+  const { getPost, updatePost } = await import("@/lib/repo/content");
+  const p = getPost(id);
+  if (!p || p.client_id !== cid) return;
+  const prev = JSON.parse(p.spec_json || "{}");
+  const spec = { ...prev, asset_id: Number(fd.get("asset_id")) || prev.asset_id, kicker: s(fd, "kicker").slice(0, 40), fact: s(fd, "fact").slice(0, 70), sub: s(fd, "sub").slice(0, 140), cta: s(fd, "cta").slice(0, 30) };
+  updatePost(id, cid, { spec_json: JSON.stringify(spec), template_key: p.template_key || "story-fact" });
+  if (s(fd, "op") === "render") {
+    const { renderPost } = await import("@/lib/contentPipeline");
+    const err = await renderPost(id).catch((e) => (e instanceof Error ? e.message : "помилка збірки"));
+    updatePost(id, cid, { publish_error: err ?? "" });
+  }
+  done(cid);
+}
+export async function approvalAction(fd: FormData) {
+  await requireUser();
+  const cid = cidOf(fd), id = Number(fd.get("id"));
+  const { sendForApproval } = await import("@/lib/contentPipeline");
+  const { updatePost } = await import("@/lib/repo/content");
+  const err = await sendForApproval(id, await origin()).catch((e) => (e instanceof Error ? e.message : "помилка"));
+  if (err) updatePost(id, cid, { publish_error: err });
+  done(cid);
+}
+export async function fillStoryAction(fd: FormData) {
+  await requireUser();
+  const cid = cidOf(fd), id = Number(fd.get("id"));
+  const { getPost, updatePost } = await import("@/lib/repo/content");
+  const { getSocial } = await import("@/lib/repo/social");
+  const { askJson } = await import("@/lib/llmJson");
+  const p = getPost(id), sp = getSocial(cid);
+  if (!p || p.client_id !== cid) return;
+  try {
+    const r = await askJson<{ kicker: string; fact: string; sub: string; cta: string }>(
+      "Ти копірайтер сторіс для забудовника. Пишеш українською, коротко, без води і кліше. Тільки факти з блоку ФАКТИ — нічого не вигадуй (цифр, обіцянок, термінів). Поверни ТІЛЬКИ JSON: {\"kicker\": \"2–3 слова, тема\", \"fact\": \"головна фраза до 40 символів\", \"sub\": \"пояснення до 90 символів\", \"cta\": \"заклик до 24 символів\"}.",
+      `ТЕМА: ${p.topic}\nХУК: ${p.hook}\nДЛЯ КОГО: ${sp?.audience ?? ""}\nТОН: ${sp?.voice ?? ""}\nCTA (обирай звідси): ${sp?.cta ?? ""}\nЗАБОРОНЕНО: ${sp?.banned ?? ""}\nФАКТИ:\n${sp?.facts ?? ""}`,
+      { maxTokens: 800, effort: "low" });
+    const prev = JSON.parse(p.spec_json || "{}");
+    updatePost(id, cid, { spec_json: JSON.stringify({ ...prev, kicker: String(r.kicker ?? "").slice(0, 40), fact: String(r.fact ?? "").slice(0, 70), sub: String(r.sub ?? "").slice(0, 140), cta: String(r.cta ?? "").slice(0, 30) }), template_key: p.template_key || "story-fact", publish_error: "" });
+  } catch (e) {
+    const { llmErrorText } = await import("@/lib/llmJson");
+    updatePost(id, cid, { publish_error: llmErrorText(e) });
+  }
+  done(cid);
+}
+export async function checkPublishAction(fd: FormData) {
+  await requireUser();
+  const cid = cidOf(fd);
+  const { checkPublishAccess } = await import("@/lib/contentPipeline");
+  setSetting(`content.publish_check.${cid}`, `${new Date().toISOString()}|${await checkPublishAccess(cid, await origin())}`);
+  done(cid);
+}
+export async function paletteAction(fd: FormData) {
+  await requireUser();
+  const cid = cidOf(fd);
+  const pick = (k: string) => (/^#[0-9a-f]{6}$/i.test(s(fd, k)) ? s(fd, k) : undefined);
+  saveSocial(cid, { palette_json: JSON.stringify({ dark: pick("dark"), accent: pick("accent"), paper: pick("paper"), ink: pick("ink") }) });
+  done(cid);
 }

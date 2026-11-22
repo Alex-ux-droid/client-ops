@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Сервер збирає нову версію в окрему папку (NEXT_DIST_DIR), поки стара працює, потім міняє місцями — без простою
   distDir: process.env.NEXT_DIST_DIR || ".next",
-  serverExternalPackages: ["better-sqlite3", "pdfkit"],
+  serverExternalPackages: ["better-sqlite3", "pdfkit", "@resvg/resvg-js", "sharp"],
   poweredByHeader: false,
   // proxy.ts пропускає крізь себе тіло запиту; за замовчуванням Next обрізає його на 10 МБ — і великі фото/відео/каруселі не завантажувались
   experimental: { proxyClientMaxBodySize: "220mb" },

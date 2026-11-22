@@ -4,9 +4,9 @@ import { db } from "../db";
 export type SocialProfile = {
   client_id: number; page_id: string; page_name: string; ig_id: string; ig_username: string; drive_folder_id: string; drive_folder_url: string;
   audience: string; voice: string; cta: string; banned: string; facts: string; approval: "manual" | "auto"; auto_hours: number;
-  cadence_json: string; slots_json: string; assets_synced_at: string | null; updated_at: string;
+  cadence_json: string; slots_json: string; assets_synced_at: string | null; palette_json: string; updated_at: string;
 };
-const F = ["page_id", "page_name", "ig_id", "ig_username", "drive_folder_id", "drive_folder_url", "audience", "voice", "cta", "banned", "facts", "approval", "auto_hours", "cadence_json", "slots_json", "assets_synced_at"] as const;
+const F = ["page_id", "page_name", "ig_id", "ig_username", "drive_folder_id", "drive_folder_url", "audience", "voice", "cta", "banned", "facts", "approval", "auto_hours", "cadence_json", "slots_json", "assets_synced_at", "palette_json"] as const;
 export type SocialPatch = Partial<Pick<SocialProfile, (typeof F)[number]>>;
 
 export const getSocial = (clientId: number) => db().prepare("SELECT * FROM social_profiles WHERE client_id = ?").get(clientId) as SocialProfile | undefined;
