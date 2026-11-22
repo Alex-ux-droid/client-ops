@@ -84,7 +84,7 @@ export async function postAction(fd: FormData) {
     pillar_id: Number(fd.get("pillar_id")) || null,
     topic: s(fd, "topic").slice(0, 300),
     hook: s(fd, "hook").slice(0, 300),
-    template_key: s(fd, "template_key").slice(0, 60) || ({ story: "story-fact", carousel: "carousel-feature" } as Record<string, string>)[s(fd, "format")] || "",
+    template_key: s(fd, "template_key").slice(0, 60) || ({ story: "story-fact", carousel: "carousel-feature", reel: "reel-kinetic" } as Record<string, string>)[s(fd, "format")] || "",
     note: s(fd, "note").slice(0, 2000),
     scheduled_at: /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date} ${/^\d{2}:\d{2}$/.test(time) ? time : "18:30"}` : null,
   };
@@ -116,11 +116,13 @@ export async function storySpecAction(fd: FormData) {
   if (!p || p.client_id !== cid) return;
   const prev = JSON.parse(p.spec_json || "{}");
   const spec = { ...prev, asset_id: Number(fd.get("asset_id")) || prev.asset_id, kicker: s(fd, "kicker").slice(0, 40), fact: s(fd, "fact").slice(0, 70), sub: s(fd, "sub").slice(0, 140), cta: s(fd, "cta").slice(0, 30) };
-  const carousel = p.format === "carousel" || p.template_key.startsWith("carousel");
+  const reel = p.format === "reel" || p.template_key.startsWith("reel");
+  const carousel = reel || p.format === "carousel" || p.template_key.startsWith("carousel");
+  if (reel) spec.audio_id = Number(fd.get("audio_id")) || 0;
   if (carousel) {
     // Кадри: позначені в сітці (до 7: обкладинка + 6), порядок — поле «№»; тези — з рядків слайдів
     const old = new Map<number, { title?: string; text?: string; pos?: number }>((prev.slides ?? []).map((x: { asset_id: number }) => [x.asset_id, x]));
-    const ids = fd.getAll("slide_asset").map(Number).filter(Boolean).slice(0, 7);
+    const ids = fd.getAll("slide_asset").map(Number).filter(Boolean).slice(0, reel ? 5 : 7);
     spec.slides = ids.map((aid, i) => ({
       asset_id: aid,
       pos: Number(fd.get(`pos_${aid}`)) || old.get(aid)?.pos || 10 + i,
@@ -130,7 +132,7 @@ export async function storySpecAction(fd: FormData) {
     spec.end_title = s(fd, "end_title").slice(0, 70);
     spec.end_text = s(fd, "end_text").slice(0, 160);
   }
-  updatePost(id, cid, { spec_json: JSON.stringify(spec), template_key: p.template_key || (carousel ? "carousel-feature" : "story-fact"), ...(carousel ? { caption: s(fd, "caption").slice(0, 2200) } : {}) });
+  updatePost(id, cid, { spec_json: JSON.stringify(spec), template_key: p.template_key || (reel ? "reel-kinetic" : carousel ? "carousel-feature" : "story-fact"), ...(carousel ? { caption: s(fd, "caption").slice(0, 2200) } : {}) });
   if (s(fd, "op") === "render") {
     const { renderPost } = await import("@/lib/contentPipeline");
     const err = await renderPost(id).catch((e) => (e instanceof Error ? e.message : "помилка збірки"));
@@ -159,7 +161,16 @@ export async function fillStoryAction(fd: FormData) {
   const ctx = `ТЕМА: ${p.topic}\nХУК: ${p.hook}\nДЛЯ КОГО: ${sp?.audience ?? ""}\nТОН: ${sp?.voice ?? ""}\nCTA (обирай звідси): ${sp?.cta ?? ""}\nЗАБОРОНЕНО: ${sp?.banned ?? ""}\nФАКТИ:\n${sp?.facts ?? ""}`;
   const prev = JSON.parse(p.spec_json || "{}");
   try {
-    if (p.format === "carousel" || p.template_key.startsWith("carousel")) {
+    if (p.format === "reel" || p.template_key.startsWith("reel")) {
+      const sl = ((prev.slides ?? []) as { asset_id: number; title?: string; pos: number }[]).sort((a, b) => a.pos - b.pos);
+      if (sl.length < 2) throw new Error("Спершу обери кадри (2–5) і натисни «Зберегти»");
+      const frames = sl.map((x, i) => { const a = getAsset(x.asset_id); return `${i + 1}. ${a?.kind === "plan" ? "планування" : "фото/рендер"}: ${a?.name ?? ""}${a?.tags ? ` (${a.tags})` : ""}`; }).join("\n");
+      const r = await askJson<{ kicker: string; lines: string[]; end_title: string; cta: string; caption: string }>(
+        `Ти сценарист коротких Reels для забудовника: кадри по 3 с, на кожному один рядок великим шрифтом. ${COPY_RULES} Перший рядок — хук, що зупиняє гортання; далі по рядку на кадр, що відповідає кадру; разом — одна думка. Поверни ТІЛЬКИ JSON: {"kicker": "1–3 слова над першим рядком", "lines": ["рядок до 38 символів"], "end_title": "фінал до 40 символів", "cta": "до 24 символів", "caption": "підпис 200–500 символів: хук, користь, CTA, 3–5 хештегів"}. Рядків рівно ${sl.length}.`,
+        `${ctx}\nКАДРИ ПО ПОРЯДКУ:\n${frames}`, { maxTokens: 1500, effort: "low" });
+      const slides = sl.map((x, i) => ({ ...x, title: String(r.lines?.[i] ?? x.title ?? "").slice(0, 80) }));
+      updatePost(id, cid, { spec_json: JSON.stringify({ ...prev, slides, kicker: String(r.kicker ?? "").slice(0, 40), end_title: String(r.end_title ?? "").slice(0, 70), cta: String(r.cta ?? "").slice(0, 30) }), caption: String(r.caption ?? "").slice(0, 2200), publish_error: "" });
+    } else if (p.format === "carousel" || p.template_key.startsWith("carousel")) {
       const sl = ((prev.slides ?? []) as { asset_id: number; title?: string; text?: string; pos: number }[]).sort((a, b) => a.pos - b.pos);
       if (sl.length < 3) throw new Error("Спершу обери кадри (щонайменше 3) і натисни «Зберегти»");
       const frames = sl.slice(1).map((x, i) => { const a = getAsset(x.asset_id); return `${i + 1}. ${a?.kind === "plan" ? "планування" : "фото/рендер"}: ${a?.name ?? ""}${a?.tags ? ` (${a.tags})` : ""}`; }).join("\n");

@@ -17,6 +17,15 @@ main() {
     if systemctl reload caddy; then echo "$(date -Is) Caddy: оновлено адреси"; else echo "$(date -Is) Caddy: не вдалось перезавантажити конфіг"; fi
   fi
 
+  # ffmpeg — для Reels (рендер відео в студії контенту); ставиться один раз
+  local FFTRY=/var/lib/client-ops/ffmpeg-try
+  if ! command -v ffmpeg >/dev/null 2>&1 && [ -z "$(find "$FFTRY" -mmin -360 2>/dev/null)" ]; then
+    touch "$FFTRY"
+    if DEBIAN_FRONTEND=noninteractive apt-get install -yq ffmpeg >/dev/null 2>&1 || { apt-get update -q >/dev/null 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -yq ffmpeg >/dev/null 2>&1; }; then
+      echo "$(date -Is) ffmpeg: встановлено"
+    else echo "$(date -Is) ffmpeg: не вдалось встановити"; fi
+  fi
+
   run "git fetch -q origin main"
   local old new
   old=$(run "git rev-parse HEAD")

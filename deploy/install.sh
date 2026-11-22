@@ -27,7 +27,7 @@ fi
 say "Пакети"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
-apt-get install -yq git curl ca-certificates gnupg build-essential python3 openssl sudo
+apt-get install -yq git curl ca-certificates gnupg build-essential python3 openssl sudo ffmpeg
 
 if ! node -v 2>/dev/null | grep -qE '^v(2[2-9]|[3-9][0-9])\.'; then
   say "Node.js 22"
