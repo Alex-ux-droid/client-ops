@@ -73,6 +73,19 @@ export function createServiceProduct(clientId: number, type: string, name: strin
 // Які клієнти користуються продуктом
 export const productClients = (productId: number) => db().prepare("SELECT pc.client_id, pc.note, c.name FROM product_clients pc JOIN clients c ON c.id = pc.client_id WHERE pc.product_id = ? ORDER BY c.name").all(productId) as { client_id: number; note: string; name: string }[];
 export const clientProducts = (clientId: number) => db().prepare("SELECT p.id, p.name, p.status, pc.note FROM product_clients pc JOIN products p ON p.id = pc.product_id WHERE pc.client_id = ? ORDER BY p.name").all(clientId) as { id: number; name: string; status: ProductStatus; note: string }[];
+// Усі проєкти клієнта: привʼязані (product_clients) + проєкти клієнта (products.client_id) — без дублів
+export function productsOfClient(clientId: number): { id: number; name: string; service_type: string | null; kind: string }[] {
+  return db().prepare(`SELECT p.id, p.name, p.service_type, p.kind FROM products p WHERE p.client_id = ? OR p.id IN (SELECT product_id FROM product_clients WHERE client_id = ?) ORDER BY (p.client_id = ?) DESC, p.id`).all(clientId, clientId, clientId) as { id: number; name: string; service_type: string | null; kind: string }[];
+}
+// Прохання клієнта → у який проєкт: «сайт/сторінка/лендінг» → сайт; решта → програма (CRM). Один проєкт — в нього.
+export function pickProductFor(clientId: number, text: string): { id: number; name: string } | null {
+  const ps = productsOfClient(clientId);
+  if (!ps.length) return null;
+  if (ps.length === 1) return ps[0];
+  const site = ps.find((p) => p.service_type === "website" || /сайт|site/i.test(p.name));
+  const app = ps.find((p) => p !== site && p.kind === "app") ?? ps.find((p) => p !== site);
+  return /сайт|сторінк|лендинг|лендінг|на сайті|сайту|site|домен/i.test(text) ? site ?? app ?? null : app ?? site ?? null;
+}
 export function setProductClient(productId: number, clientId: number, on: boolean, note = ""): void {
   if (on) db().prepare("INSERT INTO product_clients (product_id, client_id, note) VALUES (?, ?, ?) ON CONFLICT(product_id, client_id) DO UPDATE SET note = excluded.note").run(productId, clientId, note);
   else db().prepare("DELETE FROM product_clients WHERE product_id = ? AND client_id = ?").run(productId, clientId);

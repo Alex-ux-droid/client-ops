@@ -17,12 +17,25 @@ import { checklistItems, clientPlaybooks, listPlaybooks, playbookProgress, playb
 import { listTasks } from "@/lib/repo/tasks";
 import { listWork } from "@/lib/repo/worklog";
 import VoiceTextarea from "@/components/VoiceTextarea";
+import SubmitButton from "@/components/SubmitButton";
+import { productsOfClient } from "@/lib/repo/products";
+import { askTasksOf } from "@/lib/taskLog";
+import { moveAsksAction } from "@/app/content/actions";
 
 export function TasksTab({ id }: { id: number }) {
   const open = listTasks("all", id);
   const doneList = listTasks("done", id).slice(0, 10);
+  const asks = askTasksOf(id).length;
+  const ps = productsOfClient(id);
   return (
     <>
+      {asks > 0 && ps.length > 0 && (
+        <form action={moveAsksAction} className="mx-warn" style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginBottom: 10 }}>
+          <input type="hidden" name="client_id" value={id} />
+          <span className="grow">{asks} задач — це прохання клієнта по {ps.map((p) => p.name).join(" / ")}. Їм місце в «Правках» проєкту, не в твоїх задачах.</span>
+          <SubmitButton className="small">Перенести в правки</SubmitButton>
+        </form>
+      )}
       <AddTask clientId={id} />
       <div className="list" style={{ marginTop: 10 }}>{open.length ? open.map((t) => <TaskItem key={t.id} t={t} showClient={false} />) : <div className="empty">Відкритих задач нема.</div>}</div>
       {doneList.length > 0 && (

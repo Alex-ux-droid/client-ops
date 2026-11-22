@@ -2,6 +2,7 @@
 // Модель: рубрики і стратегія → план по тижнях → пост (шаблон + слоти) → рендер → апрув → публікація. Візуал — тільки реальні матеріали клієнта.
 import Link from "next/link";
 import EditBlock from "@/components/EditBlock";
+import FileThumb from "@/components/FileThumb";
 import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
 import { assetAction, pillarAction, postAction, saveSocialAction, syncAssetsAction, weekThemeAction } from "@/app/content/actions";
@@ -244,11 +245,10 @@ function Assets({ clientId, s, ak, base }: { clientId: number; s?: SocialProfile
 }
 
 function AssetTile({ a, clientId }: { a: Asset; clientId: number }) {
-  const img = a.mime.startsWith("image/") || a.mime.startsWith("video/") || a.mime === "application/pdf";
   return (
     <Pop className="pop-card ct-tile" closeOnSubmit title={a.name} trigger={
       <>
-        <span className="ct-thumb">{img ? <img src={`/api/content/thumb/${a.id}`} alt="" loading="lazy" /> : <span className="mono">{a.mime.split("/").pop()}</span>}</span>
+        <span className="ct-thumb"><FileThumb src={`/api/content/thumb/${a.id}`} name={a.name} mime={a.mime} /></span>
         <span className="ct-tile-b"><span className="tag">{ASSET_KINDS[a.kind]}</span><span className="ct-name">{a.name}</span></span>
       </>
     }>

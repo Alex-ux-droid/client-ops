@@ -2922,3 +2922,11 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
   .ct-cal-h, .ct-week { min-width: 52rem; }
 }
 @media (prefers-reduced-motion: reduce) { .ct-add { transition: none; } }
+/* Прев'ю файлу в «Матеріалах»: картинка або плашка типу (кольори типів файлів — токени нижче) */
+:root { --ft-pdf: #c8362e; --ft-sheet: #1d7a46; --ft-doc: #2a5699; --ft-slides: #c9572a; --ft-vector: #6b3fb0; --ft-video: #2b2f36; --ft-other: #6b7380; }
+.ft { position: relative; width: 100%; height: 100%; display: grid; place-items: center; --ft: var(--ft-other); }
+.ft img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ft-pdf { --ft: var(--ft-pdf); } .ft-sheet { --ft: var(--ft-sheet); } .ft-doc { --ft: var(--ft-doc); } .ft-slides { --ft: var(--ft-slides); } .ft-vector { --ft: var(--ft-vector); } .ft-video { --ft: var(--ft-video); }
+.ft-badge { position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--ft) 10%, var(--bg-raise)); }
+.ft-badge b { display: grid; place-items: end start; width: 3.25rem; height: 4rem; padding: 0.375rem; border-radius: 0.375rem 1rem 0.375rem 0.375rem; background: var(--ft); color: var(--bg-raise); font-size: 0.6875rem; letter-spacing: 0.02em; box-shadow: 0 6px 16px rgba(15, 23, 42, 0.14); }
+.ft img + .ft-badge { display: none; }

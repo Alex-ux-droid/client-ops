@@ -74,7 +74,7 @@ export default function MetaLive({ clientId, view = "overview", err, cmp, sel, f
             {synced ? ` · оновлено ${new Date(synced.replace(" ", "T") + "Z").toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : " · ще не оновлювалось"}
           </div>
         </div>
-        <span className="inline"><NewCampaign clientId={clientId} /><AskAssistant text="Подивись рекламу цього клієнта: що працює, що зливає бюджет, який креатив найкращий і що б ти змінив.">Джері, як реклама?</AskAssistant></span>
+        <span className="inline"><ReportLink clientId={clientId} /><NewCampaign clientId={clientId} /><AskAssistant text="Подивись рекламу цього клієнта: що працює, що зливає бюджет, який креатив найкращий і що б ти змінив.">Джері, як реклама?</AskAssistant></span>
       </div>
       {problems.length > 0 && (
         <div className="mx-warn">
@@ -82,7 +82,6 @@ export default function MetaLive({ clientId, view = "overview", err, cmp, sel, f
           {problems.map((a) => <span key={a.account_id}><b>{a.name}:</b> {a.account_status && a.account_status !== 1 ? ACCOUNT_STATUS[a.account_status] ?? "проблема з кабінетом" : ""}{a.last_error ? ` ${a.last_error}` : ""}</span>)}
         </div>
       )}
-      <ReportLink clientId={clientId} />
       <nav className="mx-tabs">
         {VIEWS.map((x) => (
           <Link key={x.k} href={x.k === "overview" ? base : `${base}&mv=${x.k}`} scroll={false} className={x.k === v ? "on" : ""}>{x.label}</Link>
@@ -501,9 +500,9 @@ async function ReportLink({ clientId }: { clientId: number }) {
   const h = await headers();
   const url = token ? `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host") ?? ""}/r/${token}` : "";
   return (
-    <details className="card rl-card">
-      <summary><b>Звіт для клієнта</b> <span className="mono">{token ? `посилання увімкнене${reportExpires(clientId) ? ` · діє до ${new Date(reportExpires(clientId)!).toLocaleDateString("uk-UA", { timeZone: "Europe/Kyiv" })}` : ""}` : "вимкнено"}</span></summary>
-      <div className="stack" style={{ gap: "0.5rem", marginTop: "0.75rem" }}>
+    <Pop className="pop-trigger pop-inline" title="Звіт для клієнта" trigger={<span className="btn ghost small">Звіт клієнту{token ? " · увімкнено" : ""}</span>}>
+      <div className="stack" style={{ gap: "0.5rem" }}>
+        {token && reportExpires(clientId) && <div className="mono">Посилання діє до {new Date(reportExpires(clientId)!).toLocaleDateString("uk-UA", { timeZone: "Europe/Kyiv" })}</div>}
         <div className="mono">Сторінка для клієнта без входу: заявки і ціна заявки (тиждень до тижня), графік, якість заявок, найкращі креативи, «що ми зробили» (журнал змін і історія робіт). Без наших витрат і нотаток.</div>
         {token ? (
           <>
@@ -515,7 +514,7 @@ async function ReportLink({ clientId }: { clientId: number }) {
           </>
         ) : <form action={reportLinkAction}><input type="hidden" name="client_id" value={clientId} /><input type="hidden" name="op" value="on" /><button className="small">Увімкнути посилання</button></form>}
       </div>
-    </details>
+    </Pop>
   );
 }
 
