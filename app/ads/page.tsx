@@ -162,11 +162,11 @@ export default async function AdsPage({ searchParams }: { searchParams: Promise<
       )}
 
       {connected && free.length > 0 && (
-        <div className="section">
-          <h2 style={{ marginBottom: 8 }}>Не привʼязані до клієнтів ({free.length})</h2>
-          <p style={{ marginTop: 0, color: "var(--muted)" }}>Їх цифри не тягнуться. Привʼязати — <Link href="/settings?tab=connectors&c=meta">Налаштування → Конектори → Meta Ads</Link> або скажи Джері.</p>
+        <details className="section ads-free-box">
+          <summary className="mono">Ще {free.length} кабінетів не привʼязані до клієнтів — цифри не тягнуться</summary>
+          <p style={{ color: "var(--muted)" }}>Їх цифри не тягнуться. Привʼязати — <Link href="/settings?tab=connectors&c=meta">Налаштування → Конектори → Meta Ads</Link> або скажи Джері.</p>
           <div className="ads-free">{free.map((a) => <span key={a.account_id} className="tag" title={a.account_id}>{a.name} · {a.account_id.replace(/^act_/, "")}</span>)}</div>
-        </div>
+        </details>
       )}
     </>
   );
