@@ -2986,3 +2986,13 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
 .an-cols ul, .an-cols ol { margin: 0.375rem 0 0; padding-left: 1.125rem; display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.9375rem; }
 .ok-text { color: var(--ok); } .bad-text2 { color: var(--bad); }
 @media (max-width: 760px) { .an-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .an-cols { grid-template-columns: 1fr; } }
+/* Карусель у студії контенту: стрічка слайдів 4:5, рядки слайдів */
+.ct-car-prev { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.25rem; min-height: 6rem; align-items: center; }
+.ct-car-prev img { height: 15rem; aspect-ratio: 4 / 5; flex: none; border-radius: var(--radius-sm); border: 1px solid var(--line); object-fit: cover; }
+.ct-car-prev .mono { color: var(--muted); font-size: 0.8125rem; }
+.ct-pick-tag { position: absolute; left: 0.25rem; bottom: 0.25rem; font-size: 0.8125rem; line-height: 1.2; padding: 0 0.3rem; border-radius: 4px; background: rgba(17, 24, 39, 0.7); color: var(--bg-raise); }
+.ct-slide-row { display: grid; grid-template-columns: 3rem 3.5rem minmax(0, 1fr); gap: 0.5rem; align-items: center; }
+.ct-slide-row img { width: 3rem; height: 3rem; object-fit: cover; border-radius: 6px; }
+.ct-slide-row input[type="number"] { width: 100%; }
+.ct-slide-txt { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 0.375rem; min-width: 0; }
+@media (max-width: 760px) { .ct-slide-txt { grid-template-columns: minmax(0, 1fr); } }

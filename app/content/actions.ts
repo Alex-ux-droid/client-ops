@@ -84,7 +84,7 @@ export async function postAction(fd: FormData) {
     pillar_id: Number(fd.get("pillar_id")) || null,
     topic: s(fd, "topic").slice(0, 300),
     hook: s(fd, "hook").slice(0, 300),
-    template_key: s(fd, "template_key").slice(0, 60) || (s(fd, "format") === "story" ? "story-fact" : ""),
+    template_key: s(fd, "template_key").slice(0, 60) || ({ story: "story-fact", carousel: "carousel-feature" } as Record<string, string>)[s(fd, "format")] || "",
     note: s(fd, "note").slice(0, 2000),
     scheduled_at: /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date} ${/^\d{2}:\d{2}$/.test(time) ? time : "18:30"}` : null,
   };
@@ -116,7 +116,21 @@ export async function storySpecAction(fd: FormData) {
   if (!p || p.client_id !== cid) return;
   const prev = JSON.parse(p.spec_json || "{}");
   const spec = { ...prev, asset_id: Number(fd.get("asset_id")) || prev.asset_id, kicker: s(fd, "kicker").slice(0, 40), fact: s(fd, "fact").slice(0, 70), sub: s(fd, "sub").slice(0, 140), cta: s(fd, "cta").slice(0, 30) };
-  updatePost(id, cid, { spec_json: JSON.stringify(spec), template_key: p.template_key || "story-fact" });
+  const carousel = p.format === "carousel" || p.template_key.startsWith("carousel");
+  if (carousel) {
+    // Кадри: позначені в сітці (до 7: обкладинка + 6), порядок — поле «№»; тези — з рядків слайдів
+    const old = new Map<number, { title?: string; text?: string; pos?: number }>((prev.slides ?? []).map((x: { asset_id: number }) => [x.asset_id, x]));
+    const ids = fd.getAll("slide_asset").map(Number).filter(Boolean).slice(0, 7);
+    spec.slides = ids.map((aid, i) => ({
+      asset_id: aid,
+      pos: Number(fd.get(`pos_${aid}`)) || old.get(aid)?.pos || 10 + i,
+      title: (fd.has(`title_${aid}`) ? s(fd, `title_${aid}`) : old.get(aid)?.title ?? "").slice(0, 80),
+      text: (fd.has(`text_${aid}`) ? s(fd, `text_${aid}`) : old.get(aid)?.text ?? "").slice(0, 160),
+    })).sort((a, b) => a.pos - b.pos).map((x, i) => ({ ...x, pos: i + 1 }));
+    spec.end_title = s(fd, "end_title").slice(0, 70);
+    spec.end_text = s(fd, "end_text").slice(0, 160);
+  }
+  updatePost(id, cid, { spec_json: JSON.stringify(spec), template_key: p.template_key || (carousel ? "carousel-feature" : "story-fact"), ...(carousel ? { caption: s(fd, "caption").slice(0, 2200) } : {}) });
   if (s(fd, "op") === "render") {
     const { renderPost } = await import("@/lib/contentPipeline");
     const err = await renderPost(id).catch((e) => (e instanceof Error ? e.message : "помилка збірки"));
@@ -133,24 +147,36 @@ export async function approvalAction(fd: FormData) {
   if (err) updatePost(id, cid, { publish_error: err });
   done(cid);
 }
+const COPY_RULES = "Пишеш українською, коротко, без води і кліше. Тільки факти з блоку ФАКТИ — нічого не вигадуй (цифр, обіцянок, термінів, зручностей, яких там нема). Якщо фактів бракує — пиши загальніше, але не вигадуй.";
 export async function fillStoryAction(fd: FormData) {
   await requireUser();
   const cid = cidOf(fd), id = Number(fd.get("id"));
-  const { getPost, updatePost } = await import("@/lib/repo/content");
+  const { getPost, updatePost, getAsset } = await import("@/lib/repo/content");
   const { getSocial } = await import("@/lib/repo/social");
   const { askJson } = await import("@/lib/llmJson");
   const p = getPost(id), sp = getSocial(cid);
   if (!p || p.client_id !== cid) return;
+  const ctx = `ТЕМА: ${p.topic}\nХУК: ${p.hook}\nДЛЯ КОГО: ${sp?.audience ?? ""}\nТОН: ${sp?.voice ?? ""}\nCTA (обирай звідси): ${sp?.cta ?? ""}\nЗАБОРОНЕНО: ${sp?.banned ?? ""}\nФАКТИ:\n${sp?.facts ?? ""}`;
+  const prev = JSON.parse(p.spec_json || "{}");
   try {
-    const r = await askJson<{ kicker: string; fact: string; sub: string; cta: string }>(
-      "Ти копірайтер сторіс для забудовника. Пишеш українською, коротко, без води і кліше. Тільки факти з блоку ФАКТИ — нічого не вигадуй (цифр, обіцянок, термінів). Поверни ТІЛЬКИ JSON: {\"kicker\": \"2–3 слова, тема\", \"fact\": \"головна фраза до 40 символів\", \"sub\": \"пояснення до 90 символів\", \"cta\": \"заклик до 24 символів\"}.",
-      `ТЕМА: ${p.topic}\nХУК: ${p.hook}\nДЛЯ КОГО: ${sp?.audience ?? ""}\nТОН: ${sp?.voice ?? ""}\nCTA (обирай звідси): ${sp?.cta ?? ""}\nЗАБОРОНЕНО: ${sp?.banned ?? ""}\nФАКТИ:\n${sp?.facts ?? ""}`,
-      { maxTokens: 800, effort: "low" });
-    const prev = JSON.parse(p.spec_json || "{}");
-    updatePost(id, cid, { spec_json: JSON.stringify({ ...prev, kicker: String(r.kicker ?? "").slice(0, 40), fact: String(r.fact ?? "").slice(0, 70), sub: String(r.sub ?? "").slice(0, 140), cta: String(r.cta ?? "").slice(0, 30) }), template_key: p.template_key || "story-fact", publish_error: "" });
+    if (p.format === "carousel" || p.template_key.startsWith("carousel")) {
+      const sl = ((prev.slides ?? []) as { asset_id: number; title?: string; text?: string; pos: number }[]).sort((a, b) => a.pos - b.pos);
+      if (sl.length < 3) throw new Error("Спершу обери кадри (щонайменше 3) і натисни «Зберегти»");
+      const frames = sl.slice(1).map((x, i) => { const a = getAsset(x.asset_id); return `${i + 1}. ${a?.kind === "plan" ? "планування" : "фото/рендер"}: ${a?.name ?? ""}${a?.tags ? ` (${a.tags})` : ""}`; }).join("\n");
+      const r = await askJson<{ kicker: string; title: string; sub: string; slides: { title: string; text: string }[]; end_title: string; end_text: string; cta: string; caption: string }>(
+        `Ти копірайтер каруселей Instagram для забудовника. ${COPY_RULES} Карусель: обкладинка-хук → слайди (по одному на кадр, теза має відповідати кадру) → фінальний слайд із закликом. Поверни ТІЛЬКИ JSON: {"kicker": "2–4 слова", "title": "хук обкладинки до 50 символів", "sub": "до 60 символів", "slides": [{"title": "теза до 55 символів", "text": "пояснення до 110 символів"}], "end_title": "до 45 символів", "end_text": "до 110 символів", "cta": "до 24 символів", "caption": "підпис до поста 300–600 символів: перший рядок — хук, далі користь, заклик зберегти, CTA, 3–5 хештегів"}. Слайдів рівно ${sl.length - 1}.`,
+        `${ctx}\nКАДРИ ПО ПОРЯДКУ:\n${frames}`, { maxTokens: 2000, effort: "low" });
+      const slides = sl.map((x, i) => (i === 0 ? x : { ...x, title: String(r.slides?.[i - 1]?.title ?? x.title ?? "").slice(0, 80), text: String(r.slides?.[i - 1]?.text ?? x.text ?? "").slice(0, 160) }));
+      updatePost(id, cid, { spec_json: JSON.stringify({ ...prev, slides, kicker: String(r.kicker ?? "").slice(0, 40), fact: String(r.title ?? "").slice(0, 70), sub: String(r.sub ?? "").slice(0, 140), end_title: String(r.end_title ?? "").slice(0, 70), end_text: String(r.end_text ?? "").slice(0, 160), cta: String(r.cta ?? "").slice(0, 30) }), caption: String(r.caption ?? "").slice(0, 2200), publish_error: "" });
+    } else {
+      const r = await askJson<{ kicker: string; fact: string; sub: string; cta: string }>(
+        `Ти копірайтер сторіс для забудовника. ${COPY_RULES} Поверни ТІЛЬКИ JSON: {"kicker": "2–3 слова, тема", "fact": "головна фраза до 40 символів", "sub": "пояснення до 90 символів", "cta": "заклик до 24 символів"}.`,
+        ctx, { maxTokens: 800, effort: "low" });
+      updatePost(id, cid, { spec_json: JSON.stringify({ ...prev, kicker: String(r.kicker ?? "").slice(0, 40), fact: String(r.fact ?? "").slice(0, 70), sub: String(r.sub ?? "").slice(0, 140), cta: String(r.cta ?? "").slice(0, 30) }), template_key: p.template_key || "story-fact", publish_error: "" });
+    }
   } catch (e) {
     const { llmErrorText } = await import("@/lib/llmJson");
-    updatePost(id, cid, { publish_error: llmErrorText(e) });
+    updatePost(id, cid, { publish_error: e instanceof Error && e.message.startsWith("Спершу") ? e.message : llmErrorText(e) });
   }
   done(cid);
 }
