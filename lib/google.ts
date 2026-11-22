@@ -296,6 +296,16 @@ export async function fileMeta(id: string): Promise<{ name: string; mimeType: st
   return api(`https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType,size,thumbnailLink&supportsAllDrives=true`);
 }
 
+// Прев'ю файлу з Диску (студія контенту): thumbnailLink з нашим токеном, розмір sz пікселів по довшій стороні
+export async function driveThumb(id: string, sz = 480): Promise<{ body: ArrayBuffer; type: string } | null> {
+  const meta = await fileMeta(id).catch(() => null);
+  if (!meta?.thumbnailLink) return null;
+  const token = await accessToken();
+  const r = await fetch(meta.thumbnailLink.replace(/=s\d+$/, `=s${sz}`), { headers: { authorization: `Bearer ${token}` } });
+  if (!r.ok) return null;
+  return { body: await r.arrayBuffer(), type: r.headers.get("content-type") ?? "image/jpeg" };
+}
+
 // ---------- Календар ----------
 // Доступ до календаря додали пізніше: хто підключав Google раніше — треба перепідключити (Налаштування → Конектори → Google)
 export const calendarAllowed = () => googleConnected() && (getSetting("google.scopes") ?? "").includes(CALENDAR_SCOPE);
