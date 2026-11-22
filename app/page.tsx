@@ -174,7 +174,7 @@ export default function Home() {
           </div>
           <div className="panel panel-grow">
             <div className="panel-head"><h2>Отримано по місяцях</h2><span className="mono">{money(byMonth.reduce((s, x) => s + x.total, 0))} за 6 міс.</span></div>
-            {byMonth.every((x) => !x.total) ? <p className="mono" style={{ margin: "0.75rem 0 0" }}>Оплат ще не записано. Записуй одним натиском: «💸 Оплатив» у ранковому зведенні в Telegram або скажи Джері «Аква Віта заплатила 450».</p> : <div className="vbars money">
+            {byMonth.every((x) => !x.total) ? <p className="mono" style={{ margin: 0, padding: "0.75rem 1.125rem" }}>Оплат ще не записано. Записуй одним натиском: «💸 Оплатив» у ранковому зведенні в Telegram або скажи Джері «Аква Віта заплатила 450».</p> : <div className="vbars money">
               {byMonth.map((x, i) => (
                 <Link key={x.month} href="/money" className={`vb ${i === byMonth.length - 1 ? "on" : ""}`} title={`${monthLabel(x.month)}: ${money(x.total)}`}>
                   <span className="vb-n">{x.total ? money(x.total) : ""}</span>
