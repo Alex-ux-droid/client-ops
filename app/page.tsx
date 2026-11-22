@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { addTask, confirmDecide, taskFromFlag } from "@/app/actions";
 import { CONFIRM_UA, pendingConfirms } from "@/lib/repo/confirm";
-import { dueWeek, weekLabel } from "@/lib/repo/review";
 import TaskItem from "@/components/TaskItem";
 import Icon from "@/components/Icon";
 import { crmStats } from "@/lib/crm";
@@ -30,7 +29,6 @@ const score = (fs: Flag[]) => fs.filter((f) => f.level === "bad").length * 10 + 
 
 export default function Home() {
   const confirms = pendingConfirms();
-  const rv = dueWeek();
   const todayK = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Kyiv" }).slice(0, 10);
   const debts = listPayments({ open: true }).filter((p) => p.due_date < todayK)
     .map((p) => ({ ...p, days: Math.round((Date.parse(todayK) - Date.parse(p.due_date)) / 86400_000) })).sort((a, b) => b.days - a.days);
@@ -91,8 +89,7 @@ export default function Home() {
               {now3.map((x, i) => <Link key={i} href={x.href} className={`dash-now-i${x.bad ? " bad" : ""}`} title={x.why}><b>{i + 1}</b> {x.t}</Link>)}
             </div>
           ) : <div className="dash-brief">{brief} · усе чисто</div>}
-          {rv.due ? <Link href="/review" className="dash-focus dash-review" title="Тижневий рев'ю не закритий"><Icon name="flag" size={15} /> Рев&apos;ю тижня {weekLabel(rv.week)} — закрий тиждень</Link>
-            : orgFocus && <Link href="/kb" className="dash-focus" title="Розвиток → Головне зараз"><Icon name="compass" size={15} /> {orgFocus}</Link>}
+          {orgFocus && <Link href="/kb" className="dash-focus" title="Розвиток → Головне зараз"><Icon name="compass" size={15} /> {orgFocus}</Link>}
         </div>
       </header>
 

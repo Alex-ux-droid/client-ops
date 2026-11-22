@@ -52,7 +52,7 @@ export const getAsset = (id: number) => db().prepare("SELECT * FROM content_asse
 export function upsertAsset(clientId: number, a: { drive_id: string; name: string; path: string; mime: string; kind: AssetKind; size: number | null; link: string; modified_at: string | null }): void {
   // тип і теги, які Саша поправив руками, не перезаписуємо
   db().prepare(`INSERT INTO content_assets (client_id, drive_id, name, path, mime, kind, size, link, modified_at) VALUES (@client_id, @drive_id, @name, @path, @mime, @kind, @size, @link, @modified_at)
-    ON CONFLICT(client_id, drive_id) DO UPDATE SET name = excluded.name, path = excluded.path, mime = excluded.mime, size = excluded.size, link = excluded.link, modified_at = excluded.modified_at, synced_at = datetime('now')`).run({ ...a, client_id: clientId });
+    ON CONFLICT(client_id, drive_id) DO UPDATE SET kind = CASE WHEN kind = 'other' THEN excluded.kind ELSE kind END, name = excluded.name, path = excluded.path, mime = excluded.mime, size = excluded.size, link = excluded.link, modified_at = excluded.modified_at, synced_at = datetime('now')`).run({ ...a, client_id: clientId });
 }
 export function updateAsset(id: number, clientId: number, p: Partial<Pick<Asset, "kind" | "tags" | "hidden">>): void {
   const keys = (["kind", "tags", "hidden"] as const).filter((k) => p[k] !== undefined);

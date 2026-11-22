@@ -7,7 +7,6 @@ export const SECTIONS: { title: string; collapsed?: boolean; items: { href: stri
     title: "Робота",
     items: [
       { href: "/", label: "Центр", ico: "home" },
-      { href: "/review", label: "Рев'ю", ico: "flag" },
       { href: "/tasks", label: "Задачі", ico: "tasks", count: "tasks" },
       { href: "/clients", label: "Клієнти", ico: "users" },
       { href: "/money", label: "Гроші", ico: "wallet", count: "debts", bad: true },

@@ -92,3 +92,12 @@ export async function postAction(fd: FormData) {
   else if (p.topic) addPost(cid, p);
   done(cid);
 }
+
+// Задачі-прохання клієнта → правки проєктів (CRM / сайт)
+export async function moveAsksAction(fd: FormData) {
+  await requireUser();
+  const cid = cidOf(fd);
+  const { moveAsksToRequests } = await import("@/lib/taskLog");
+  if (cid) moveAsksToRequests(cid);
+  revalidatePath("/", "layout");
+}

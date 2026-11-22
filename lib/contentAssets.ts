@@ -10,7 +10,7 @@ export function guessKind(name: string, path: string, mime: string): AssetKind {
   if (/план|plan|layout|поверх/.test(t)) return "plan";
   if (/фото|photo|img_|dsc|будівниц|хід/.test(t)) return "photo";
   if (mime.startsWith("image/")) return "render";
-  if (mime === "application/pdf" || /document|presentation|spreadsheet/.test(mime)) return "doc";
+  if (mime === "application/pdf" || /document|presentation|spreadsheet|iwork|msword|ms-excel|ms-powerpoint/.test(mime) || /\.(pdf|xlsx?|csv|numbers|docx?|pages|pptx?|key)$/i.test(name)) return "doc";
   return "other";
 }
 

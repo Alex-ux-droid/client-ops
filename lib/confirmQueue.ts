@@ -7,6 +7,7 @@ import { db } from "./db";
 import { logError } from "./log";
 import { addConfirm, CONFIRM_UA, getConfirm, setConfirmStatus, tidyConfirms, type ConfirmItem, type ConfirmKind } from "./repo/confirm";
 import { createTask, getTask, listTasks, updateTask } from "./repo/tasks";
+import { addRequest, pickProductFor } from "./repo/products";
 import { getSetting, setSetting } from "./repo/settings";
 import { getApiKey } from "./secrets";
 
@@ -111,7 +112,8 @@ export async function sendConfirmsToTg(): Promise<void> {
   const rows = db().prepare("SELECT q.*, c.name client_name FROM confirm_queue q JOIN clients c ON c.id = q.client_id WHERE q.status = 'new' AND q.id > ? ORDER BY q.id LIMIT 6").all(last) as ConfirmItem[];
   for (const q of rows) {
     setSetting("confirm.tg_last", String(q.id));
-    const text = `☑️ ${q.client_name} · ${CONFIRM_UA[q.kind] ?? q.kind}\n${q.title}${q.evidence ? `\n— ${q.evidence.replace(/\s+/g, " ").slice(0, 300)}` : ""}`;
+    const pr = q.kind === "task_new" ? pickProductFor(q.client_id, `${q.title} ${q.evidence}`) : null;
+    const text = `☑️ ${q.client_name} · ${pr ? `правка в «${pr.name}»` : CONFIRM_UA[q.kind] ?? q.kind}\n${q.title}${q.evidence ? `\n— ${q.evidence.replace(/\s+/g, " ").slice(0, 300)}` : ""}`;
     await tg("sendMessage", { chat_id: owner, text, reply_markup: { inline_keyboard: [[{ text: "✓ Так", callback_data: `cf:${q.id}:y` }, { text: "✕ Ні", callback_data: `cf:${q.id}:n` }]] } }).catch((e) => logError("confirm-tg", e));
   }
 }
@@ -136,6 +138,9 @@ export function tidyConfirmQueue(): void {
   const r = tidyConfirms();
   const T = "Розібрати прохання клієнта з переписки";
   for (const a of r.asks) {
+    // Прохання по наших продуктах (CRM, сайт) — одразу в правки проєкту; в задачу — тільки решта
+    a.titles = a.titles.filter((t) => { const p = pickProductFor(a.client_id, t); if (p) addRequest(p.id, { text: t, source: "jerry", author: "з переписки клієнта", client_id: a.client_id }); return !p; });
+    if (!a.titles.length) continue;
     const list = a.titles.map((t) => `- [ ] ${t}`).join("\n");
     const open = listTasks("all", a.client_id).find((t) => t.title === T && t.status !== "done");
     if (open) { const t = getTask(open.id); updateTask(open.id, { details: `${t?.details ?? ""}\n${list}`.trim().slice(0, 20000) }); }

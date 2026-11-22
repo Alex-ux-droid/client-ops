@@ -50,12 +50,13 @@ export function clientSections(c: ClientRow, services: ClientService[]): Section
     { k: "tasks", label: "Задачі", ico: "tasks", group: "Робота", badge: tasks },
     { k: "history", label: "Історія", ico: "clock", group: "Робота" },
     { k: "money", label: "Гроші", ico: "wallet", group: "Робота" },
-    { k: "files", label: "Файли", ico: "folder", group: "Робота", hidden: hide("files", !!c.drive_url || has("SELECT 1 FROM client_folders WHERE client_id = ?", c.id)) },
+    { k: "files", label: "Файли", ico: "folder", group: "Робота", hidden: hide("files", false) },
     { k: "access", label: "Доступи", ico: "lock", group: "Робота", badge: acc, hidden: hide("access", acc > 0) },
-    { k: "materials", label: "Матеріали", ico: "file", group: "Робота", hidden: hide("materials", has("SELECT 1 FROM materials WHERE client_id = ?", c.id)) },
+    { k: "materials", label: "Матеріали", ico: "file", group: "Робота", hidden: hide("materials", false) },
     { k: "playbooks", label: "Плейбуки", ico: "book", group: "Робота", badge: pbs, hidden: hide("playbooks", pbs > 0) },
     { k: "setup", label: "Налаштування клієнта", ico: "gear", group: "Налаштування" },
   ];
+  // Файли і старі Матеріали — тільки через «+ Розділ» (22.11: Саша ними не користується; матеріали тепер у «Контенті»)
   // Головне: Огляд, Стратегія, Продажі, послуги, Telegram, Задачі; решта — «Ще»
   return list.map((x) => ({ ...x, more: !(MAIN.has(x.k) || x.svc) }));
 }
