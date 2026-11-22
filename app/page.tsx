@@ -5,7 +5,8 @@ import TaskItem from "@/components/TaskItem";
 import Icon from "@/components/Icon";
 import { crmStats } from "@/lib/crm";
 import { productIssues } from "@/lib/products";
-import { listCrmLinks } from "@/lib/repo/crm";
+import { getCrmLink, listCrmLinks } from "@/lib/repo/crm";
+import { accountsForClient, kyivDay, totals as metaTotals } from "@/lib/repo/meta";
 import { getOrg, listProducts, openRequestCounts, productClients } from "@/lib/repo/products";
 import { money } from "@/lib/config";
 import { ymd } from "@/lib/dates";
@@ -16,9 +17,8 @@ import DebtRemind from "@/components/DebtRemind";
 import { listPayments } from "@/lib/repo/payments";
 import { mainMetricBrief } from "@/lib/repo/metrics";
 import { moneySummary, receivedByMonth } from "@/lib/repo/payments";
-import { listTasks, taskCounts, weekPlan } from "@/lib/repo/tasks";
+import { listTasks, taskCounts } from "@/lib/repo/tasks";
 
-const DAYS = ["нд", "пн", "вт", "ср", "чт", "пт", "сб"];
 
 function greeting(h: number) {
   return h < 5 ? "Доброї ночі" : h < 12 ? "Доброго ранку" : h < 18 ? "Доброго дня" : "Доброго вечора";
@@ -45,8 +45,6 @@ export default function Home() {
     .sort((a, b) => score(b.flags) - score(a.flags));
   const m = moneySummary(today.slice(0, 7));
   const byMonth = receivedByMonth(6);
-  const week = weekPlan();
-  const weekMax = Math.max(1, ...week.map((d) => d.tasks.length));
   const monthMax = Math.max(1, ...byMonth.map((x) => x.total));
   const todayTotal = t.today + t.overdue + t.doneToday;
   const planPct = m.mrr ? Math.min(100, Math.round((m.received / m.mrr) * 100)) : 0;
@@ -70,6 +68,22 @@ export default function Home() {
     ...(t.overdue ? [{ t: `${pl(t.overdue, ["задача", "задачі", "задач"])} прострочено`, href: "/tasks?view=overdue", why: "Прострочені задачі" }] : []),
     ...(confirms.length ? [{ t: `Підтверди: ${confirms.length}`, href: "#confirm", why: "Джері знайшов у переписці — ✓ або ✕" }] : []),
   ].slice(0, 3);
+
+  // Пульс клієнтів: ліди і ціна ліда 7/7, продажі 30 дн., головна метрика
+  const delta = (now: number, before: number) => (before > 0 ? Math.round(((now - before) / before) * 100) : null);
+  const pulse = active.map((c) => {
+    const hasMeta = accountsForClient(c.id).length > 0;
+    const w = hasMeta ? metaTotals(c.id, kyivDay(6), kyivDay(0)) : null, p = hasMeta ? metaTotals(c.id, kyivDay(13), kyivDay(7)) : null;
+    const cpl = w && w.leads ? w.spend / w.leads : null, cplP = p && p.leads ? p.spend / p.leads : null;
+    const leadsD = w && p ? delta(w.leads, p.leads) : null, cplD = cpl != null && cplP != null ? delta(cpl, cplP) : null;
+    const st = getCrmLink(c.id) ? crmStats(c.id, since30) : null;
+    return {
+      id: c.id, name: c.name, leads: w ? w.leads : null, leadsD, cpl: cpl != null ? money(cpl) : null, cplD,
+      leadsTone: leadsD != null && leadsD <= -20 ? "bad" : leadsD != null && leadsD >= 20 ? "ok" : "",
+      cplTone: cplD != null && cplD >= 20 ? "bad" : cplD != null && cplD <= -15 ? "ok" : "",
+      sales: st ? st.sales : null, main: mainMetricBrief(c.id),
+    };
+  }).filter((r) => r.leads != null || r.sales != null || r.main);
 
   // Одне речення про головне
   const brief = [
@@ -143,20 +157,19 @@ export default function Home() {
 
         {/* Колонка 2: тиждень і гроші */}
         <div className="panel-stack">
+          {/* Пульс клієнтів: цифри тиждень до тижня — де просідає, видно кольором (22.11: «мені потрібна конкретика цифр») */}
           <div className="panel panel-grow">
-            <div className="panel-head"><h2>Навантаження на тиждень</h2><Link href="/tasks?view=week">план →</Link></div>
-            <div className="vbars">
-              {week.map((d) => {
-                const dt = new Date(d.date);
-                const n = d.tasks.length;
-                return (
-                  <Link key={d.date} href="/tasks?view=week" className={`vb ${d.date === today ? "on" : ""}`} title={d.tasks.map((x) => x.title).join("\n") || "вільно"}>
-                    <span className="vb-n">{n || ""}</span>
-                    <span className="vb-col"><i style={{ height: `${(n / weekMax) * 100}%` }} /></span>
-                    <span className="vb-l">{d.date === today ? "сьог" : DAYS[dt.getDay()]}</span>
-                  </Link>
-                );
-              })}
+            <div className="panel-head"><h2>Пульс клієнтів</h2><span className="mono">7 дн. проти попередніх 7</span></div>
+            <div className="pulse panel-body">
+              {pulse.length ? pulse.map((r) => (
+                <Link key={r.id} href={`/clients/${r.id}`} className="pulse-row">
+                  <b className="pulse-name">{r.name}</b>
+                  <span className={`pulse-c ${r.leadsTone}`} title="Ліди з реклами за 7 днів"><small>ліди</small>{r.leads ?? "—"}{r.leadsD != null && <em>{r.leadsD > 0 ? "↑" : r.leadsD < 0 ? "↓" : ""}{Math.abs(r.leadsD)}%</em>}</span>
+                  <span className={`pulse-c ${r.cplTone}`} title="Ціна ліда за 7 днів"><small>ціна ліда</small>{r.cpl ?? "—"}{r.cplD != null && <em>{r.cplD > 0 ? "↑" : r.cplD < 0 ? "↓" : ""}{Math.abs(r.cplD)}%</em>}</span>
+                  <span className={`pulse-c ${r.sales != null && r.sales === 0 ? "bad" : r.sales ? "ok" : ""}`} title="Продажі в CRM за 30 днів"><small>продажі 30 дн.</small>{r.sales ?? "—"}</span>
+                  {r.main && <span className={`pulse-m ${r.main.tone}`} title={r.main.title}>★ {r.main.text}</span>}
+                </Link>
+              )) : <p className="mono">Активних клієнтів з рекламою чи CRM ще нема.</p>}
             </div>
           </div>
           <div className="panel panel-grow">

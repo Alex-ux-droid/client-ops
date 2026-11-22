@@ -18,7 +18,6 @@ export const SECTIONS: { title: string; collapsed?: boolean; items: { href: stri
     title: "Знання",
     items: [
       { href: "/kb", label: "Розвиток", ico: "compass" },
-      { href: "/journal", label: "Журнал системи", ico: "wrench", count: "journal" },
       { href: "/settings", label: "Налаштування", ico: "gear" },
     ],
   },
