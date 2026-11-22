@@ -31,7 +31,7 @@ export function saveApiKey(key: string): void {
   setEnvVar("ANTHROPIC_API_KEY", key);
 }
 
-export const AGENT_TOKEN_DAYS = 7; // за ТЗ v2: ключ розробника за замовчуванням на 7 днів
+export const AGENT_TOKEN_DAYS = 90; // 22.11: Саша попросив довше за 7 днів — 90 днів, вимкнути можна будь-коли
 export function hasAgentToken(): boolean {
   const exp = Number(process.env.AGENT_TOKEN_EXPIRES || 0);
   return (process.env.AGENT_TOKEN?.length ?? 0) >= 32 && (!exp || exp > Date.now());
@@ -42,6 +42,7 @@ export function createAgentToken(): string {
   const token = randomBytes(32).toString("hex");
   setEnvVar("AGENT_TOKEN", token);
   setEnvVar("AGENT_TOKEN_EXPIRES", String(Date.now() + AGENT_TOKEN_DAYS * 86400_000));
+  setEnvVar("AGENT_TOKEN_DAYS_SET", String(AGENT_TOKEN_DAYS));
   return token;
 }
 
@@ -51,6 +52,11 @@ export function ensureAgentTokenExpiry(): void {
   const max = Date.now() + AGENT_TOKEN_DAYS * 86400_000;
   const exp = Number(process.env.AGENT_TOKEN_EXPIRES || 0);
   if (!exp || exp > max + 3600_000) setEnvVar("AGENT_TOKEN_EXPIRES", String(max));
+  // Один раз: чинний 7-денний ключ продовжуємо до 90 днів, щоб не генерувати новий (маркер AGENT_TOKEN_DAYS_SET у .env)
+  else if (process.env.AGENT_TOKEN_DAYS_SET !== String(AGENT_TOKEN_DAYS) && exp > Date.now()) {
+    setEnvVar("AGENT_TOKEN_EXPIRES", String(max));
+    setEnvVar("AGENT_TOKEN_DAYS_SET", String(AGENT_TOKEN_DAYS));
+  }
 }
 
 export function revokeAgentToken(): void {
