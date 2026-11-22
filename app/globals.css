@@ -2997,3 +2997,8 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
 .ct-slide-txt { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 0.375rem; min-width: 0; }
 @media (max-width: 760px) { .ct-slide-txt { grid-template-columns: minmax(0, 1fr); } }
 .ct-reel { height: 26rem; aspect-ratio: 9 / 16; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--bg); }
+/* Автоплан у «Плані» студії контенту */
+.ct-auto { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; padding: 0.625rem 0.75rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raise); }
+.ct-auto .mono { color: var(--muted); min-width: 12rem; }
+.ct-check { display: inline-flex; gap: 0.375rem; align-items: center; margin: 0; font-weight: 400; color: var(--muted); font-size: 0.875rem; cursor: pointer; }
+.ct-check input { width: auto; margin: 0; }
