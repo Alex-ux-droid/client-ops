@@ -44,6 +44,16 @@ export async function metaGet<T>(path: string, params: Record<string, string> = 
 }
 
 // Усі сторінки результату (Meta віддає порціями)
+// POST до Graph API (публікація контенту: контейнери IG, media_publish). Параметри — form-urlencoded.
+export async function metaPost<T>(path: string, params: Record<string, string> = {}): Promise<T> {
+  const token = metaToken();
+  if (!token) throw new Error("Meta не підключена");
+  const r = await fetch(`${BASE()}/${VERSION()}/${path}`, { method: "POST", body: new URLSearchParams({ ...params, access_token: token }), signal: AbortSignal.timeout(60000) });
+  const d = (await r.json().catch(() => ({}))) as T & { error?: { message: string; code?: number; error_user_msg?: string } };
+  if (!r.ok || d.error) throw new Error(`Meta: ${d.error?.error_user_msg || d.error?.message || `HTTP ${r.status}`}${d.error?.code ? ` (код ${d.error.code})` : ""}`);
+  return d;
+}
+
 export async function metaAll<T>(path: string, params: Record<string, string>, token?: string): Promise<T[]> {
   const out: T[] = [];
   let page = await metaGet<Paged<T>>(path, params, token);
