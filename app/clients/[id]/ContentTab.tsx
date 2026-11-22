@@ -3,10 +3,12 @@
 import Link from "next/link";
 import EditBlock from "@/components/EditBlock";
 import FileThumb from "@/components/FileThumb";
+import AutoRefresh from "@/components/AutoRefresh";
 import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
-import { analyzeSocialAction, approvalAction, assetAction, refreshSocialAction, checkPublishAction, fillStoryAction, paletteAction, pillarAction, postAction, saveSocialAction, storySpecAction, syncAssetsAction, weekThemeAction } from "@/app/content/actions";
+import { analyzeSocialAction, approvalAction, assetAction, autoPlanAction, prepIdeasAction, refreshSocialAction, checkPublishAction, fillStoryAction, paletteAction, pillarAction, postAction, saveSocialAction, storySpecAction, syncAssetsAction, weekThemeAction } from "@/app/content/actions";
 import { isCarousel, isReel, mediaKey, paletteOf, slideCount, specOf } from "@/lib/contentPipeline";
+import { getPrep } from "@/lib/contentPlan";
 import { getAnalysis, getSnapshot, stats, type Snapshot } from "@/lib/socialAnalysis";
 import { driveReadAll, googleConnected } from "@/lib/google";
 import { metaToken, metaTokenCheck } from "@/lib/meta";
@@ -193,8 +195,29 @@ function Plan({ clientId, s, pillars, cm, base }: { clientId: number; s?: Social
   const themes = weekThemes(clientId, start, end);
   const slots = slotsOf(s), cad = cadenceOf(s);
   const hid = <input type="hidden" name="client_id" value={clientId} />;
+  const ideas = posts.filter((p) => p.status === "idea" && p.template_key && p.scheduled_at!.startsWith(month)).length;
+  const prep = getPrep(clientId);
+  const prepLive = !!prep?.running && Date.now() - Date.parse(prep.at) < 3 * 3600_000;
+  const [planAt, planMsg] = (getSetting(`content.plan.${clientId}`) ?? "").split("|");
+  const fresh = (iso?: string) => !!iso && Date.now() - Date.parse(iso) < 12 * 3600_000;
   return (
     <div className="stack" style={{ gap: "0.75rem" }}>
+      <div className="ct-auto">
+        <form action={autoPlanAction} className="inline">
+          {hid}<input type="hidden" name="month" value={month} />
+          <SubmitButton className="small" pendingText="Джері планує… до 2 хв">Джері, розплануй місяць</SubmitButton>
+          <label className="ct-check"><input type="checkbox" name="replace" value="1" /> замінити ідеї автоплану</label>
+        </form>
+        <form action={prepIdeasAction} className="inline">
+          {hid}<input type="hidden" name="month" value={month} />
+          <SubmitButton className="ghost small" pendingText="Запускаю…" disabled={prepLive || !ideas}>Підготувати ідеї ({ideas}): тексти + збірка</SubmitButton>
+        </form>
+        <span className="mono grow">
+          {prepLive ? `Готую ${prep!.done}/${prep!.total}…` : prep && fresh(prep.at) ? `Підготовлено ${prep.done - prep.errors.length}/${prep.total}${prep.errors.length ? ` · помилок ${prep.errors.length}` : ""} — дивись «Пости» → «Готується»` : fresh(planAt) ? planMsg : "Частота, дні й рубрики — з Налаштувань і Стратегії студії."}
+        </span>
+        {prepLive && <AutoRefresh />}
+        {!prepLive && prep && fresh(prep.at) && prep.errors.length > 0 && <Pop className="pop-trigger pop-inline" title="Що не вдалось" trigger={<span className="tag bad">помилки</span>}><ul className="stack" style={{ gap: "0.25rem" }}>{prep.errors.map((e, i) => <li key={i}>{e}</li>)}</ul></Pop>}
+      </div>
       <div className="ct-head">
         <Link href={`${base}&cv=plan&cm=${prevMonth}`} className="btn ghost small" aria-label="Попередній місяць">‹</Link>
         <b className="ct-month">{monthLabel(month)}</b>
