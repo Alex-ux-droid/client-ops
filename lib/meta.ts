@@ -71,7 +71,7 @@ export async function connectMeta(token: string): Promise<number> {
   const dbg = await metaGet<{ data?: { expires_at?: number; data_access_expires_at?: number } }>("debug_token", { input_token: token }, token).catch(() => null);
   const exp = dbg?.data?.expires_at ?? 0;
   if (exp > 0 && exp * 1000 - Date.now() < 24 * 3600_000) throw new Error("Це короткий токен — він живе 1–2 години. Відкрий developers.facebook.com/tools/debug/accesstoken → встав його → «Продовжити маркер доступу» → встав сюди новий довгий.");
-  if (exp > 0) setSetting("meta.token_expires", new Date(exp * 1000).toISOString());
+  setSetting("meta.token_expires", exp > 0 ? new Date(exp * 1000).toISOString() : "never"); // never — токен системного користувача
   const n = await refreshAccounts(token);
   setEnvVar("META_ACCESS_TOKEN", token);
   setSetting("meta.connected_at", new Date().toISOString());
@@ -447,6 +447,23 @@ export const lastSync = () => getSetting("meta.last_sync");
 export function tokenAgeDays(): number | null {
   const at = getSetting("meta.connected_at");
   return at ? Math.floor((Date.now() - +new Date(at)) / 86400_000) : null;
+}
+
+export const tokenNever = () => getSetting("meta.token_expires") === "never";
+
+// Перевірка поточного токена без SSH: термін, дозволи, сторінки і їхній Instagram (Налаштування → Конектори → Meta)
+export type TokenCheck = { ok: boolean; error?: string; never?: boolean; expires?: string; type?: string; scopes?: string[]; pages?: { name: string; ig: string; igUser: string }[] };
+export async function metaTokenCheck(): Promise<TokenCheck> {
+  const t = metaToken();
+  if (!t) return { ok: false, error: "Токена нема" };
+  try {
+    const d = await metaGet<{ data?: { is_valid?: boolean; expires_at?: number; type?: string; scopes?: string[]; error?: { message?: string } } }>("debug_token", { input_token: t });
+    const x = d.data ?? {};
+    if (x.is_valid === false) return { ok: false, error: x.error?.message ?? "Meta каже: токен недійсний" };
+    const pages = await metaAll<{ name: string; instagram_business_account?: { id: string; username?: string } }>("me/accounts", { fields: "name,instagram_business_account{id,username}", limit: "100" }).catch(() => []);
+    return { ok: true, never: !x.expires_at, expires: x.expires_at ? new Date(x.expires_at * 1000).toISOString() : undefined, type: x.type, scopes: x.scopes ?? [],
+      pages: pages.map((p) => ({ name: p.name, ig: p.instagram_business_account?.id ?? "", igUser: p.instagram_business_account?.username ?? "" })) };
+  } catch (e) { return { ok: false, error: e instanceof Error ? e.message : "помилка" }; }
 }
 
 // Привʼязати кабінет до клієнта: вмикаємо йому послугу Meta Ads (там показуються цифри) і одразу тягнемо дані
