@@ -17,7 +17,7 @@ const competitorsCount = (id: number) => listCompetitors(id).length;
 // hidden — розділ без даних: не показуємо, поки Саша не ввімкне «+ Розділ» (settings client.tabs.<id>) або не відкриє його
 // more — другорядний розділ: на компʼютері під «Ще», на телефоні тільки в сітці «Розділи» (аудит 14.11: живуть 4–5 вкладок із 15)
 export type Section = { k: string; label: string; ico: string; group: string; badge?: number; svc?: boolean; hidden?: boolean; more?: boolean };
-const MAIN = new Set(["overview", "strategy", "sales", "telegram", "tasks"]);
+const MAIN = new Set(["overview", "strategy", "sales", "content", "telegram", "tasks"]);
 const has = (sql: string, id: number) => { try { return !!db().prepare(sql).get(id); } catch { return false; } };
 export const enabledTabs = (id: number) => (getSetting(`client.tabs.${id}`) ?? "").split(",").filter(Boolean);
 export function enableClientTab(id: number, k: string): void {
@@ -40,6 +40,7 @@ export function clientSections(c: ClientRow, services: ClientService[]): Section
     { k: "overview", label: "Огляд", ico: "home", group: "" },
     { k: "strategy", label: "Стратегія", ico: "zap", group: "" },
     { k: "sales", label: "Продажі", ico: "wallet", group: "", hidden: hide("sales", !!getCrmLink(c.id)) },
+    { k: "content", label: "Контент", ico: "sparkles", group: "" },
     { k: "brand", label: "Бренд", ico: "palette", group: "", hidden: hide("brand", has("SELECT 1 FROM brand WHERE client_id = ? AND (positioning || audience || offer || promise || tone || rules || notes) <> ''", c.id) || has("SELECT 1 FROM brand_colors WHERE client_id = ?", c.id) || has("SELECT 1 FROM brand_assets WHERE client_id = ?", c.id)) },
     { k: "competitors", label: "Конкуренти", ico: "flag", group: "", badge: comp || undefined, hidden: hide("competitors", comp > 0) },
     ...services.map((s) => ({ k: s.type, label: SERVICES[s.type as ServiceType].label, ico: SVC_ICO[s.type] ?? "zap", group: "Послуги", svc: true })),
