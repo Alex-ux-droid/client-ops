@@ -1,4 +1,4 @@
-import { topViews } from "@/lib/repo/pageViews";
+import { pathLabel, topClicks, topViews, trackingSince, unusedSections } from "@/lib/repo/pageViews";
 import Anthropic from "@anthropic-ai/sdk";
 import Link from "next/link";
 import SubmitButton from "@/components/SubmitButton";
@@ -55,6 +55,7 @@ const TABS = [
   { k: "catalog", label: "Довідники" },
   { k: "access", label: "Доступи" },
   { k: "usage", label: "Витрати" },
+  { k: "use", label: "Користування" },
   { k: "system", label: "Система" },
 ] as const;
 type Tab = (typeof TABS)[number]["k"];
@@ -98,6 +99,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {tab === "catalog" && <Catalog />}
       {tab === "access" && <Access />}
       {tab === "usage" && <Usage />}
+      {tab === "use" && <Use />}
       {tab === "system" && <System />}
     </>
   );
@@ -795,7 +797,6 @@ function Usage() {
         {u.byClient.length > 0 && <p className="mono">По клієнтах (чат Джері в картці, черга Підтверди): {u.byClient.map((c) => `${c.name} — ${usd(c.cost)}`).join(" · ")}</p>}
         {u.byModel.length > 0 && <p className="mono">Моделі: {u.byModel.map((m) => `${m.model} — ${usd(m.cost)} (${m.n})`).join(" · ")}</p>}
       </div>
-      <Views />
       <form action={saveUsageLimitAction} className="card stack" style={{ gap: "0.5rem" }}>
         <b>Ліміт на місяць</b>
         <span className="mono">На 80% і 100% — повідомлення тобі в Telegram. Нічого не вимикається само.</span>
@@ -806,17 +807,31 @@ function Usage() {
   );
 }
 
-// Що Саша реально відкриває — щоб прибирати те, чим не користується
-function Views() {
-  const v = topViews(14);
+// Трекер користування: що відкриваєш, на що тиснеш, чого не чіпав — щоб прибирати зайве і бачити неефективне
+function Use() {
+  const views = topViews(14), clicks = topClicks(14), unused = unusedSections(14);
+  const since = trackingSince();
+  const maxV = Math.max(1, ...views.map((v) => v.n));
   return (
-    <div className="card stack" style={{ gap: "0.375rem" }}>
-      <b>Що відкриваєш (14 днів)</b>
-      {v.length ? (
-        <div className="table-wrap"><table><thead><tr><th>Розділ</th><th className="num">Разів</th><th className="num">Днів</th></tr></thead>
-          <tbody>{v.slice(0, 40).map((x) => <tr key={x.path}><td className="mono">{x.path}</td><td className="num">{x.n}</td><td className="num">{x.days}</td></tr>)}</tbody>
-        </table></div>
-      ) : <p className="mono">Рахується з цього оновлення — зазирни через кілька днів.</p>}
+    <div className="use-grid">
+      <section className="card stack" style={{ gap: "0.5rem" }}>
+        <b>Що відкриваєш · 14 днів</b>
+        <span className="mono">рахується з {since ? fmtDate(since) : "сьогодні"}</span>
+        {views.length ? views.slice(0, 20).map((v) => (
+          <div key={v.path} className="use-row"><span className="grow">{pathLabel(v.path)}</span><span className="use-bar"><i style={{ width: `${(v.n / maxV) * 100}%` }} /></span><span className="mono">{v.n} · {v.days} дн.</span></div>
+        )) : <p className="mono">Ще нічого — зазирни через кілька днів.</p>}
+      </section>
+      <section className="card stack" style={{ gap: "0.5rem" }}>
+        <b>На що тиснеш · 14 днів</b>
+        {clicks.length ? clicks.slice(0, 20).map((c) => (
+          <div key={c.path + c.label} className="use-row"><span className="grow"><b>{c.label}</b><span className="mono"> · {pathLabel(c.path)}</span></span><span className="mono">{c.n}</span></div>
+        )) : <p className="mono">Ще нічого.</p>}
+      </section>
+      <section className="card stack" style={{ gap: "0.5rem" }}>
+        <b>Не відкривав · 14 днів</b>
+        <span className="mono">Кандидати прибрати або сховати. Скажи Claude: «прибери те, чим не користуюсь».</span>
+        {unused.length ? <ul className="use-list">{unused.map((u) => <li key={u}>{u}</li>)}</ul> : <p className="mono">Користуєшся всім.</p>}
+      </section>
     </div>
   );
 }

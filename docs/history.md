@@ -112,3 +112,7 @@ SYSTEM у `lib/agent/run.ts` 16,6k → 5,7k символів: роль/тон, �
 
 ## Порядок 22.11 (міграція 166)
 `pickProductFor`/`productsOfClient` у `lib/repo/products.ts` (свої проєкти клієнта першими; «сайт/сторінка» → website, решта → app). `applyConfirm` task_new → `addRequest` у проєкт (без задачі), якщо проєктів нема — задача. `tidyConfirmQueue` теж у правки. `moveAsksToRequests` + банер у Задачах клієнта (`moveAsksAction`). Рев'ю прибрано з меню/Центру/зведення (сторінка жива). Файли/Матеріали в картці — тільки через «+ Розділ». `components/FileThumb.tsx` — прев'ю або плашка типу (`.ft-*`, токени `--ft-*`). Meta: `ReportLink` — Pop у шапці; `MetaDiag` — назви кроків + дії, деталі в Pop.
+
+
+## Трекер користування (міграція 168, 22.11)
+`ui_clicks` + `page_views`; `components/ViewPing.tsx` шле перегляди і кліки (підпис a/button/summary/role=tab, `data-no-track` — не рахувати) на `/api/view` (Bearer не рахується); `lib/repo/pageViews.ts`: `normPath`, `pathLabel` (людські назви), `topViews`, `topClicks`, `unusedSections`. UI: Налаштування → «Користування» (`?tab=use`). Реклама: неприв'язані кабінети згорнуті в details.
