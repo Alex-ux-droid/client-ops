@@ -8,7 +8,8 @@ import { connectMetaAction, disconnectMetaAction, linkMetaAccountAction, logoutE
 import { tgConfirmOn } from "@/lib/loginConfirm";
 import { lastBackupCheck } from "@/lib/housekeeping";
 import { usageSummary } from "@/lib/ai";
-import { lastSync, metaToken, tokenAgeDays } from "@/lib/meta";
+import { lastSync, metaToken, metaTokenCheck, tokenAgeDays, tokenNever } from "@/lib/meta";
+import Pop from "@/components/Pop";
 import { ACCOUNT_STATUS, listAccounts } from "@/lib/repo/meta";
 import { fmtDate } from "@/lib/dates";
 import { connectTelegramAction, disconnectTelegramAction, disconnectVoiceAction, linkTelegramChatAction, saveVoiceChoiceAction, saveVoiceKeyAction } from "./actions";
@@ -242,6 +243,24 @@ function Connectors() {
 }
 
 // Конектор Meta: компактна шапка + дві вкладки (?m=accounts|leads); зайві кабінети і сторінки — «Сховати»
+// Перевірка токена прямо тут (без сервера і SSH): живий / вічний, дозволи, сторінки з Instagram
+async function TokenCheckCard() {
+  const c = await metaTokenCheck();
+  if (!c.ok) return <div className="mx-warn">Токен не пройшов перевірку: {c.error}. Встав новий: «Токен» праворуч угорі.</div>;
+  const pages = c.pages ?? [];
+  return (
+    <div className="card stack" style={{ gap: "0.375rem" }}>
+      <div className="inline" style={{ flexWrap: "wrap" }}>
+        <b>Перевірка токена</b>
+        <span className="tag ok">працює</span>
+        <span className="tag">{c.never ? "термін: вічний" : `діє до ${fmtDate(c.expires!)}`}</span>
+        <Pop className="pop-trigger pop-inline" title="Дозволи токена" trigger={<span className="h-link mono">дозволів: {c.scopes?.length ?? 0} →</span>}><p className="mono" style={{ margin: 0 }}>{(c.scopes ?? []).join(", ") || "—"}</p></Pop>
+      </div>
+      <div className="mono">{pages.length ? `Сторінки: ${pages.map((p) => `${p.name}${p.ig ? ` (Instagram${p.igUser ? ` @${p.igUser}` : ""}, ID ${p.ig})` : " (без Instagram)"}`).join(" · ")}` : "Сторінок токен не бачить — признач їх системному користувачу в Business Manager."}</div>
+    </div>
+  );
+}
+
 async function MetaTab({ view }: { view?: string }) {
   const token = metaToken();
   const accounts = token ? listAccounts() : [];
@@ -274,7 +293,7 @@ async function MetaTab({ view }: { view?: string }) {
           <div className="inline" style={{ flexWrap: "wrap" }}>
             <h2 style={{ margin: 0 }}>Meta Ads</h2>
             <span className="tag ok">Підключено</span>
-            {(tokenAgeDays() ?? 0) >= 50 && <span className="tag warn">токену {tokenAgeDays()} дн. — онови (живе ~60)</span>}
+            {tokenNever() ? <span className="tag ok">токен вічний</span> : (tokenAgeDays() ?? 0) >= 50 && <span className="tag warn">токену {tokenAgeDays()} дн. — онови (живе ~60)</span>}
           </div>
           <div className="mono">Оновлення кожні 2 год{synced ? ` · востаннє ${fmtDate(synced)} ${new Date(synced).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Kyiv" })}` : ""}</div>
         </div>
@@ -292,6 +311,7 @@ async function MetaTab({ view }: { view?: string }) {
           </details>
         </div>
       </div>
+      <TokenCheckCard />
       <nav className="mx-tabs">
         <Link href={base} className={m === "accounts" ? "on" : ""}>Кабінети <span className="mono">{linked.length} привʼязано</span></Link>
         <Link href={`${base}&m=leads`} className={m === "leads" ? "on" : ""}>Заявки <span className="mono">{pagesOn} надсилають</span></Link>
