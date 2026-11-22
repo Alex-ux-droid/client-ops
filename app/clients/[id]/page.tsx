@@ -26,6 +26,7 @@ import SalesTab from "./SalesTab";
 import MeetingNote from "@/components/MeetingNote";
 import BrandTab from "./BrandTab";
 import CompetitorsTab from "./CompetitorsTab";
+import ContentTab from "./ContentTab";
 import SetupTab from "./SetupTab";
 import { clientSections, enableClientTab } from "./sections";
 import ServiceTab from "./ServiceTab";
@@ -147,6 +148,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       {tab === "overview" && <Overview c={c} services={services} paidTotal={paidTotal} isNew={sp.new === "1"} cplText={cplText} />}
       {tab === "sales" && <SalesTab clientId={id} sp={sp.sp} err={sp.err} pulled={sp.pulled} />}
       {tab === "brand" && <BrandTab clientId={id} />}
+      {tab === "content" && <ContentTab clientId={id} />}
       {tab === "competitors" && <CompetitorsTab clientId={id} sel={sp.c} lv={sp.lv} />}
       {tab === "strategy" && <StrategyTab clientId={id} sv={sp.sv} p={sp.p} />}
       {tab === "setup" && <SetupTab c={c} services={services} />}

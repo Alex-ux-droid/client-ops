@@ -452,7 +452,7 @@ export function tokenAgeDays(): number | null {
 export const tokenNever = () => getSetting("meta.token_expires") === "never";
 
 // Перевірка поточного токена без SSH: термін, дозволи, сторінки і їхній Instagram (Налаштування → Конектори → Meta)
-export type TokenCheck = { ok: boolean; error?: string; never?: boolean; expires?: string; type?: string; scopes?: string[]; pages?: { name: string; ig: string; igUser: string }[] };
+export type TokenCheck = { ok: boolean; error?: string; never?: boolean; expires?: string; type?: string; scopes?: string[]; pages?: { id: string; name: string; ig: string; igUser: string }[] };
 export async function metaTokenCheck(): Promise<TokenCheck> {
   const t = metaToken();
   if (!t) return { ok: false, error: "Токена нема" };
@@ -460,9 +460,9 @@ export async function metaTokenCheck(): Promise<TokenCheck> {
     const d = await metaGet<{ data?: { is_valid?: boolean; expires_at?: number; type?: string; scopes?: string[]; error?: { message?: string } } }>("debug_token", { input_token: t });
     const x = d.data ?? {};
     if (x.is_valid === false) return { ok: false, error: x.error?.message ?? "Meta каже: токен недійсний" };
-    const pages = await metaAll<{ name: string; instagram_business_account?: { id: string; username?: string } }>("me/accounts", { fields: "name,instagram_business_account{id,username}", limit: "100" }).catch(() => []);
+    const pages = await metaAll<{ id: string; name: string; instagram_business_account?: { id: string; username?: string } }>("me/accounts", { fields: "id,name,instagram_business_account{id,username}", limit: "100" }).catch(() => []);
     return { ok: true, never: !x.expires_at, expires: x.expires_at ? new Date(x.expires_at * 1000).toISOString() : undefined, type: x.type, scopes: x.scopes ?? [],
-      pages: pages.map((p) => ({ name: p.name, ig: p.instagram_business_account?.id ?? "", igUser: p.instagram_business_account?.username ?? "" })) };
+      pages: pages.map((p) => ({ id: p.id, name: p.name, ig: p.instagram_business_account?.id ?? "", igUser: p.instagram_business_account?.username ?? "" })) };
   } catch (e) { return { ok: false, error: e instanceof Error ? e.message : "помилка" }; }
 }
 
