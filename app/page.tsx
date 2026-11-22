@@ -61,8 +61,12 @@ export default function Home() {
   // «Зараз важливо» — топ-3 з того, що горить: поломки продуктів → борги → червоні тривоги клієнтів → прострочене → Підтверди
   const now3: { t: string; href: string; bad?: boolean; why: string }[] = [
     ...broken.filter((b) => b.n > 0).map((b) => ({ t: `${b.name}: ${pl(b.n, ["помилка", "помилки", "помилок"])}`, href: `/products/${b.id}?v=connect`, bad: true, why: "Поломка в нашому продукті — «Промпт: виправити» на вкладці Звʼязок" })),
-    ...debts.slice(0, 2).map((d) => ({ t: `${d.client_name}: борг ${money(d.amount)} · ${d.days} дн.`, href: `/clients/${d.client_id}?tab=money`, bad: true, why: "Прострочена оплата" })),
-    ...attention.flatMap((x) => x.flags.filter((f) => f.level === "bad").slice(0, 1).map((f) => ({ t: `${x.c.name}: ${f.text}`, href: `/clients/${x.c.id}`, bad: true, why: f.reason ?? f.text }))),
+    // борг — один пункт на клієнта (сума), а «борг по оплаті» з тривог цього ж клієнта не дублюємо
+    ...[...new Map(debts.map((d) => [d.client_id, d])).values()].slice(0, 2).map((d) => {
+      const sum = debts.filter((x) => x.client_id === d.client_id).reduce((a, x) => a + x.amount, 0);
+      return { t: `${d.client_name}: борг ${money(sum)} · ${d.days} дн.`, href: `/clients/${d.client_id}?tab=money`, bad: true, why: "Прострочені оплати" };
+    }),
+    ...attention.flatMap((x) => x.flags.filter((f) => f.level === "bad" && !(f.kind === "money" && debts.some((d) => d.client_id === x.c.id))).slice(0, 1).map((f) => ({ t: `${x.c.name}: ${f.text}`, href: `/clients/${x.c.id}`, bad: true, why: f.reason ?? f.text }))),
     ...(t.overdue ? [{ t: `${pl(t.overdue, ["задача", "задачі", "задач"])} прострочено`, href: "/tasks?view=overdue", why: "Прострочені задачі" }] : []),
     ...(confirms.length ? [{ t: `Підтверди: ${confirms.length}`, href: "#confirm", why: "Джері знайшов у переписці — ✓ або ✕" }] : []),
   ].slice(0, 3);
@@ -157,7 +161,7 @@ export default function Home() {
           </div>
           <div className="panel panel-grow">
             <div className="panel-head"><h2>Отримано по місяцях</h2><span className="mono">{money(byMonth.reduce((s, x) => s + x.total, 0))} за 6 міс.</span></div>
-            <div className="vbars money">
+            {byMonth.every((x) => !x.total) ? <p className="mono" style={{ margin: "0.75rem 0 0" }}>Оплат ще не записано. Записуй одним натиском: «💸 Оплатив» у ранковому зведенні в Telegram або скажи Джері «Аква Віта заплатила 450».</p> : <div className="vbars money">
               {byMonth.map((x, i) => (
                 <Link key={x.month} href="/money" className={`vb ${i === byMonth.length - 1 ? "on" : ""}`} title={`${monthLabel(x.month)}: ${money(x.total)}`}>
                   <span className="vb-n">{x.total ? money(x.total) : ""}</span>
@@ -165,7 +169,7 @@ export default function Home() {
                   <span className="vb-l">{monthLabel(x.month)}</span>
                 </Link>
               ))}
-            </div>
+            </div>}
           </div>
         </div>
 

@@ -105,13 +105,6 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
 
       <div className="qt-grid">
         <Meetings clientId={id} clientName={c.name} />
-        <Pop className="pop-card qt" title="Послуги" trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="zap" /></span><b>Послуги</b></span><span className="qt-n">{services.length}</span></span>
-          {services.length ? <span className="qt-marks">{services.slice(0, 6).map((s) => <span key={s.type} className="tag accent">{SERVICES[s.type as ServiceType].short}</span>)}</span> : <span className="qt-l mono">обрати →</span>}</>}>
-          <div className="stack" style={{ gap: "0.5rem" }}>
-            {services.map((s) => <Link key={s.type} href={`/clients/${id}?tab=${s.type}`} className="inline h-link"><BrandDot text={`${SERVICES[s.type as ServiceType].label} ${s.tool_name ?? ""}`} size={16} />{SERVICES[s.type as ServiceType].label}{s.tool_name ? ` · ${s.tool_name}` : ""}{s.status !== "active" ? ` · ${STATUS_TXT[s.status]}` : ""}</Link>)}
-            <Link href={`/clients/${id}?tab=setup`} className="btn ghost small">Налаштувати послуги</Link>
-          </div>
-        </Pop>
         <Pop className="pop-card qt" title="Наші продукти в клієнта" trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="box" /></span><b>Наші продукти</b></span><span className="qt-n">{prods.length}</span></span>
           {prods.length ? prods.slice(0, 2).map((p) => <span key={p.id} className="qt-l">{p.name}</span>) : <span className="qt-l mono">ще не привʼязано</span>}</>}>
           <div className="stack" style={{ gap: "0.5rem" }}>
@@ -124,7 +117,7 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
           <div className="list">{tg.map((m) => <div key={m.id} className="row"><div className="row-main"><div className="mono">{m.is_owner ? "Ти" : m.from_name} · {fmtDate(m.sent_at)} {m.sent_at.slice(11, 16)}</div><div className="row-title" style={{ fontWeight: 400 }}>{m.text || (m.kind === "voice" ? "🎙 голосове" : "📎 вкладення")}</div></div></div>)}</div>
           <Link href={`/clients/${id}?tab=telegram`} className="btn ghost small" style={{ marginTop: "0.75rem" }}>Вся переписка →</Link>
         </Pop>
-        <Pop className="pop-card qt" title="Ідеї для клієнта" trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="bulb" /></span><b>Ідеї</b></span><span className="qt-n">{ideas.length}</span></span>
+        {ideas.length > 0 && <Pop className="pop-card qt" title="Ідеї для клієнта" trigger={<><span className="qt-h"><span className="qt-t"><span className="qt-ico"><Icon name="bulb" /></span><b>Ідеї</b></span><span className="qt-n">{ideas.length}</span></span>
           {ideas.length ? ideas.slice(0, 2).map((i) => <span key={i.id} className="qt-l">{i.text}</span>) : <span className="qt-l mono">додати →</span>}</>}>
           <form action={saveIdea} className="inline" style={{ marginBottom: "0.75rem" }}>
             <input type="hidden" name="client_id" value={id} />
@@ -132,7 +125,7 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
             <button>Додати</button>
           </form>
           <ul className="st-list">{ideas.map((i) => <li key={i.id}>{i.text}</li>)}</ul>
-        </Pop>
+        </Pop>}
       </div>
 
       <div className="grid2">
@@ -144,7 +137,7 @@ export default function Overview({ c, services, paidTotal, isNew, cplText }: { c
           <h2 className="ov-h">Що зроблено <Link href={`/clients/${id}?tab=history`} className="h-link">історія →</Link></h2>
           <div className="list timeline">
             {work.length ? work.map((w) => (
-              <div key={w.id} className="row"><div className="row-main"><div className="mono">{fmtDate(w.done_at)}</div><div className="row-title">{w.what}</div>{w.result && <div className="row-sub" style={{ color: "var(--ok)" }}>{w.result}</div>}</div></div>
+              <div key={w.id} className="row"><div className="row-main"><div className="mono">{fmtDate(w.done_at)}</div><div className="row-title">{w.what}</div>{w.result && <div className="row-sub ov-clamp" style={{ color: "var(--ok)" }} title={w.result}>{w.result}</div>}</div></div>
             )) : <div className="empty">Ще нічого не записано.</div>}
           </div>
         </section>
