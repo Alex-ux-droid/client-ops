@@ -168,3 +168,21 @@ export async function paletteAction(fd: FormData) {
   saveSocial(cid, { palette_json: JSON.stringify({ dark: pick("dark"), accent: pick("accent"), paper: pick("paper"), ink: pick("ink") }) });
   done(cid);
 }
+
+// ---- Аналіз акаунтів Instagram + Facebook
+export async function refreshSocialAction(fd: FormData) {
+  await requireUser();
+  const cid = cidOf(fd);
+  const { refreshFacebook, refreshInstagram } = await import("@/lib/socialAnalysis");
+  await refreshInstagram(cid);
+  await refreshFacebook(cid);
+  done(cid);
+}
+export async function analyzeSocialAction(fd: FormData) {
+  await requireUser();
+  const cid = cidOf(fd);
+  const { analyzeAccounts } = await import("@/lib/socialAnalysis");
+  const err = await analyzeAccounts(cid).catch(async (e) => (await import("@/lib/llmJson")).llmErrorText(e));
+  setSetting(`content.analysis_err.${cid}`, err ?? "");
+  done(cid);
+}

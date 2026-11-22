@@ -31,7 +31,7 @@ const CLIENT_TABS: Record<string, string> = {
 };
 const SUB: Record<string, Record<string, string>> = {
   mv: { campaigns: "Кампанії", forms: "Лід-форми", tree: "Структура", creatives: "Креативи", audience: "Аудиторія", leads: "Заявки", analysis: "Висновки" },
-  cv: { plan: "План", posts: "Пости", assets: "Матеріали", strategy: "Стратегія", settings: "Налаштування" },
+  cv: { analysis: "Аналіз", plan: "План", posts: "Пости", assets: "Матеріали", strategy: "Стратегія", settings: "Налаштування" },
   sv: { board: "Дошка", systems: "Екосистема", plan: "План", log: "Хроніка", knowledge: "Знання", insights: "Висновки", hypotheses: "Гіпотези", part: "Частина" },
 };
 export function pathLabel(p: string): string {

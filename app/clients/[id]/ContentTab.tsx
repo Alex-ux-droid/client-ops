@@ -5,8 +5,9 @@ import EditBlock from "@/components/EditBlock";
 import FileThumb from "@/components/FileThumb";
 import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
-import { approvalAction, assetAction, checkPublishAction, fillStoryAction, paletteAction, pillarAction, postAction, saveSocialAction, storySpecAction, syncAssetsAction, weekThemeAction } from "@/app/content/actions";
+import { analyzeSocialAction, approvalAction, assetAction, refreshSocialAction, checkPublishAction, fillStoryAction, paletteAction, pillarAction, postAction, saveSocialAction, storySpecAction, syncAssetsAction, weekThemeAction } from "@/app/content/actions";
 import { mediaKey, paletteOf, specOf } from "@/lib/contentPipeline";
+import { getAnalysis, getSnapshot, stats, type Snapshot } from "@/lib/socialAnalysis";
 import { driveReadAll, googleConnected } from "@/lib/google";
 import { metaToken, metaTokenCheck } from "@/lib/meta";
 import { listColors } from "@/lib/repo/brand";
@@ -15,7 +16,7 @@ import { getSetting } from "@/lib/repo/settings";
 import { FORMATS, WEEKDAYS, cadenceOf, getSocial, slotsOf, type Format, type SocialProfile } from "@/lib/repo/social";
 
 const VIEWS = [
-  ["overview", "Огляд"], ["plan", "План"], ["posts", "Пости"], ["assets", "Матеріали"], ["strategy", "Стратегія"], ["settings", "Налаштування"],
+  ["overview", "Огляд"], ["analysis", "Аналіз"], ["plan", "План"], ["posts", "Пости"], ["assets", "Матеріали"], ["strategy", "Стратегія"], ["settings", "Налаштування"],
 ] as const;
 type View = (typeof VIEWS)[number][0];
 
@@ -111,6 +112,69 @@ function Overview({ clientId, s, pillars, posts, base }: { clientId: number; s?:
           ))}
         </div>
       </section>
+    </div>
+  );
+}
+
+// ---------------- Аналіз акаунтів: цифри профілю, формати, останні пости, розбір Джері
+const fmtN = (n: number | null | undefined) => (n == null ? "—" : n >= 10000 ? `${Math.round(n / 1000)}k` : n.toLocaleString("uk-UA"));
+function NetBlock({ sn, label }: { sn: Snapshot | null; label: string }) {
+  const st = stats(sn);
+  if (!sn) return <section className="card"><b>{label}</b><p className="mono">Ще не завантажено — «Оновити».</p></section>;
+  return (
+    <section className="card stack" style={{ gap: "0.75rem" }}>
+      <div className="ct-head"><b>{label}</b><span className="mono">{sn.profile.name}</span>{sn.error && <span className="tag bad" title={sn.error}>помилка</span>}</div>
+      {sn.error && <div className="mx-warn">{sn.error}</div>}
+      {st && <div className="an-kpis">
+        <div><b>{fmtN(sn.profile.followers)}</b><span>підписників</span></div>
+        <div><b>{st.posts30}</b><span>постів за 30 дн.</span></div>
+        <div><b>{fmtN(st.reach)}</b><span>охоплення / пост</span></div>
+        <div><b>{st.er != null ? `${st.er}%` : "—"}</b><span>залученість</span></div>
+      </div>}
+      {st && st.byType.length > 0 && (
+        <div className="an-types">{st.byType.map((t) => (
+          <div key={t.type}><b>{t.type}</b><span className="mono">{t.n} шт. · охоплення {fmtN(t.reach)} · дій {fmtN(t.eng)}{t.saves != null ? ` · збер. ${fmtN(t.saves)}` : ""}</span></div>
+        ))}</div>
+      )}
+      {sn.posts.length > 0 && (
+        <div className="an-posts">{sn.posts.slice(0, 12).map((p) => (
+          <a key={p.id} href={p.url} target="_blank" rel="noreferrer" className="an-post" title={p.caption}>
+            <span className="an-thumb">{p.thumb ? <img src={p.thumb} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span className="mono">{p.type}</span>}<em>{p.type}</em></span>
+            <span className="an-nums"><b>{fmtN(p.reach ?? p.likes)}</b> {p.reach != null ? "охопл." : "реакц."} · {p.saves != null ? `${fmtN(p.saves)} збер. · ` : ""}{p.comments} ком.</span>
+            <span className="mono an-date">{new Date(p.date).toLocaleDateString("uk-UA", { day: "numeric", month: "short" })}</span>
+          </a>
+        ))}</div>
+      )}
+    </section>
+  );
+}
+function Analysis({ clientId, s }: { clientId: number; s?: SocialProfile }) {
+  const ig = getSnapshot(clientId, "ig"), fb = getSnapshot(clientId, "fb"), a = getAnalysis(clientId);
+  const err = getSetting(`content.analysis_err.${clientId}`) ?? "";
+  const hid = <input type="hidden" name="client_id" value={clientId} />;
+  const at = ig?.fetched_at ?? fb?.fetched_at;
+  return (
+    <div className="stack" style={{ gap: "1rem" }}>
+      <div className="ct-head" style={{ flexWrap: "wrap" }}>
+        <form action={refreshSocialAction}>{hid}<SubmitButton className="small" pendingText="Тягну з Meta…">Оновити</SubmitButton></form>
+        <form action={analyzeSocialAction}>{hid}<SubmitButton className="ghost small" pendingText="Джері розбирає…">Розібрати акаунти</SubmitButton></form>
+        <span className="mono">{at ? `дані на ${new Date(at.replace(" ", "T") + "Z").toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "ще не завантажували"}</span>
+        {!s?.page_id && <span className="mx-warn">Спершу обери сторінку в «Налаштуваннях»</span>}
+      </div>
+      {err && <div className="mx-warn">{err}</div>}
+      {a && (
+        <section className="card stack an-verdict" style={{ gap: "0.625rem" }}>
+          <div className="ct-head"><b>Висновок Джері</b><span className="mono">{new Date(a.at).toLocaleDateString("uk-UA", { day: "numeric", month: "short" })}</span></div>
+          <p style={{ margin: 0 }}>{a.summary}</p>
+          <div className="an-cols">
+            <div><b className="ok-text">Заходить</b><ul>{a.works.map((x, i) => <li key={i}>{x}</li>)}</ul></div>
+            <div><b className="bad-text2">Не заходить</b><ul>{a.weak.map((x, i) => <li key={i}>{x}</li>)}</ul></div>
+            <div><b>3 дії на місяць</b><ol>{a.actions.map((x, i) => <li key={i}>{x}</li>)}</ol></div>
+          </div>
+        </section>
+      )}
+      <NetBlock sn={ig} label="Instagram" />
+      <NetBlock sn={fb} label="Facebook" />
     </div>
   );
 }
@@ -452,6 +516,7 @@ export default async function ContentTab({ clientId, cv, cm, ak }: { clientId: n
         {VIEWS.map(([k, l]) => <Link key={k} href={k === "overview" ? base : `${base}&cv=${k}`} className={view === k ? "on" : ""} scroll={false}>{l}{k === "posts" && review ? <span className="count">{review}</span> : null}</Link>)}
       </nav>
       {view === "overview" && <Overview clientId={clientId} s={s} pillars={pillars} posts={posts} base={base} />}
+      {view === "analysis" && <Analysis clientId={clientId} s={s} />}
       {view === "plan" && <Plan clientId={clientId} s={s} pillars={pillars} cm={cm} base={base} />}
       {view === "posts" && <Posts clientId={clientId} pillars={pillars} posts={posts} />}
       {view === "assets" && <Assets clientId={clientId} s={s} ak={ak} base={base} />}
