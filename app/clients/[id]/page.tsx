@@ -33,7 +33,7 @@ import ServiceTab from "./ServiceTab";
 import { HistoryTab, MaterialsTab, MoneyTab, PlaybooksTab, TasksTab } from "./tabs";
 
 
-export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; new?: string; m?: string; err?: string; sent?: string; edit?: string; saved?: string; q?: string; n?: string; mv?: string; sv?: string; p?: string; sp?: string; pulled?: string; c?: string; lv?: string; cmp?: string; sel?: string; form?: string; mp?: string }> }) {
+export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; new?: string; m?: string; err?: string; sent?: string; edit?: string; saved?: string; q?: string; n?: string; mv?: string; sv?: string; p?: string; sp?: string; pulled?: string; c?: string; lv?: string; cmp?: string; sel?: string; form?: string; mp?: string; cv?: string; cm?: string; ak?: string }> }) {
   const id = Number((await params).id);
   const c = getClientRow(id);
   if (!c) notFound();
@@ -148,7 +148,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       {tab === "overview" && <Overview c={c} services={services} paidTotal={paidTotal} isNew={sp.new === "1"} cplText={cplText} />}
       {tab === "sales" && <SalesTab clientId={id} sp={sp.sp} err={sp.err} pulled={sp.pulled} />}
       {tab === "brand" && <BrandTab clientId={id} />}
-      {tab === "content" && <ContentTab clientId={id} />}
+      {tab === "content" && <ContentTab clientId={id} cv={sp.cv} cm={sp.cm} ak={sp.ak} />}
       {tab === "competitors" && <CompetitorsTab clientId={id} sel={sp.c} lv={sp.lv} />}
       {tab === "strategy" && <StrategyTab clientId={id} sv={sp.sv} p={sp.p} />}
       {tab === "setup" && <SetupTab c={c} services={services} />}
