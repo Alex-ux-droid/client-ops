@@ -23,7 +23,7 @@ import { createClientFolders, googleConnected, readMail, sendMail } from "@/lib/
 import { logError } from "@/lib/log";
 import { addDevEntry, deleteDev } from "@/lib/repo/devlog";
 import { getClient } from "@/lib/repo/clients";
-import { deleteAccess, getAccess, markAccessChecked, saveAccess } from "@/lib/repo/access";
+import { addAccessLog, deleteAccess, deleteAccessLog, getAccess, markAccessChecked, saveAccess } from "@/lib/repo/access";
 import { FOLDER_KINDS, isServiceType, serviceDef, TOOL_CATEGORY_LABEL, type ToolCategory } from "@/lib/services";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
@@ -130,7 +130,10 @@ export async function accessSaveAction(fd: FormData) {
   const id = num(fd, "client_id");
   if (!id) return;
   try {
-    saveAccess(id, { service: str(fd, "service"), login: str(fd, "login"), url: link(fd, "url"), vault_name: str(fd, "vault_name"), vault_url: link(fd, "vault_url"), owner: str(fd, "owner"), twofa: str(fd, "twofa"), note: str(fd, "note") }, num(fd, "access_id"));
+    const aid = saveAccess(id, { service: str(fd, "service"), login: str(fd, "login"), url: link(fd, "url"), vault_name: str(fd, "vault_name"), vault_url: link(fd, "vault_url"), owner: str(fd, "owner"), twofa: str(fd, "twofa"), note: str(fd, "note"),
+      purpose: str(fd, "purpose"), account_holder: str(fd, "account_holder"), connected_at: str(fd, "connected_at"), status: str(fd, "status"), cost: str(fd, "cost"), currency: str(fd, "currency"), period: str(fd, "period"), payer: str(fd, "payer"), pay_method: str(fd, "pay_method"), next_pay: str(fd, "next_pay") }, num(fd, "access_id"));
+    // Новий сервіс — одразу перший запис у журнал «підключив»
+    if (!num(fd, "access_id")) addAccessLog(aid, { day: str(fd, "connected_at"), text: "Підключено", amount: str(fd, "first_paid") || null, currency: str(fd, "currency") });
   } catch (e) {
     done(`/clients/${id}?tab=access&err=${encodeURIComponent((e as Error).message)}`);
     return;
@@ -142,6 +145,16 @@ export async function accessCheckedAction(fd: FormData) {
   const a = getAccess(num(fd, "access_id") ?? 0);
   if (a) markAccessChecked(a.id);
   done();
+}
+export async function accessLogAction(fd: FormData) {
+  await requireUser();
+  const a = getAccess(num(fd, "access_id") ?? 0);
+  if (!a) return;
+  try {
+    if (num(fd, "log_id")) deleteAccessLog(num(fd, "log_id")!);
+    else addAccessLog(a.id, { day: str(fd, "day"), text: str(fd, "text"), amount: str(fd, "amount") || null, currency: str(fd, "currency") });
+  } catch (e) { done(`/clients/${a.client_id}?tab=access&err=${encodeURIComponent((e as Error).message)}`); return; }
+  done(`/clients/${a.client_id}?tab=access`);
 }
 export async function accessDeleteAction(fd: FormData) {
   await requireUser();
