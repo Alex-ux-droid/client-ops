@@ -5,7 +5,7 @@ export type Pillar = { id: number; client_id: number; name: string; goal: string
 export type PostStatus = "idea" | "making" | "review" | "scheduled" | "published" | "failed" | "rejected";
 export const POST_STATUS: Record<PostStatus, string> = { idea: "Ідея", making: "Готується", review: "На апрув", scheduled: "Заплановано", published: "Вийшло", failed: "Помилка", rejected: "Відхилено" };
 export const PIPELINE: PostStatus[] = ["idea", "making", "review", "scheduled", "published"];
-export type Post = { media_path: string; media_at: string | null; tg_msg_id: number | null; publish_error: string; id: number; client_id: number; pillar_id: number | null; format: Format; topic: string; hook: string; caption: string; template_key: string; spec_json: string; asset_ids: string; status: PostStatus; scheduled_at: string | null; published_at: string | null; ig_media_id: string; fb_post_id: string; note: string; created_at: string; updated_at: string };
+export type Post = { metrics_json: string; metrics_at: string | null; media_path: string; media_at: string | null; tg_msg_id: number | null; publish_error: string; id: number; client_id: number; pillar_id: number | null; format: Format; topic: string; hook: string; caption: string; template_key: string; spec_json: string; asset_ids: string; status: PostStatus; scheduled_at: string | null; published_at: string | null; ig_media_id: string; fb_post_id: string; note: string; created_at: string; updated_at: string };
 export type Asset = { id: number; client_id: number; drive_id: string; name: string; path: string; mime: string; kind: AssetKind; tags: string; size: number | null; link: string; hidden: number; used: number; modified_at: string | null };
 export const ASSET_KINDS = { render: "Рендер", plan: "Планування", photo: "Фото", logo: "Лого", video: "Відео", doc: "Документ", other: "Інше" } as const;
 export type AssetKind = keyof typeof ASSET_KINDS;
@@ -31,7 +31,7 @@ export const setWeekTheme = (clientId: number, week: string, theme: string) => d
 export const listPosts = (clientId: number) => db().prepare("SELECT * FROM content_posts WHERE client_id = ? ORDER BY COALESCE(scheduled_at, '9999'), id").all(clientId) as Post[];
 export const postsBetween = (clientId: number, from: string, to: string) => db().prepare("SELECT * FROM content_posts WHERE client_id = ? AND scheduled_at >= ? AND scheduled_at < ? AND status != 'rejected' ORDER BY scheduled_at").all(clientId, from, to) as Post[];
 export const getPost = (id: number) => db().prepare("SELECT * FROM content_posts WHERE id = ?").get(id) as Post | undefined;
-const PF = ["pillar_id", "format", "topic", "hook", "caption", "template_key", "spec_json", "asset_ids", "status", "scheduled_at", "note", "media_path", "media_at", "tg_msg_id", "publish_error", "published_at", "ig_media_id", "fb_post_id"] as const;
+const PF = ["pillar_id", "format", "topic", "hook", "caption", "template_key", "spec_json", "asset_ids", "status", "scheduled_at", "note", "media_path", "media_at", "tg_msg_id", "publish_error", "published_at", "ig_media_id", "fb_post_id", "metrics_json", "metrics_at"] as const;
 export type PostPatch = Partial<Pick<Post, (typeof PF)[number]>>;
 export function addPost(clientId: number, p: PostPatch): number {
   return Number(db().prepare("INSERT INTO content_posts (client_id, pillar_id, format, topic, hook, template_key, status, scheduled_at, note) VALUES (@client_id, @pillar_id, @format, @topic, @hook, @template_key, @status, @scheduled_at, @note)")

@@ -21,7 +21,7 @@ function save(clientId: number, network: "ig" | "fb", profile: SProfile | null, 
 
 const TYPE: Record<string, string> = { REELS: "Reels", CAROUSEL_ALBUM: "Карусель", IMAGE: "Фото", VIDEO: "Відео", STORY: "Сторіс" };
 
-async function igInsights(id: string, kind: string): Promise<Partial<SPost>> {
+export async function igInsights(id: string, kind: string): Promise<Partial<SPost>> {
   // Набір метрик різний для типів; пробуємо повний, далі мінімальний
   const sets = kind === "REELS" ? ["reach,saved,shares,views", "reach,saved"] : ["reach,saved,shares,views", "reach,saved", "reach"];
   for (const m of sets) {

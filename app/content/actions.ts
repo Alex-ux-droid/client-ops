@@ -208,3 +208,11 @@ export async function prepIdeasAction(fd: FormData) {
   if (n === 0) setSetting(`content.plan.${cid}`, `${new Date().toISOString()}|Нема ідей з шаблоном у цьому місяці — спершу «Розплануй місяць».`);
   done(cid);
 }
+export async function reviewWeekAction(fd: FormData) {
+  await requireUser();
+  const cid = cidOf(fd);
+  const { reviewWeek } = await import("@/lib/contentReview");
+  const err = await reviewWeek(cid).catch(async (e) => (await import("@/lib/llmJson")).llmErrorText(e));
+  setSetting(`content.review_err.${cid}`, err ?? "");
+  done(cid);
+}
