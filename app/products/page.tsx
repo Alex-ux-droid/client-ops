@@ -16,11 +16,13 @@ export const dynamic = "force-dynamic";
 // Тип застосунку «на око»: з назви й виду — свій колір і значок, як іконки в App Store
 type AppType = { key: string; label: string; icon: string };
 function appType(p: Product): AppType {
-  const t = `${p.name} ${p.summary}`.toLowerCase();
   if (p.kind === "kit") return { key: "kit", label: "Набір", icon: "book" };
-  if (/сайт|site|лендінг|landing/.test(t)) return { key: "site", label: "Сайт", icon: "globe" };
-  if (/crm|срм|воронк/.test(t)) return { key: "crm", label: "CRM", icon: "users" };
-  if (/бот|bot/.test(t)) return { key: "bot", label: "Бот", icon: "bot" };
+  // Спершу назва (опис згадує й інше: «CRM … з форм сайту»), потім опис
+  for (const t of [p.name.toLowerCase(), p.summary.toLowerCase()]) {
+    if (/crm|срм/.test(t)) return { key: "crm", label: "CRM", icon: "users" };
+    if (/сайт|site|лендінг|landing/.test(t)) return { key: "site", label: "Сайт", icon: "globe" };
+    if (/бот|bot/.test(t)) return { key: "bot", label: "Бот", icon: "bot" };
+  }
   if (p.kind === "service") return { key: "svc", label: "Послуга", icon: "wrench" };
   return { key: "app", label: "Програма", icon: "box" };
 }
@@ -47,7 +49,7 @@ export default async function ProductsPage() {
             <span className={`tag st-s-${p.status}`}>{PRODUCT_STATUS[p.status] ?? p.status}</span>
             {rq > 0 && <span className="tag warn">правок {rq}</span>}
             <span className="grow" />
-            {ms.slice(0, 4).map((m) => <BrandDot key={m} text={m} size={14} />)}
+            {ms.slice(0, 3).map((m) => <BrandDot key={m} text={m} size={14} />)}
             <span className="pj-code sm">{productCode(p.id)}</span>
           </span>
         </span>
