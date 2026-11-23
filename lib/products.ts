@@ -434,7 +434,7 @@ export function productIssues(productId: number): { since: string; errors: { sum
   const group = (kind: string) => {
     const m = new Map<string, { summary: string; n: number; last: string }>();
     for (const e of ev.filter((x) => x.event === kind)) {
-      const k = e.summary.replace(/\d+/g, "#").toLowerCase();
+      const k = e.summary.replace(/\s*—\s*×\d+\s*$/, "").replace(/\d+/g, "#").toLowerCase();
       const g = m.get(k);
       if (g) g.n++; else m.set(k, { summary: e.summary, n: 1, last: e.received_at });
     }

@@ -95,6 +95,14 @@ export async function issuesDoneAction(fd: FormData) {
   re(pid);
 }
 
+export async function explainErrorsAction(fd: FormData) {
+  await requireUser();
+  const pid = Number(fd.get("product_id"));
+  const { explainErrors } = await import("@/lib/appErrorText");
+  await explainErrors(pid).catch(async (e) => setSetting(`app.explain_err.${pid}`, (await import("@/lib/llmJson")).llmErrorText(e)));
+  re(pid);
+}
+
 // ---- Розвиток організації
 export async function saveOrgAction(fd: FormData) {
   await requireUser();

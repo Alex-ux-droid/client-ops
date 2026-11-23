@@ -3002,3 +3002,6 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
 .ct-auto .mono { color: var(--muted); min-width: 12rem; }
 .ct-check { display: inline-flex; gap: 0.375rem; align-items: center; margin: 0; font-weight: 400; color: var(--muted); font-size: 0.875rem; cursor: pointer; }
 .ct-check input { width: auto; margin: 0; }
+/* Стан програми: помилки людською мовою */
+.app-err { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.625rem 0.75rem; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.app-err.mine { border-color: var(--warn); background: var(--warn-soft); }
