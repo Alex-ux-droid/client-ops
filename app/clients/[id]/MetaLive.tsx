@@ -357,8 +357,8 @@ function Cut({ title, kind, rows, m, hint }: { title: string; kind: string; rows
   return (
     <div className="card mx-cut">
       <div className="mx-main-head"><b>{title}</b><span>{hint}</span></div>
-      <div className="mx-cut-rows">
-        {rows.slice(0, 12).map((r) => {
+      {(() => {
+        const row = (r: Breakdown) => {
           const c = cplOf(r);
           const tone = c != null && r.spend >= total * 0.05 ? (c === best ? "good" : c === worst ? "bad" : "") : "";
           return (
@@ -370,8 +370,16 @@ function Cut({ title, kind, rows, m, hint }: { title: string; kind: string; rows
               <span className={`mx-num ${tone}`}>{m(c)}</span>
             </div>
           );
-        })}
-      </div>
+        };
+        const leads = rows.reduce((s, r) => s + r.leads, 0);
+        return (
+          <div className="mx-cut-rows">
+            {rows.slice(0, 12).map(row)}
+            {rows.length > 12 && <details><summary className="mono">ще {rows.length - 12}: {rows.slice(12).reduce((s, r) => s + r.leads, 0)} лід., {m(rows.slice(12).reduce((s, r) => s + r.spend, 0))}</summary>{rows.slice(12).map(row)}</details>}
+            <div className="mx-cut-row mx-cut-total"><span className="mx-name">Разом</span><span /><span className="mx-num">{m(total)}</span><span className="mx-num">{leads} лід.</span><span className="mx-num">{m(cplOf({ spend: total, leads }))}</span></div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

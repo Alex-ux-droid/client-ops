@@ -20,11 +20,21 @@ const POSITION: Record<string, string> = {
 const GENDER: Record<string, string> = { male: "чоловіки", female: "жінки", unknown: "не вказано" };
 const DEVICE: Record<string, string> = { iphone: "iPhone", ipad: "iPad", android_smartphone: "Android", android_tablet: "Android-планшет", desktop: "Компʼютер", other: "інше" };
 const clean = (s: string) => s.replace(/_/g, " ");
+// Області України так, як їх віддає Meta (англійською, іноді старим написанням) → українською
+const REGION: [RegExp, string][] = [
+  [/^kyiv$|^kiev$|kyiv city|kiev city/i, "Київ"], [/ki(y|e)v oblast/i, "Київська"], [/lviv/i, "Львівська"], [/dnipro/i, "Дніпропетровська"], [/odes/i, "Одеська"],
+  [/zakarpat/i, "Закарпатська"], [/ivano/i, "Івано-Франківська"], [/vinny?ts/i, "Вінницька"], [/kharkiv/i, "Харківська"], [/mykolai|nikolaev/i, "Миколаївська"],
+  [/khmelny/i, "Хмельницька"], [/poltav/i, "Полтавська"], [/zhytom/i, "Житомирська"], [/cherkas/i, "Черкаська"], [/chernih/i, "Чернігівська"], [/chernivts/i, "Чернівецька"],
+  [/rivne|rovno/i, "Рівненська"], [/volyn/i, "Волинська"], [/ternop/i, "Тернопільська"], [/sumy/i, "Сумська"], [/kirovoh|kropyv/i, "Кіровоградська"],
+  [/zaporiz|zaporoz/i, "Запорізька"], [/kherson/i, "Херсонська"], [/donets/i, "Донецька"], [/luhan/i, "Луганська"], [/crimea|krym/i, "Крим"], [/sevastop/i, "Севастополь"],
+];
+const region = (k: string) => (k === "Unknown" || !k ? "не визначено" : REGION.find(([re]) => re.test(k))?.[1] ?? k);
 
 export function label(kind: string, key: string): string {
   if (kind === "placement") { const [p, pos] = key.split(" · "); return `${PLATFORM[p] ?? clean(p)} · ${POSITION[pos] ?? clean(pos)}`; }
   if (kind === "age_gender") { const [a, g] = key.split(" · "); return `${a === "Unknown" ? "вік ?" : a} · ${GENDER[g] ?? g}`; }
   if (kind === "device") return DEVICE[key] ?? clean(key);
+  if (kind === "region") return region(key);
   return key || "—";
 }
 
