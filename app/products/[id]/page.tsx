@@ -14,11 +14,12 @@ import VoiceTextarea from "@/components/VoiceTextarea";
 import { CopyText } from "@/app/startups/[id]/CopyText";
 import { fmtDate } from "@/lib/dates";
 import { appSecret, kitText, productIssues } from "@/lib/products";
+import { WHO, errorGroups, plainError } from "@/lib/appErrorText";
 import { listClients } from "@/lib/repo/clients";
 import { getProduct, listRequests, productCode, chatTitle, reqCode, REQ_STATUS, REQ_SOURCE, type PRequest, listPItems, P_KNOW, PRODUCT_KINDS, PRODUCT_STATUS, productClients, productEventCounts, productEvents, productTimeline, productUpdates, nextUpdateVer, hasPassport, type PItem } from "@/lib/repo/products";
 import { getSetting } from "@/lib/repo/settings";
 import { lines } from "@/lib/repo/strategy";
-import { requestAction, productOwnerAction, issuesDoneAction, productClientAction, productItemAction, productSecretAction, saveProductAction } from "../actions";
+import { requestAction, productOwnerAction, issuesDoneAction, explainErrorsAction, productClientAction, productItemAction, productSecretAction, saveProductAction } from "../actions";
 import { CopyBig, ProductImport, ProductPrompt } from "../ProductClient";
 import SitePulseCard from "@/components/SitePulseCard";
 import { sitePulse } from "@/lib/sitePulse";
@@ -257,6 +258,9 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
     const iss = productIssues(id);
     const found = listPItems(id, "idea").filter((x) => x.source === "app" && !x.done);
     const total = iss.errors.length + iss.feedback.length + found.length;
+    const errs = errorGroups(id, 7);
+    const releases = ev.filter((e) => e.event === "app.release");
+    const cntOf = (k: string) => cnt.find((c) => c.event === k)?.n ?? 0;
     return (
       <div className="stack" style={{ gap: "1rem" }}>
         <div className={`card stack${total ? " dv-focus" : ""}`} style={{ gap: "0.5rem" }}>
@@ -266,7 +270,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
             <>
               <div className="st-grid">
                 {[...iss.errors.map((x) => ({ ...x, k: "помилка" })), ...iss.feedback.map((x) => ({ ...x, k: "відгук" }))].slice(0, 12).map((x, i) => (
-                  <div key={i} className="pv"><div className="pv-t">{x.summary}</div><div className="pv-m">{x.k}{x.n > 1 ? ` · ×${x.n}` : ""} · {fmtDate(x.last)}</div></div>
+                  <div key={i} className="pv"><div className="pv-t">{(x.k === "помилка" && plainError(x.summary)?.title) || x.summary}</div><div className="pv-m">{x.k}{x.n > 1 ? ` · ×${x.n}` : ""} · {fmtDate(x.last)}</div></div>
                 ))}
                 {found.slice(0, 6).map(item)}
               </div>
@@ -276,6 +280,32 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
               </div>
             </>
           ) : <p className="mono">Поки чисто.</p>}
+        </div>
+        <div className="card stack" style={{ gap: "0.625rem" }}>
+          <b>Стан програми · 7 днів</b>
+          <div className="mono">
+            {errs.length ? `Проблем: ${errs.length} різних (${errs.reduce((a, g) => a + g.n, 0)} разів)` : "Помилок не було ✓"}
+            {` · оновлень: ${cntOf("app.release")}${releases[0] ? `, останнє ${fmtDate(releases[0].received_at)}` : ""}`}
+            {` · відгуків: ${cntOf("app.feedback")}`}
+          </div>
+          {errs.slice(0, 8).map((g, i) => (
+            <div key={i} className={`app-err${g.plain?.who === "you" ? " mine" : ""}`}>
+              <div className="inline" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+                <b className="grow">{g.plain?.title ?? "Незрозуміла помилка"}</b>
+                <span className={`tag${g.plain?.who === "you" ? " warn" : ""}`}>{g.plain ? WHO[g.plain.who] : "ще не пояснено"}</span>
+                <span className="mono">×{g.n} · {fmtDate(g.last)} {g.last.slice(11, 16)}</span>
+              </div>
+              {g.plain ? <><div>{g.plain.impact}</div><div><span className="mono">Що зробити: </span>{g.plain.action}</div></>
+                : <div className="mono" style={{ overflowWrap: "anywhere" }}>{g.summary.slice(0, 220)}</div>}
+            </div>
+          ))}
+          {errs.some((g) => !g.plain) && <form action={explainErrorsAction}>{hid}<SubmitButton className="ghost small" pendingText="Джері пояснює…">Пояснити простими словами</SubmitButton>{getSetting(`app.explain_err.${id}`) ? <span className="mono"> {getSetting(`app.explain_err.${id}`)}</span> : null}</form>}
+          <details className="tm-details"><summary className="mono">Технічний журнал (для Claude)</summary>
+            <div className="stack" style={{ gap: "0.25rem", marginTop: "0.5rem" }}>
+              <div className="mono">{cnt.map((c) => `${c.event} ${c.n}`).join(", ")}</div>
+              {ev.length ? ev.map((e) => <div key={e.event_id} className="mono">{fmtDate(e.received_at)} {e.received_at.slice(11, 16)} · {e.event} · {e.summary}</div>) : <p className="mono">Подій ще не було.</p>}
+            </div>
+          </details>
         </div>
         <div className="card stack" style={{ gap: "0.5rem" }}>
           <b>Програма → Client Ops (події)</b>
@@ -288,11 +318,6 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
             </div>
           ) : <form action={productSecretAction} className="inline">{hid}<span className="mono">Секрет {appSecret(id) ? "збережено (показується один раз)" : "ще нема"}.</span><button className="ghost small">{appSecret(id) ? "Новий секрет" : "Створити секрет"}</button></form>}
           <div className="mono">Продажі клієнта (CRM, бот заявок) йдуть окремо: картка клієнта → «Продажі».</div>
-        </div>
-        <div className="card stack" style={{ gap: "0.375rem" }}>
-          <b>Події{cnt.length ? ` · 7 днів: ${cnt.map((c) => `${c.event} ${c.n}`).join(", ")}` : ""}</b>
-          <div className="mono">Щоденні usage / health / insight — лише лічильником вище; нижче — помилки, відгуки, релізи.</div>
-          {ev.length ? ev.map((e) => <div key={e.event_id} className="mono">{fmtDate(e.received_at)} {e.received_at.slice(11, 16)} · {e.event} · {e.summary}</div>) : <p className="mono">Подій ще не було.</p>}
         </div>
       </div>
     );
