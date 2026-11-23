@@ -18,6 +18,13 @@
   --link: #2b2f36;
   --ok: #0f9a6b;
   --hole: #6d28d9; /* Шлях: етап «Дірки» */
+  /* Іконки застосунків у «Проєктах» (за типом) */
+  --app-crm: linear-gradient(140deg, #4f46e5, #7c3aed);
+  --app-site: linear-gradient(140deg, #0d9488, #0ea5e9);
+  --app-kit: linear-gradient(140deg, #f59e0b, #ea580c);
+  --app-bot: linear-gradient(140deg, #2563eb, #06b6d4);
+  --app-svc: linear-gradient(140deg, #475569, #1e293b);
+  --app-app: linear-gradient(140deg, #2b2f36, #4b5563);
   --ok-soft: rgba(15, 154, 107, 0.11);
   --warn: #b26a00;
   --warn-soft: rgba(217, 140, 0, 0.13);
@@ -3027,3 +3034,18 @@ button.pop-card.gl-card:hover .gl-edit { color: var(--text); border-color: var(-
 .mx-cut-rows details[open] > .mx-cut-row { margin-top: 0.375rem; }
 .mx-cut-total { border-top: 1px solid var(--line); padding-top: 0.375rem; font-weight: 600; }
 .mx-cut-head span { font-size: 0.8125rem; color: var(--muted); }
+
+/* Проєкти як вітрина застосунків */
+.app-h { display: flex; align-items: baseline; gap: 0.5rem; margin: 1.25rem 0 0.75rem; font-size: 1.125rem; }
+.app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: 0.75rem; }
+.app-tile { display: flex; gap: 0.875rem; align-items: flex-start; padding: 0.875rem; border-radius: var(--radius); background: var(--bg-raise); border: 1px solid var(--line); color: var(--text); text-decoration: none; transition: box-shadow 0.15s, transform 0.15s; }
+.app-tile:hover { box-shadow: 0 6px 20px rgba(15, 23, 42, 0.14); transform: translateY(-1px); }
+.app-icon { flex: none; width: 4rem; height: 4rem; border-radius: 22%; display: grid; place-items: center; color: var(--bg-raise); background: var(--app-app); overflow: hidden; box-shadow: inset 0 0 0 1px rgba(17, 24, 39, 0.08); }
+.app-icon img { width: 100%; height: 100%; object-fit: cover; background: var(--bg-raise); }
+.app-icon.t-crm { background: var(--app-crm); } .app-icon.t-site { background: var(--app-site); } .app-icon.t-kit { background: var(--app-kit); }
+.app-icon.t-bot { background: var(--app-bot); } .app-icon.t-svc { background: var(--app-svc); }
+.app-body { display: flex; flex-direction: column; gap: 0.125rem; min-width: 0; flex: 1; }
+.app-name { font-size: 1.0625rem; line-height: 1.3; }
+.app-sub { font-size: 0.8125rem; color: var(--muted); }
+.app-desc { font-size: 0.875rem; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 0.25rem; }
+.app-foot { display: flex; align-items: center; gap: 0.375rem; margin-top: 0.5rem; flex-wrap: wrap; }
