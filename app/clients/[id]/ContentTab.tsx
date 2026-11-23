@@ -7,10 +7,11 @@ import AutoRefresh from "@/components/AutoRefresh";
 import DataTable from "@/components/DataTable";
 import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
-import { analyzeSocialAction, reviewWeekAction, approvalAction, assetAction, autoPlanAction, prepIdeasAction, refreshSocialAction, checkPublishAction, fillStoryAction, paletteAction, pillarAction, postAction, saveSocialAction, storySpecAction, syncAssetsAction, weekThemeAction } from "@/app/content/actions";
+import { analyzeSocialAction, reviewWeekAction, competitorIgAction, approvalAction, assetAction, autoPlanAction, prepIdeasAction, refreshSocialAction, checkPublishAction, fillStoryAction, paletteAction, pillarAction, postAction, saveSocialAction, storySpecAction, syncAssetsAction, weekThemeAction } from "@/app/content/actions";
 import { isCarousel, isReel, mediaKey, paletteOf, slideCount, specOf } from "@/lib/contentPipeline";
 import { getPrep } from "@/lib/contentPlan";
 import { getReview, metricsOf } from "@/lib/contentReview";
+import { cstats, getCompReview, listCompetitorIg } from "@/lib/competitorIg";
 import { getAnalysis, getSnapshot, stats, type Snapshot } from "@/lib/socialAnalysis";
 import { driveReadAll, googleConnected } from "@/lib/google";
 import { metaToken, metaTokenCheck } from "@/lib/meta";
@@ -178,9 +179,57 @@ function Analysis({ clientId, s }: { clientId: number; s?: SocialProfile }) {
         </section>
       )}
       <OurPosts clientId={clientId} avg={stats(ig)} />
+      <Rivals clientId={clientId} our={stats(ig)} ourFollowers={ig?.profile.followers ?? null} />
       <NetBlock sn={ig} label="Instagram" />
       <NetBlock sn={fb} label="Facebook" />
     </div>
+  );
+}
+
+// Конкуренти в Instagram: акаунти, цифри, розбір Джері (ідеї йдуть в автоплан)
+function Rivals({ clientId, our, ourFollowers }: { clientId: number; our: ReturnType<typeof stats>; ourFollowers: number | null }) {
+  const acc = listCompetitorIg(clientId), cr = getCompReview(clientId), err = getSetting(`content.comp_err.${clientId}`) ?? "";
+  const hid = <input type="hidden" name="client_id" value={clientId} />;
+  const at = acc.map((a) => a.fetched_at).filter(Boolean).sort().at(-1);
+  return (
+    <section className="card stack" style={{ gap: "0.625rem" }}>
+      <div className="ct-head" style={{ flexWrap: "wrap" }}>
+        <b>Конкуренти в Instagram{acc.length ? ` · ${acc.length}` : ""}</b>
+        <span className="mono grow">{at ? `дані на ${at.slice(8, 10)}.${at.slice(5, 7)}` : "реакції на пост (охоплення чужих Instagram не дає)"}</span>
+        {acc.length > 0 && <form action={competitorIgAction}>{hid}<input type="hidden" name="op" value="refresh" /><SubmitButton className="small" pendingText="Тягну з Instagram…">Оновити</SubmitButton></form>}
+        {acc.some((a) => a.posts.length) && <form action={competitorIgAction}>{hid}<input type="hidden" name="op" value="analyze" /><SubmitButton className="ghost small" pendingText="Джері порівнює…">Розібрати конкурентів</SubmitButton></form>}
+      </div>
+      {err && <div className="mx-warn">{err}</div>}
+      <form action={competitorIgAction} className="inline">{hid}<input type="hidden" name="op" value="add" />
+        <input name="usernames" placeholder="@акаунт або посилання; кілька — через пробіл" aria-label="Instagram конкурента" style={{ flex: 1, minWidth: "12rem" }} />
+        <SubmitButton className="ghost small" pendingText="…">Додати</SubmitButton>
+      </form>
+      {cr && (
+        <div className="an-cols">
+          <div><b>Висновок</b><p style={{ margin: "0.25rem 0 0" }}>{cr.summary}</p><b className="bad-text2">Чого в нас нема</b><ul>{cr.gaps.map((x, i) => <li key={i}>{x}</li>)}</ul></div>
+          <div><b className="ok-text">У них заходить</b><ul>{cr.patterns.map((x, i) => <li key={i}>{x}</li>)}</ul></div>
+          <div><b>Ідеї для нас (ідуть в автоплан)</b><ol>{cr.ideas.map((x, i) => <li key={i}>{x}</li>)}</ol></div>
+        </div>
+      )}
+      {acc.length > 0 && (
+        <DataTable id="content-rivals" cols={[{ id: "u", label: "Акаунт", w: 200, pin: true }, { id: "f", label: "Підписники", num: true, w: 120 }, { id: "p", label: "Постів / 30 дн.", num: true, w: 130 }, { id: "e", label: "Реакцій на пост", num: true, w: 140 }, { id: "er", label: "ER, %", num: true, w: 90 }, { id: "t", label: "Найкращий формат", w: 170 }, { id: "x", label: "", w: 90 }]}
+          rows={[
+            { key: "our", cells: { u: { v: "Ми", sub: "наш акаунт" }, f: ourFollowers, p: our?.posts30 ?? null, e: our?.eng ?? null, er: our?.er ?? null, t: our?.byType[0]?.type ?? null, x: null } },
+            ...acc.map((a) => { const c = cstats(a); return { key: String(a.id), cells: { u: { v: `@${a.username}`, href: `https://instagram.com/${a.username}`, sub: a.error || a.name || (a.fetched_at ? "" : "ще не оновлено"), tone: a.error ? "bad" as const : undefined }, f: a.followers, p: a.posts.length ? c.posts30 : null, e: c.eng, er: c.er, t: c.byType[0] ? `${c.byType[0].type} (${c.byType[0].eng})` : null, x: null } }; }),
+          ]} />
+      )}
+      {acc.length > 0 && <details className="tm-details"><summary className="mono">Топ-пости конкурентів і видалення акаунтів</summary>
+        <div className="stack" style={{ gap: "0.5rem", marginTop: "0.5rem" }}>
+          {acc.map((a) => (
+            <div key={a.id} className="stack" style={{ gap: "0.25rem" }}>
+              <div className="inline"><b>@{a.username}</b><span className="grow" /><form action={competitorIgAction}>{hid}<input type="hidden" name="op" value="remove" /><input type="hidden" name="id" value={a.id} /><button className="ghost small">Прибрати</button></form></div>
+              {cstats(a).top.map((p, i) => <a key={i} href={p.url} target="_blank" rel="noreferrer" className="mono">{p.date.slice(0, 10)} · {p.type} · ❤ {p.likes} · 💬 {p.comments} · {p.caption.replace(/\s+/g, " ").slice(0, 110) || "без підпису"}</a>)}
+            </div>
+          ))}
+        </div>
+      </details>}
+      {!acc.length && <p className="mono">Додай 3–5 акаунтів конкурентів — система порівняє з нами і дасть ідеї в план.</p>}
+    </section>
   );
 }
 
