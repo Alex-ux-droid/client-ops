@@ -25,7 +25,7 @@ export const CAPS = [
   { key: "links", label: "Привʼязувати кабінети і групи", desc: "рекламний кабінет Meta і Telegram-групу до клієнта", tools: ["meta_link", "telegram_link"] },
   { key: "journal", label: "Журнал системи", desc: "записувати запити на доробку і глюки", tools: ["journal_add"] },
   { key: "kb", label: "База знань (запис)", desc: "зберігати інструкції", tools: ["kb_save"] },
-  { key: "access", label: "Доступи клієнтів", desc: "додавати і змінювати записи «де лежить доступ» (сервіс, логін, назва в Bitwarden, 2FA) — паролів не бачить і не зберігає", tools: ["access_save"] },
+  { key: "access", label: "Сервіси й доступи клієнтів", desc: "записувати, що підключено клієнту (сервіс, на кого акаунт, ціна, хто й чим платить — карта лише 4 цифри, наступна оплата, журнал дій) і «де лежить доступ» (логін, Bitwarden, 2FA) — паролів і повних номерів карт не бачить і не зберігає", tools: ["access_save", "access_log"] },
   { key: "tips", label: "Поради дня (запис)", desc: "записує в базу порад корисне, що виникло в розмові", tools: ["tip_add"] },
   { key: "strategy", label: "Стратегія клієнта", desc: "веде стратегію в картці клієнта: конспект, системи, план тиждень/місяць/далі, знання; розкладає витяжки з Claude Code (≈1–3 цента за витяжку)", tools: ["strategy_update", "strategy_part", "strategy_item", "strategy_path", "strategy_import", "hypotheses"] },
   { key: "products", label: "Продукти і розвиток", desc: "вести паспорти наших продуктів (що це, як працює, знання, юридичне, хроніка), розкладати витяжки з Claude Code, план розвитку організації (≈1–3 цента за витяжку)", tools: ["product_save", "product_item", "product_import", "product_request", "org_update", "org_item"] },

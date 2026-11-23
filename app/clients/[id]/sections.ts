@@ -51,7 +51,7 @@ export function clientSections(c: ClientRow, services: ClientService[]): Section
     { k: "history", label: "Історія", ico: "clock", group: "Робота" },
     { k: "money", label: "Гроші", ico: "wallet", group: "Робота" },
     { k: "files", label: "Файли", ico: "folder", group: "Робота", hidden: hide("files", false) },
-    { k: "access", label: "Доступи", ico: "lock", group: "Робота", badge: acc, hidden: hide("access", acc > 0) },
+    { k: "access", label: "Сервіси й доступи", ico: "lock", group: "Робота", badge: acc || undefined },
     { k: "materials", label: "Матеріали", ico: "file", group: "Робота", hidden: hide("materials", false) },
     { k: "playbooks", label: "Плейбуки", ico: "book", group: "Робота", badge: pbs, hidden: hide("playbooks", pbs > 0) },
     { k: "setup", label: "Налаштування клієнта", ico: "gear", group: "Налаштування" },
