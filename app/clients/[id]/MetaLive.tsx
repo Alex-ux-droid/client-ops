@@ -13,7 +13,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { fmtDate } from "@/lib/dates";
 import { cplOf, creativeVerdict, ctrOf, freqOf, label, metaInsights, type Tone } from "@/lib/metaInsights";
 import {
-  accountsForClient, ACCOUNT_STATUS, adsetsForClient, adsForClient, breakdowns, campaignsWithStats, dailySeries, getAnalysis, kyivDay, totals,
+  accountsForClient, ACCOUNT_STATUS, adsetsForClient, adsForClient, breakdowns, hasBreakdown, campaignsWithStats, dailySeries, getAnalysis, kyivDay, totals,
   type Breakdown, type MetaAd, type MetaAdset,
 } from "@/lib/repo/meta";
 import CreativeGallery, { type GalleryItem } from "./CreativeGallery";
@@ -92,7 +92,7 @@ export default function MetaLive({ clientId, view = "overview", err, cmp, sel, f
       {v === "overview" && <Overview clientId={clientId} m={m} base={base} mp={mp} />}
       {v === "tree" && <Tree clientId={clientId} m={m} />}
       {v === "creatives" && <Creatives clientId={clientId} m={m} />}
-      {v === "audience" && <Audience clientId={clientId} m={m} />}
+      {v === "audience" && <Audience clientId={clientId} m={m} base={`${base}&mv=audience`} mp={mp} />}
       {v === "leads" && <Leads clientId={clientId} m={m} />}
       {v === "analysis" && <Analysis clientId={clientId} m={m} err={err} />}
     </section>
@@ -365,8 +365,8 @@ function Cut({ title, kind, rows, m, hint }: { title: string; kind: string; rows
             <div key={r.key} className="mx-cut-row">
               <span className="mx-name">{label(kind, r.key)}</span>
               <Share part={r.spend} total={total} />
-              <span className="mx-num">{m(r.spend)}</span>
               <span className="mx-num">{r.leads} лід.</span>
+              <span className="mx-num">{m(r.spend)}</span>
               <span className={`mx-num ${tone}`}>{m(c)}</span>
             </div>
           );
@@ -374,9 +374,10 @@ function Cut({ title, kind, rows, m, hint }: { title: string; kind: string; rows
         const leads = rows.reduce((s, r) => s + r.leads, 0);
         return (
           <div className="mx-cut-rows">
+            <div className="mx-cut-row mx-cut-head"><span /><span className="mx-num">частка</span><span className="mx-num">ліди</span><span className="mx-num">витрати</span><span className="mx-num">ціна ліда</span></div>
             {rows.slice(0, 12).map(row)}
             {rows.length > 12 && <details><summary className="mono">ще {rows.length - 12}: {rows.slice(12).reduce((s, r) => s + r.leads, 0)} лід., {m(rows.slice(12).reduce((s, r) => s + r.spend, 0))}</summary>{rows.slice(12).map(row)}</details>}
-            <div className="mx-cut-row mx-cut-total"><span className="mx-name">Разом</span><span /><span className="mx-num">{m(total)}</span><span className="mx-num">{leads} лід.</span><span className="mx-num">{m(cplOf({ spend: total, leads }))}</span></div>
+            <div className="mx-cut-row mx-cut-total"><span className="mx-name">Разом</span><span /><span className="mx-num">{leads} лід.</span><span className="mx-num">{m(total)}</span><span className="mx-num">{m(cplOf({ spend: total, leads }))}</span></div>
           </div>
         );
       })()}
@@ -384,19 +385,29 @@ function Cut({ title, kind, rows, m, hint }: { title: string; kind: string; rows
   );
 }
 
-function Audience({ clientId, m }: { clientId: number; m: Fmt }) {
-  const ai = getAnalysis(clientId)?.data.audience;
+const APER = { today: "Сьогодні", "7": "7 днів", "30": "30 днів", year: "Рік" } as const;
+function Audience({ clientId, m, base, mp }: { clientId: number; m: Fmt; base: string; mp?: string }) {
+  const per = (mp && mp in APER ? mp : "30") as keyof typeof APER;
+  const sfx = per === "30" ? "" : `@${per}`;
+  const ai = per === "30" ? getAnalysis(clientId)?.data.audience : null;
+  const nav = (
+    <div className="mx-per">
+      <span className="mono">{per === "today" ? "Сьогодні" : per === "year" ? "Останні 12 місяців" : `Останні ${per} днів`} · частка — від витрат, зелена ціна ліда — найдешевша, червона — найдорожча</span>
+      <nav className="rd-areas">{(Object.keys(APER) as (keyof typeof APER)[]).map((k) => <Link key={k} href={k === "30" ? base : `${base}&mp=${k}`} scroll={false} className={k === per ? "on" : ""}>{APER[k]}</Link>)}</nav>
+    </div>
+  );
+  if (sfx && !hasBreakdown(clientId, `region${sfx}`)) return <>{nav}<p style={{ color: "var(--muted)" }}>За цей період цифри ще не зібрані — зʼявляться після наступного оновлення (до 2 год).</p></>;
   const cuts = [
     { kind: "placement", title: "Де бачать рекламу", hint: "Facebook / Instagram, стрічка, Stories, Reels" },
     { kind: "age_gender", title: "Хто приходить", hint: "вік і стать" },
     { kind: "region", title: "Звідки", hint: "області" },
     { kind: "device", title: "З чого дивляться", hint: "пристрої" },
-  ].map((c) => ({ ...c, rows: breakdowns(clientId, c.kind) }));
-  if (cuts.every((c) => !c.rows.length)) return <p style={{ color: "var(--muted)" }}>Розрізів ще нема — зʼявляться після наступного оновлення цифр.</p>;
+  ].map((c) => ({ ...c, rows: breakdowns(clientId, c.kind + sfx) }));
+  if (cuts.every((c) => !c.rows.length)) return <>{nav}<p style={{ color: "var(--muted)" }}>{sfx ? "За цей період реклама не крутилась." : "Розрізів ще нема — зʼявляться після наступного оновлення цифр."}</p></>;
   return (
     <>
-      {ai && <div className="callout"><b>Джері:</b> {ai}</div>}
-      <div className="mono">За 30 днів · зелена ціна ліда — найдешевший сегмент, червона — найдорожчий</div>
+      {nav}
+      {ai && <div className="callout"><b>Джері (за 30 днів):</b> {ai}</div>}
       <div className="mx-cuts">{cuts.map((c) => <Cut key={c.kind} {...c} m={m} />)}</div>
     </>
   );

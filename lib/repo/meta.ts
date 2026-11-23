@@ -222,11 +222,16 @@ export function adsForClient(clientId: number): MetaAd[] {
 }
 
 // Розріз по всіх кабінетах клієнта (однакові ключі складаються)
+// Чи вже збирали розріз за цей період (порожній період = рядок з key '')
+export function hasBreakdown(clientId: number, kind: string): boolean {
+  const acc = ids(clientId);
+  return !!acc.length && !!db().prepare(`SELECT 1 FROM meta_breakdowns WHERE account_id IN (${inList(acc.length)}) AND kind = ? LIMIT 1`).get(...acc, kind);
+}
 export function breakdowns(clientId: number, kind: string): Breakdown[] {
   const acc = ids(clientId);
   if (!acc.length) return [];
   return db().prepare(`SELECT kind, key, SUM(spend) spend, SUM(impressions) impressions, SUM(clicks) clicks, SUM(leads) leads, SUM(reach) reach
-    FROM meta_breakdowns WHERE account_id IN (${inList(acc.length)}) AND kind = ? GROUP BY key ORDER BY spend DESC`).all(...acc, kind) as Breakdown[];
+    FROM meta_breakdowns WHERE account_id IN (${inList(acc.length)}) AND kind = ? AND key != '' GROUP BY key ORDER BY spend DESC`).all(...acc, kind) as Breakdown[];
 }
 
 export type MetaAnalysis = { summary?: string; pros?: string[]; cons?: string[]; tips?: string[]; audience?: string; creatives?: Record<string, string>; patterns?: string[] };
