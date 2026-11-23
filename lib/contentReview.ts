@@ -73,9 +73,13 @@ export async function reviewTick(): Promise<void> {
   if (getSetting("content.review_week") === week) return;
   setSetting("content.review_week", week);
   const ids = (db().prepare("SELECT DISTINCT client_id FROM content_posts WHERE status = 'published' AND published_at >= datetime('now', '-14 days')").all() as { client_id: number }[]).map((r) => r.client_id);
-  if (!ids.length) return;
   const { tg, tgOwner } = await import("./telegram");
   const { getClient } = await import("./repo/clients");
+  // Конкуренти: оновити й розібрати всіх клієнтів, у кого вони є
+  const { analyzeCompetitorIg, refreshCompetitorIg } = await import("./competitorIg");
+  for (const r of db().prepare("SELECT DISTINCT client_id FROM competitor_ig").all() as { client_id: number }[]) {
+    try { if (!(await refreshCompetitorIg(r.client_id))) await analyzeCompetitorIg(r.client_id); } catch (e) { logError("content-competitors", e); }
+  }
   for (const id of ids) {
     try {
       if (await reviewWeek(id)) continue;

@@ -216,3 +216,16 @@ export async function reviewWeekAction(fd: FormData) {
   setSetting(`content.review_err.${cid}`, err ?? "");
   done(cid);
 }
+// ---- Конкуренти в Instagram
+export async function competitorIgAction(fd: FormData) {
+  await requireUser();
+  const cid = cidOf(fd), op = s(fd, "op");
+  const m = await import("@/lib/competitorIg");
+  let err: string | null = null;
+  if (op === "add") m.addCompetitorIg(cid, s(fd, "usernames"));
+  else if (op === "remove") m.removeCompetitorIg(cid, Number(fd.get("id")));
+  else if (op === "refresh") err = await m.refreshCompetitorIg(cid);
+  else if (op === "analyze") err = await m.analyzeCompetitorIg(cid).catch(async (e) => (await import("@/lib/llmJson")).llmErrorText(e));
+  setSetting(`content.comp_err.${cid}`, err ?? "");
+  done(cid);
+}
