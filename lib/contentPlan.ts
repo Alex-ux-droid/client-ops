@@ -10,6 +10,7 @@ import { addPost, listAssets, listPillars, setWeekTheme, updatePost, weekThemes,
 import { getSetting, setSetting } from "./repo/settings";
 import { FORMATS, cadenceOf, getSocial, slotsOf, type Format } from "./repo/social";
 import { getAnalysis } from "./socialAnalysis";
+import { getReview } from "./contentReview";
 
 const day = (s: string, n: number) => { const d = new Date(`${s}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const wd = (s: string) => ((new Date(`${s}T12:00:00Z`).getUTCDay() + 6) % 7) + 1; // 1 = Пн … 7 = Нд
@@ -77,12 +78,13 @@ export async function planMonth(clientId: number, month: string, replace: boolea
   const weeks = [...new Set(slots.map((s) => day(s.date, 1 - wd(s.date))))];
   const themes = weekThemes(clientId, weeks[0], day(weeks.at(-1)!, 6));
   const recent = (db().prepare("SELECT topic FROM content_posts WHERE client_id = ? ORDER BY id DESC LIMIT 40").all(clientId) as { topic: string }[]).map((r) => r.topic).filter(Boolean);
-  const an = getAnalysis(clientId);
+  const an = getAnalysis(clientId), rv = getReview(clientId);
   const r = await askJson<{ weeks?: Record<string, string>; posts?: { n: number; topic: string; hook: string; assets: number[] }[] }>(
     `Ти контент-стратег забудовника. Плануєш місяць публікацій в Instagram українською. Тільки факти з блоку ФАКТИ і тільки кадри зі списку КАДРИ (за id) — нічого не вигадуй: цифр, термінів, зручностей, яких нема. Теми не повторюють ОСТАННІ ТЕМИ і одна одну. Кожен пост — одна чітка думка під свою рубрику і тему тижня; хук — перша фраза, що зупиняє гортання (до 60 символів). Кадри підбирай під тему: сторіс і пост — 1 рендер/фото; карусель — 4–6 (перший — найефектніший рендер для обкладинки, планування доречні); Reels — 3–5 рендерів з різних ракурсів. Не став той самий кадр у сусідні пости. Поверни ТІЛЬКИ JSON: {"weeks": {"YYYY-MM-DD понеділок": "тема тижня до 40 символів"}, "posts": [{"n": номер слота, "topic": "тема до 80 символів", "hook": "хук", "assets": [id кадрів]}]} — по одному запису на КОЖЕН слот.`,
     [
       `ДЛЯ КОГО: ${sp?.audience ?? ""}\nТОН: ${sp?.voice ?? ""}\nЗАБОРОНЕНО: ${sp?.banned ?? ""}\nФАКТИ:\n${sp?.facts ?? ""}`,
       an ? `ЩО ПОКАЗАВ АНАЛІЗ АКАУНТА:\nпрацює: ${an.works.join("; ")}\nслабко: ${an.weak.join("; ")}\nдії: ${an.actions.join("; ")}` : "",
+      rv ? `РОЗБІР НАШИХ ПОСТІВ (${rv.period}) — ВРАХУЙ:\nзайшло: ${rv.works.join("; ")}\nслабко: ${rv.weak.join("; ")}\nзмінити: ${rv.next.join("; ")}` : "",
       `ТЕМИ ТИЖНІВ (вже задані — не міняй; порожні — придумай):\n${weeks.map((w) => `${w}: ${themes[w] ?? ""}`).join("\n")}`,
       `ОСТАННІ ТЕМИ:\n${recent.join("\n") || "—"}`,
       `КАДРИ (id | тип | назва | теги):\n${assets.map((a) => `${a.id} | ${a.kind === "plan" ? "планування" : a.kind === "photo" ? "фото" : "рендер"} | ${a.name} | ${a.tags}`).join("\n")}`,

@@ -4,11 +4,13 @@ import Link from "next/link";
 import EditBlock from "@/components/EditBlock";
 import FileThumb from "@/components/FileThumb";
 import AutoRefresh from "@/components/AutoRefresh";
+import DataTable from "@/components/DataTable";
 import Pop from "@/components/Pop";
 import SubmitButton from "@/components/SubmitButton";
-import { analyzeSocialAction, approvalAction, assetAction, autoPlanAction, prepIdeasAction, refreshSocialAction, checkPublishAction, fillStoryAction, paletteAction, pillarAction, postAction, saveSocialAction, storySpecAction, syncAssetsAction, weekThemeAction } from "@/app/content/actions";
+import { analyzeSocialAction, reviewWeekAction, approvalAction, assetAction, autoPlanAction, prepIdeasAction, refreshSocialAction, checkPublishAction, fillStoryAction, paletteAction, pillarAction, postAction, saveSocialAction, storySpecAction, syncAssetsAction, weekThemeAction } from "@/app/content/actions";
 import { isCarousel, isReel, mediaKey, paletteOf, slideCount, specOf } from "@/lib/contentPipeline";
 import { getPrep } from "@/lib/contentPlan";
+import { getReview, metricsOf } from "@/lib/contentReview";
 import { getAnalysis, getSnapshot, stats, type Snapshot } from "@/lib/socialAnalysis";
 import { driveReadAll, googleConnected } from "@/lib/google";
 import { metaToken, metaTokenCheck } from "@/lib/meta";
@@ -175,9 +177,39 @@ function Analysis({ clientId, s }: { clientId: number; s?: SocialProfile }) {
           </div>
         </section>
       )}
+      <OurPosts clientId={clientId} avg={stats(ig)} />
       <NetBlock sn={ig} label="Instagram" />
       <NetBlock sn={fb} label="Facebook" />
     </div>
+  );
+}
+
+// Наші опубліковані пости з цифрами проти середнього акаунта + тижневий розбір Джері
+function OurPosts({ clientId, avg }: { clientId: number; avg: ReturnType<typeof stats> }) {
+  const pub = listPosts(clientId).filter((p) => p.status === "published").sort((a, b) => (b.published_at ?? "").localeCompare(a.published_at ?? "")).slice(0, 40);
+  const rv = getReview(clientId), err = getSetting(`content.review_err.${clientId}`) ?? "";
+  const hid = <input type="hidden" name="client_id" value={clientId} />;
+  const base = avg?.reach ?? null;
+  return (
+    <section className="card stack" style={{ gap: "0.625rem" }}>
+      <div className="ct-head" style={{ flexWrap: "wrap" }}>
+        <b>Наші пости{pub.length ? ` · ${pub.length}` : ""}</b>
+        <span className="mono grow">цифри з Instagram щогодини перший тиждень (сторіс — 24 год); середнє охоплення акаунта: {base ?? "—"}</span>
+        {pub.length > 0 && <form action={reviewWeekAction}>{hid}<SubmitButton className="ghost small" pendingText="Джері розбирає…">Розібрати тиждень</SubmitButton></form>}
+      </div>
+      {err && <div className="mx-warn">{err}</div>}
+      {rv && (
+        <div className="an-cols">
+          <div><b>Тиждень {rv.period}</b><p style={{ margin: "0.25rem 0 0" }}>{rv.summary}</p></div>
+          <div><b className="ok-text">Зайшло</b><ul>{rv.works.map((x, i) => <li key={i}>{x}</li>)}</ul><b className="bad-text2">Слабко</b><ul>{rv.weak.map((x, i) => <li key={i}>{x}</li>)}</ul></div>
+          <div><b>Далі (іде в автоплан)</b><ol>{rv.next.map((x, i) => <li key={i}>{x}</li>)}</ol></div>
+        </div>
+      )}
+      {pub.length ? (
+        <DataTable id="content-our-posts" cols={[{ id: "d", label: "Дата", w: 110 }, { id: "f", label: "Формат", w: 110 }, { id: "t", label: "Тема", w: 320 }, { id: "r", label: "Охоплення", num: true, w: 120 }, { id: "x", label: "до середнього", num: true, w: 130 }, { id: "s", label: "Збереж.", num: true, w: 100 }, { id: "h", label: "Репости", num: true, w: 100 }, { id: "v", label: "Перегляди", num: true, w: 110 }]}
+          rows={pub.map((p) => { const m = metricsOf(p); const x = m?.reach != null && base ? Math.round((m.reach / base) * 100) : null; return { key: String(p.id), cells: { d: p.published_at?.slice(0, 10) ?? "", f: FORMATS[p.format], t: p.topic, r: m?.reach ?? null, x: x == null ? null : { v: x, t: `${x}%`, tone: x >= 100 ? "good" : "bad" }, s: m?.saves ?? null, h: m?.shares ?? null, v: m?.views ?? null } }; })} />
+      ) : <p className="mono">Ще нічого не опубліковано через студію — тут зʼявляться цифри кожного поста.</p>}
+    </section>
   );
 }
 
