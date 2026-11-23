@@ -370,14 +370,24 @@ export async function syncAccount(accountId: string): Promise<void> {
       { kind: "region", by: "region", key: (x) => String(x.region ?? "") },
       { kind: "device", by: "impression_device", key: (x) => String(x.impression_device ?? "") },
     ];
-    for (const c of cuts) {
+    // Періоди для «Аудиторії»: 30 днів (без суфікса), сьогодні і 7 днів — щоразу, рік — раз на ~12 год
+    const yKey = `meta.breakdown_year_at.${accountId}`;
+    const yearDue = !getSetting(yKey) || Date.now() - Date.parse(getSetting(yKey)!) > 12 * 3600_000;
+    const periods: { sfx: string; range: string }[] = [
+      { sfx: "", range }, { sfx: "@today", range: JSON.stringify({ since: until, until }) }, { sfx: "@7", range: JSON.stringify({ since: kyivDay(6), until }) },
+      ...(yearDue ? [{ sfx: "@year", range: JSON.stringify({ since: kyivDay(364), until }) }] : []),
+    ];
+    for (const per of periods) for (const c of cuts) {
+      if (per.sfx && c.kind === "total") continue;
       try {
-        const rows = await metaAll<I>(`${accountId}/insights`, { level: "account", fields: "spend,impressions,clicks,reach,actions", time_range: range, limit: "500", ...(c.by ? { breakdowns: c.by } : {}) });
-        for (const x of rows) breakdowns.push({ kind: c.kind, key: c.key(x), spend: num(x.spend), impressions: num(x.impressions), clicks: num(x.clicks), leads: leadsOf(x.actions), reach: num(x.reach) });
+        const rows = await metaAll<I>(`${accountId}/insights`, { level: "account", fields: "spend,impressions,clicks,reach,actions", time_range: per.range, limit: "500", ...(c.by ? { breakdowns: c.by } : {}) });
+        for (const x of rows) breakdowns.push({ kind: c.kind + per.sfx, key: c.key(x), spend: num(x.spend), impressions: num(x.impressions), clicks: num(x.clicks), leads: leadsOf(x.actions), reach: num(x.reach) });
+        if (!rows.length && per.sfx) breakdowns.push({ kind: c.kind + per.sfx, key: "", spend: 0, impressions: 0, clicks: 0, leads: 0, reach: 0 }); // порожній період теж оновлюється
       } catch (e) {
-        logError(`meta-breakdown ${c.kind} ${accountId}`, e);
+        logError(`meta-breakdown ${c.kind}${per.sfx} ${accountId}`, e);
       }
     }
+    if (yearDue) setSetting(yKey, new Date().toISOString());
 
     // Креативи тільки для оголошень з витратами. Через ребро /ads з фільтром по id
     // (параметр ?ids= у v26 прибрали). Якщо не вийде — цифри все одно зберігаємо, просто без картинок.
