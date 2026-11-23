@@ -42,15 +42,14 @@ export default async function ProductsPage() {
       <Link key={p.id} href={`/products/${p.id}`} className="app-tile">
         <span className={`app-icon t-${ty.key}`}>{logo ? <img src={logo} alt="" /> : <Icon name={ty.icon} size={30} stroke={2} />}</span>
         <span className="app-body">
-          <b className="app-name">{name}</b>
+          <span className="app-top"><b className="app-name">{name}</b><span className="pj-code sm">{productCode(p.id)}</span></span>
           <span className="app-sub">{ty.label} · {who}</span>
           {p.summary && <span className="app-desc">{p.summary}</span>}
           <span className="app-foot">
             <span className={`tag st-s-${p.status}`}>{PRODUCT_STATUS[p.status] ?? p.status}</span>
             {rq > 0 && <span className="tag warn">правок {rq}</span>}
             <span className="grow" />
-            {ms.slice(0, 3).map((m) => <BrandDot key={m} text={m} size={14} />)}
-            <span className="pj-code sm">{productCode(p.id)}</span>
+            {ms.slice(0, 4).map((m) => <BrandDot key={m} text={m} size={14} />)}
           </span>
         </span>
       </Link>
